@@ -1,0 +1,93 @@
+<?php
+
+use App\Models\Role;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+
+uses(RefreshDatabase::class);
+
+function fakeSsoVerifySuccess(array $overrides = []): void
+{
+    Http::fake([
+        config('services.sso.verify_url') => Http::response([
+            'status' => 'success',
+            'user' => array_merge([
+                'user_id' => 4242,
+                'username' => 'somchai.j',
+                'name' => 'สมชาย ใจดี',
+                'pos_name' => 'อาจารย์',
+                'div_name' => 'ภาควิชาเคมี',
+                'email' => 'somchai.j@up.ac.th',
+            ], $overrides),
+        ], 200),
+    ]);
+}
+
+test('GET /login redirects to the SSO login URL with client_id, redirect_uri, and a state stored in session', function () {
+    $response = $this->get('/login');
+
+    $response->assertRedirect();
+    $location = $response->headers->get('Location');
+
+    expect($location)->toStartWith(config('services.sso.login_url'));
+    expect($location)->toContain('client_id='.config('services.sso.client_id'));
+    expect(session('sso_state'))->not->toBeNull();
+});
+
+test('callback rejects a state that does not match the session without calling the verify API', function () {
+    $this->withSession(['sso_state' => 'correct-state']);
+    fakeSsoVerifySuccess();
+
+    $response = $this->get('/sso/callback?token=sometoken&state=WRONG-state');
+
+    $response->assertStatus(400);
+    Http::assertNothingSent();
+    expect(session('sso_state'))->toBeNull(); // one-time use, consumed either way
+});
+
+test('callback creates a new user with no role and sends them to the pending-role page', function () {
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess(['user_id' => 9999, 'username' => 'newperson']);
+
+    $response = $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    $response->assertRedirect(route('account.pending-role'));
+    $this->assertAuthenticated();
+
+    $user = User::where('sso_subject', '9999')->first();
+    expect($user)->not->toBeNull();
+    expect($user->roles)->toBeEmpty();
+});
+
+test('callback logs in an existing user with a role and redirects past the gate', function () {
+    $role = Role::where('code', 'SCIENTIST')->firstOrFail();
+    $existing = User::factory()->create(['sso_subject' => '5555', 'username' => 'wipawan']);
+    $existing->roles()->attach($role);
+
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess(['user_id' => 5555, 'username' => 'wipawan']);
+
+    $response = $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    $response->assertRedirect('/');
+    $this->assertAuthenticatedAs($existing->fresh());
+});
+
+test('a token cannot be replayed: the second callback with the same state fails', function () {
+    $this->withSession(['sso_state' => 'one-time-state']);
+    fakeSsoVerifySuccess(['user_id' => 7777]);
+
+    $this->get('/sso/callback?token=tok&state=one-time-state')->assertRedirect();
+
+    // state was consumed by the first request — session no longer has it.
+    $second = $this->get('/sso/callback?token=tok&state=one-time-state');
+    $second->assertStatus(400);
+});
+
+test('an authenticated user with no role gets HTTP 403 on any route except pending-role/logout', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->get('/')->assertStatus(403);
+    $this->actingAs($user)->get(route('account.pending-role'))->assertOk();
+});

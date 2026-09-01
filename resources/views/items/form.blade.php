@@ -1,0 +1,273 @@
+<x-layout>
+    <div class="max-w-3xl">
+        <div class="mb-5">
+            <a href="{{ route('items.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('items.back_to_list') }}</a>
+            <div class="flex items-center justify-between mt-1">
+                <h1 class="font-display text-lg font-bold">
+                    {{ $item->exists ? __('items.edit_title') : __('items.create_title') }}
+                </h1>
+                @if ($item->exists)
+                    <a href="{{ route('items.show', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
+                        {{ __('items.view_details') }}
+                    </a>
+                @endif
+            </div>
+        </div>
+
+        @if ($errors->any())
+            <div class="mb-4 rounded-lg bg-danger-soft text-danger-ink text-sm px-4 py-3">
+                <ul class="list-disc list-inside space-y-0.5">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <form method="POST" action="{{ $item->exists ? route('items.update', $item) : route('items.store') }}" class="bg-surface border border-border rounded-xl p-6 space-y-4">
+            @csrf
+            @if ($item->exists) @method('PUT') @endif
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_item_code') }}</label>
+                    <input type="text" name="item_code" value="{{ old('item_code', $item->item_code) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_category') }}</label>
+                    <select name="category_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="">{{ __('items.select_placeholder') }}</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}" @selected((int) old('category_id', $item->category_id) === $category->id)>{{ $category->name_th }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_name_th') }}</label>
+                    <input type="text" name="name_th" value="{{ old('name_th', $item->name_th) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_name_en') }}</label>
+                    <input type="text" name="name_en" value="{{ old('name_en', $item->name_en) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_cas_no') }}</label>
+                    <input type="text" name="cas_no" value="{{ old('cas_no', $item->cas_no) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_formula') }}</label>
+                    <input type="text" name="formula" value="{{ old('formula', $item->formula) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_brand') }}</label>
+                    <input type="text" name="brand" value="{{ old('brand', $item->brand) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_grade') }}</label>
+                    <input type="text" name="grade" value="{{ old('grade', $item->grade) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_package_size') }}</label>
+                    <input type="text" name="package_size" value="{{ old('package_size', $item->package_size) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_package_unit') }}</label>
+                    <select name="package_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="">{{ __('items.select_placeholder') }}</option>
+                        @foreach ($units as $unit)
+                            <option value="{{ $unit->id }}" @selected((int) old('package_unit_id', $item->package_unit_id) === $unit->id)>{{ $unit->code }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_sub_unit') }}</label>
+                    <select name="sub_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="">{{ __('items.select_placeholder') }}</option>
+                        @foreach ($units as $unit)
+                            <option value="{{ $unit->id }}" @selected((int) old('sub_unit_id', $item->sub_unit_id) === $unit->id)>{{ $unit->code }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_base_unit') }}</label>
+                    <select name="base_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                        <option value="">{{ __('items.select_placeholder') }}</option>
+                        @foreach ($units as $unit)
+                            <option value="{{ $unit->id }}" @selected((int) old('base_unit_id', $item->base_unit_id) === $unit->id)>{{ $unit->code }} ({{ $unit->dimension }})</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_density') }}</label>
+                    <input type="text" name="density_g_per_ml" value="{{ old('density_g_per_ml', $item->density_g_per_ml) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_reorder_point') }}</label>
+                    <input type="text" name="reorder_point_base" value="{{ old('reorder_point_base', $item->reorder_point_base) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_storage_class') }}</label>
+                    <input type="text" name="storage_class" value="{{ old('storage_class', $item->storage_class) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">{{ __('items.field_shelf_life') }}</label>
+                    <input type="text" name="shelf_life_days_after_open" value="{{ old('shelf_life_days_after_open', $item->shelf_life_days_after_open) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-6 pt-2">
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="hidden" name="is_controlled" value="0">
+                    <input type="checkbox" name="is_controlled" value="1" @checked(old('is_controlled', $item->is_controlled)) class="rounded border-border">
+                    {{ __('items.field_is_controlled') }}
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <input type="hidden" name="is_active" value="0">
+                    <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $item->exists ? $item->is_active : true)) class="rounded border-border">
+                    {{ __('items.field_is_active') }}
+                </label>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium mb-1">{{ __('items.field_control_class') }}</label>
+                <input type="text" name="control_class" value="{{ old('control_class', $item->control_class) }}"
+                       class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+            </div>
+
+            <div class="border-t border-border pt-4">
+                <h2 class="font-display text-sm font-bold mb-3">{{ __('items.ghs_section_title') }}</h2>
+                <div class="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                    @foreach (config('ghs.pictograms') as $code => $name)
+                        <label class="flex flex-col items-center gap-1 rounded-lg border border-border p-2 text-center cursor-pointer hover:border-accent has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+                            <input type="checkbox" name="ghs_codes[]" value="{{ $code }}" class="rounded border-border"
+                                   @checked(in_array($code, old('ghs_codes', $item->ghs_codes ?? []), true))>
+                            <x-ghs-icon :code="$code" :size="36" />
+                            <span class="text-[11px] leading-tight">{{ $code }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="border-t border-border pt-4" x-data="{ search: '' }">
+                <h2 class="font-display text-sm font-bold mb-2">{{ __('items.h_statements_section_title') }}</h2>
+                <input type="text" x-model="search" placeholder="{{ __('items.search_statements_placeholder') }}"
+                       class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent">
+                <div class="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                    @foreach (config('ghs.hazard_statements') as $code => $text)
+                        <label class="flex items-start gap-2 px-3 py-2 text-sm hover:bg-surface-alt cursor-pointer"
+                               x-show="@js(mb_strtolower("$code $text")).includes(search.toLowerCase())">
+                            <input type="checkbox" name="h_statements[]" value="{{ $code }}" class="mt-0.5 rounded border-border"
+                                   @checked(in_array($code, old('h_statements', $item->h_statements ?? []), true))>
+                            <span><span class="font-mono text-xs text-ink-muted">{{ $code }}</span> {{ $text }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="border-t border-border pt-4" x-data="{ search: '' }">
+                <h2 class="font-display text-sm font-bold mb-2">{{ __('items.p_statements_section_title') }}</h2>
+                <input type="text" x-model="search" placeholder="{{ __('items.search_statements_placeholder') }}"
+                       class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent">
+                <div class="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                    @foreach (config('ghs.precautionary_statements') as $code => $text)
+                        <label class="flex items-start gap-2 px-3 py-2 text-sm hover:bg-surface-alt cursor-pointer"
+                               x-show="@js(mb_strtolower("$code $text")).includes(search.toLowerCase())">
+                            <input type="checkbox" name="p_statements[]" value="{{ $code }}" class="mt-0.5 rounded border-border"
+                                   @checked(in_array($code, old('p_statements', $item->p_statements ?? []), true))>
+                            <span><span class="font-mono text-xs text-ink-muted">{{ $code }}</span> {{ $text }}</span>
+                        </label>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">
+                    {{ __('items.save') }}
+                </button>
+            </div>
+        </form>
+
+        @if ($item->exists)
+            <div class="bg-surface border border-border rounded-xl p-6 mt-6">
+                <h2 class="font-display text-base font-bold mb-1">{{ __('attachments.sds_title') }}</h2>
+                <p class="text-xs text-ink-faint mb-4">{{ __('attachments.allowed_types_hint') }}</p>
+
+                @if ($sdsAttachments->isNotEmpty())
+                    <ul class="divide-y divide-border mb-4">
+                        @foreach ($sdsAttachments as $index => $attachment)
+                            <li class="flex items-center justify-between gap-3 py-2.5 text-sm">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="font-medium truncate">{{ $attachment->original_name }}</span>
+                                        @if ($index === 0)
+                                            <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-soft text-success-ink whitespace-nowrap">
+                                                {{ __('attachments.latest_badge') }}
+                                            </span>
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-ink-muted">
+                                        {{ __('attachments.version_label', ['n' => $attachment->version]) }}
+                                        · {{ __('attachments.uploaded_by', ['name' => $attachment->uploader?->full_name]) }}
+                                    </div>
+                                </div>
+                                <a href="{{ route('attachments.download', $attachment) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
+                                    {{ __('attachments.download') }}
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
+                @else
+                    <p class="text-sm text-ink-muted mb-4">{{ __('attachments.sds_empty') }}</p>
+                @endif
+
+                @can('update', $item)
+                    <form method="POST" action="{{ route('items.attachments.store', $item) }}" enctype="multipart/form-data" class="flex flex-wrap items-end gap-3">
+                        @csrf
+                        <input type="hidden" name="doc_type" value="SDS">
+                        <div class="flex-1 min-w-[200px]">
+                            <label class="block text-xs font-medium mb-1">{{ __('attachments.field_file') }}</label>
+                            <input type="file" name="file" required class="w-full text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1">{{ __('attachments.field_revised_date') }}</label>
+                            <input type="date" name="revised_date" class="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        </div>
+                        <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5">
+                            {{ __('attachments.upload') }}
+                        </button>
+                    </form>
+                @endif
+            </div>
+        @endif
+    </div>
+</x-layout>

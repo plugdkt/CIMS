@@ -1,0 +1,12 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+    level: 8
+    tmpDir: storage/framework/phpstan
+    checkOctaneCompatibility: false
+    # Off: without generated model docblocks, this flags real DB columns (e.g.
+    # roles.code) as unknown properties — more friction than value at this stage.
+    checkModelProperties: false

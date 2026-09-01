@@ -1,0 +1,78 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Database\Seeders;
+
+use App\Models\Permission;
+use App\Models\Role;
+use Illuminate\Database\Seeder;
+
+/**
+ * Core permission set derived from the role descriptions in spec §3 and the
+ * functional requirements each role acts on (§7). Deliberately not exhaustive —
+ * later tasks (RBAC admin UI, approval/ledger services, etc.) add more permissions
+ * as those features are built, rather than guessing every fine-grained code up front.
+ *
+ * ADMIN never gets a ledger.* write permission (§3: "ไม่มีสิทธิ์แตะ Ledger"); it does
+ * get ledger.verify, which FR-LG-06 explicitly grants to AUDITOR/ADMIN as a read-only
+ * integrity check, not a write.
+ */
+final class PermissionSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $catalog = [
+            'requisition.create' => 'สร้างใบขอเบิก',
+            'requisition.view_own' => 'ดูใบขอเบิกของตนเอง',
+            'requisition.view_all' => 'ดูใบขอเบิกทั้งหมด',
+            'requisition.approve_advisor' => 'อนุมัติใบขอเบิก (อาจารย์ที่ปรึกษา)',
+            'requisition.approve_scientist' => 'พิจารณาใบขอเบิก (นักวิทยาศาสตร์)',
+            'requisition.issue' => 'จ่ายของตามใบขอเบิก',
+            'receiving.manage' => 'รับของเข้าคลัง',
+            'stocktake.manage' => 'ดำเนินการตรวจนับสต๊อก',
+            'ledger.view' => 'ดูบัญชีคุมวัสดุ',
+            'ledger.adjust' => 'อนุมัติปรับปรุงยอด',
+            'ledger.verify' => 'ตรวจสอบความสมบูรณ์ของบัญชีคุม (Hash Chain)',
+            'disposal.request' => 'ขอทำลาย/ตัดจำหน่าย',
+            'disposal.approve' => 'อนุมัติทำลาย/ตัดจำหน่าย',
+            'item.view' => 'ดูทะเบียนสารเคมี/วัสดุ',
+            'item.manage' => 'จัดการทะเบียนสารเคมี/วัสดุ',
+            'location.manage' => 'จัดการผังจัดเก็บ',
+            'unit.manage' => 'จัดการหน่วยนับ',
+            'user.manage' => 'จัดการผู้ใช้และสิทธิ์',
+            'audit.view' => 'เข้าถึง Audit Log',
+            'report.view' => 'ดูรายงานและ Dashboard',
+        ];
+
+        foreach ($catalog as $code => $nameTh) {
+            Permission::updateOrCreate(['code' => $code], ['name_th' => $nameTh]);
+        }
+
+        $grants = [
+            'STUDENT' => ['requisition.create', 'requisition.view_own', 'item.view'],
+            'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view'],
+            'ADVISOR' => ['requisition.approve_advisor', 'requisition.view_own', 'item.view'],
+            'SCIENTIST' => [
+                'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue',
+                'receiving.manage', 'stocktake.manage', 'ledger.view', 'disposal.request',
+                'item.view', 'report.view',
+            ],
+            'LAB_MANAGER' => [
+                'requisition.view_all', 'ledger.view', 'ledger.adjust', 'disposal.approve',
+                'item.view', 'item.manage', 'location.manage', 'report.view',
+            ],
+            'ADMIN' => ['user.manage', 'unit.manage', 'ledger.verify', 'audit.view'],
+            'AUDITOR' => [
+                'requisition.view_all', 'ledger.view', 'ledger.verify', 'item.view',
+                'audit.view', 'report.view',
+            ],
+        ];
+
+        foreach ($grants as $roleCode => $permissionCodes) {
+            $role = Role::where('code', $roleCode)->firstOrFail();
+            $permissionIds = Permission::whereIn('code', $permissionCodes)->pluck('id');
+            $role->permissions()->syncWithoutDetaching($permissionIds);
+        }
+    }
+}

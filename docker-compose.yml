@@ -1,0 +1,64 @@
+services:
+  app:
+    build:
+      context: ./docker/php
+    container_name: cmis_app
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "${FORWARD_APP_PORT:-8090}:8000"
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    command: >
+      sh -c "if [ -f artisan ]; then php artisan serve --host=0.0.0.0 --port=8000; else sleep infinity; fi"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - cmis_net
+
+  mariadb:
+    image: mariadb:11.4
+    container_name: cmis_mariadb
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-cmis_root_secret}
+      - MARIADB_DATABASE=${DB_DATABASE:-cmis}
+      - MARIADB_USER=${DB_USERNAME:-cmis_app}
+      - MARIADB_PASSWORD=${DB_PASSWORD:-cmis_secret}
+    ports:
+      - "${FORWARD_DB_PORT:-3309}:3306"
+    volumes:
+      - cmis_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - cmis_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: cmis_redis
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_REDIS_PORT:-6379}:6379"
+    volumes:
+      - cmis_redis_data:/data
+    networks:
+      - cmis_net
+
+networks:
+  cmis_net:
+    driver: bridge
+
+volumes:
+  cmis_db_data:
+  cmis_redis_data:
