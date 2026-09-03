@@ -4,11 +4,18 @@
             <a href="{{ route('items.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('items.back_to_list') }}</a>
             <div class="flex items-center justify-between mt-1">
                 <h1 class="font-display text-lg font-bold">{{ $item->name_th }}</h1>
-                @can('update', $item)
-                    <a href="{{ route('items.edit', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
-                        {{ __('items.edit') }}
-                    </a>
-                @endcan
+                <div class="flex items-center gap-3">
+                    @can('viewAny', App\Models\StockLedger::class)
+                        <a href="{{ route('items.ledger', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
+                            {{ __('ledger.view_ledger') }}
+                        </a>
+                    @endcan
+                    @can('update', $item)
+                        <a href="{{ route('items.edit', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
+                            {{ __('items.edit') }}
+                        </a>
+                    @endcan
+                </div>
             </div>
         </div>
 

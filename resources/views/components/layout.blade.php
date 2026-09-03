@@ -45,6 +45,16 @@
                 </a>
             @endcan
 
+            @can('viewAny', App\Models\GoodsReceipt::class)
+                <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
+                    {{ __('nav.group_inventory') }}
+                </div>
+                <a href="{{ route('goods-receipts.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('goods-receipts.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.goods_receipts') }}
+                </a>
+            @endcan
+
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
                 {{ __('nav.group_system') }}
             </div>
@@ -52,6 +62,12 @@
                 <a href="{{ route('admin.users.index') }}"
                    class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('admin.users.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
                     {{ __('nav.users_roles') }}
+                </a>
+            @endcan
+            @can('viewAny', App\Models\Lab::class)
+                <a href="{{ route('admin.labs.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('admin.labs.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.labs') }}
                 </a>
             @endcan
         </nav>

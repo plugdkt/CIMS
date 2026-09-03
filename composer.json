@@ -7,9 +7,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "endroid/qr-code": "^6.0",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
-        "livewire/livewire": "^3.8"
+        "livewire/livewire": "^3.8",
+        "maatwebsite/excel": "^4.0",
+        "mpdf/mpdf": "^8.3",
+        "picqer/php-barcode-generator": "^3.3"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

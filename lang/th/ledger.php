@@ -1,0 +1,48 @@
+<?php
+
+return [
+    'title' => 'บัญชีคุมวัสดุ/สารเคมี (F-03)',
+    'back_to_item' => 'กลับไปยังรายการ',
+    'view_ledger' => 'ดูบัญชีคุม',
+    'export_pdf' => 'ส่งออก PDF',
+    'export_excel' => 'ส่งออก Excel',
+
+    'header_category' => 'ประเภท',
+    'header_item' => 'รายการ',
+    'header_brand' => 'ยี่ห้อ',
+    'header_grade' => 'เกรด',
+    'header_package_size' => 'ขนาดบรรจุ',
+    'header_unit' => 'หน่วยนับ',
+    'header_sub_unit' => 'หน่วยนับย่อย',
+
+    'filter_date_from' => 'ตั้งแต่วันที่',
+    'filter_date_to' => 'ถึงวันที่',
+    'filter_txn_type' => 'ประเภทรายการ',
+    'filter_all_types' => 'ทั้งหมด',
+    'filter_receiver' => 'ผู้เบิก/ผู้รับ',
+    'filter_container' => 'Barcode ภาชนะ',
+    'filter_display_unit' => 'หน่วยที่แสดงผล',
+
+    'col_date' => 'วัน/เดือน/ปี',
+    'col_txn_type' => 'ประเภท',
+    'col_issuer' => 'ผู้จ่าย',
+    'col_receiver' => 'ผู้รับ',
+    'col_in' => 'รับ',
+    'col_out' => 'จ่าย',
+    'col_balance' => 'คงเหลือ',
+    'col_signature' => 'ลงชื่อผู้รับ',
+    'col_remark' => 'หมายเหตุ',
+    'signed_yes' => 'ลงชื่อแล้ว',
+    'signed_no' => '—',
+    'no_results' => 'ไม่พบรายการตามเงื่อนไขที่กำหนด',
+
+    'txn_opening' => 'ยอดยกมา',
+    'txn_receive' => 'รับเข้า',
+    'txn_issue' => 'จ่ายออก',
+    'txn_return' => 'คืน',
+    'txn_adjust_in' => 'ปรับเพิ่ม',
+    'txn_adjust_out' => 'ปรับลด',
+    'txn_dispose' => 'ทำลาย/ตัดจำหน่าย',
+    'txn_transfer_in' => 'โอนเข้า',
+    'txn_transfer_out' => 'โอนออก',
+];

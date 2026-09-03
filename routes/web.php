@@ -6,7 +6,11 @@ use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\Auth\SsoLoginController;
 use App\Http\Controllers\Auth\SsoLogoutController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\GoodsReceiptController;
+use App\Http\Controllers\GoodsReceiptItemController;
 use App\Http\Controllers\ItemController;
+use App\Http\Controllers\LabController;
+use App\Http\Controllers\LedgerExportController;
 use App\Http\Controllers\LocationController;
 use App\Livewire\Admin\UserRoleManager;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +40,16 @@ Route::middleware(['auth', 'can:viewAny,App\Models\User'])->prefix('admin')->nam
     Route::get('/users', UserRoleManager::class)->name('users.index');
 });
 
+// Small admin CRUD so goods receiving (T-022) has a real lab_id to file GRNs under —
+// authorization enforced per-action inside LabController/LabPolicy (lab.manage).
+Route::middleware('auth')->prefix('admin/labs')->name('admin.labs.')->group(function () {
+    Route::get('/', \App\Livewire\Admin\LabTable::class)->name('index');
+    Route::get('/create', [LabController::class, 'create'])->name('create');
+    Route::post('/', [LabController::class, 'store'])->name('store');
+    Route::get('/{lab}/edit', [LabController::class, 'edit'])->name('edit');
+    Route::put('/{lab}', [LabController::class, 'update'])->name('update');
+});
+
 // FR-MD-01/07 — authorization also enforced per-action inside ItemController/ItemTable.
 Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
     Route::get('/', \App\Livewire\Items\ItemTable::class)->name('index');
@@ -45,6 +59,9 @@ Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
     Route::get('/{item}/edit', [ItemController::class, 'edit'])->name('edit');
     Route::put('/{item}', [ItemController::class, 'update'])->name('update');
     Route::post('/{item}/attachments', [AttachmentController::class, 'store'])->name('attachments.store');
+    Route::get('/{item}/ledger', \App\Livewire\Items\ItemLedger::class)->name('ledger');
+    Route::get('/{item}/ledger/export/pdf', [LedgerExportController::class, 'pdf'])->name('ledger.export.pdf');
+    Route::get('/{item}/ledger/export/excel', [LedgerExportController::class, 'excel'])->name('ledger.export.excel');
 });
 
 // SEC-AZ-06: no direct/public file URL — every download is authorized per-request.
@@ -58,4 +75,18 @@ Route::middleware('auth')->prefix('locations')->name('locations.')->group(functi
     Route::post('/', [LocationController::class, 'store'])->name('store');
     Route::get('/{location}/edit', [LocationController::class, 'edit'])->name('edit');
     Route::put('/{location}', [LocationController::class, 'update'])->name('update');
+});
+
+// FR-RC-01..06 — authorization enforced per-action inside the controllers/GoodsReceiptPolicy.
+Route::middleware('auth')->prefix('goods-receipts')->name('goods-receipts.')->group(function () {
+    Route::get('/', \App\Livewire\GoodsReceipts\GoodsReceiptTable::class)->name('index');
+    Route::get('/create', [GoodsReceiptController::class, 'create'])->name('create');
+    Route::post('/', [GoodsReceiptController::class, 'store'])->name('store');
+    Route::get('/{goods_receipt}', [GoodsReceiptController::class, 'show'])->name('show');
+    Route::put('/{goods_receipt}', [GoodsReceiptController::class, 'update'])->name('update');
+    Route::post('/{goods_receipt}/items', [GoodsReceiptItemController::class, 'store'])->name('items.store');
+    Route::delete('/{goods_receipt}/items/{goods_receipt_item}', [GoodsReceiptItemController::class, 'destroy'])->name('items.destroy');
+    Route::post('/{goods_receipt}/confirm', [GoodsReceiptController::class, 'confirm'])->name('confirm');
+    Route::post('/{goods_receipt}/cancel', [GoodsReceiptController::class, 'cancel'])->name('cancel');
+    Route::get('/{goods_receipt}/labels/{size}', [GoodsReceiptController::class, 'labels'])->name('labels');
 });
