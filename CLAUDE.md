@@ -262,6 +262,140 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   user ของแอป" — through the app's own DB user — is rejected, which the single restricted `cmis_app`
   user already satisfies). Flag this if a later phase's spec reading calls for genuine per-purpose DB
   users.
+- **"\_base" quantity columns throughout the schema (`containers.remaining_qty_base`,
+  `stock_ledger.qty_*_base`/`balance_base`, `goods_receipt_items.qty_total_base`, and now
+  `requisition_items.qty_*_base`) are stored in the *item's own* `base_unit_id` terms, not the
+  dimension's absolute smallest unit** (mg/uL/pcs) that spec §5.1 literally names ("Dimension: MASS →
+  base mg..."). This was already the real, tested, committed behavior as of T-018 —
+  `GoodsReceiptService::calculateLineTotalBase()` always routes `toBase()` through the dimension's
+  smallest unit only as an intermediate, then converts back out via `fromBase($dimensionBaseQty,
+  $itemBaseUnit)` before storing. Confirmed during T-031 (found while reconciling this against
+  `LedgerServiceTest`'s fixtures, which pass raw gram-scale numbers as "qtyBase" for an item whose
+  `base_unit_id` is 'g', not mg) — not a new decision, just written down here since nothing had
+  documented it before and a future task could easily "fix" it back toward the literal spec wording
+  and silently break every existing `_base` value's scale. `LedgerService` itself is unit-agnostic (it
+  never touches `UnitConverter` — it just does BCMath arithmetic on whatever numeric-string the caller
+  already computed), so this convention lives entirely in the *callers* that compute a `_base` value
+  before writing it.
+- **T-031 extracted `UnitConverter::toItemBase(Item, Unit, qty)`** — the "convert to the dimension base,
+  then back out to the item's own base unit, crossing dimensions via density if needed" round trip that
+  `GoodsReceiptService::calculateLineTotalBase()` (T-018) already did inline. `calculateLineTotalBase()`
+  now delegates to it (`bcmul(containerCount, qtyPerContainer)` then `toItemBase()`) — same public
+  signature, same tested behavior, no test changes needed. Any future line-item-shaped quantity
+  (T-035's issue flow, T-041's stocktake) should call `toItemBase()` directly rather than re-deriving
+  this conversion a third time.
+- **T-031's create/show flow is plain Controller + FormRequest + Blade + a touch of Alpine (`x-data`/
+  `fetch()` for FR-RQ-05's real-time balance), not a Livewire component**, despite FR-RQ-04 asking for
+  "เพิ่ม/ลบแถวได้" (add/remove rows) and FR-RQ-05 asking for a "real-time" balance display — both of
+  which Livewire would handle natively. Chosen to stay consistent with T-022's GRN precedent (same
+  add-line-via-full-POST, remove-line-via-DELETE-route shape) and with the project's established
+  preference for the simplest tool that satisfies the requirement (same reasoning as the mobile nav's
+  plain checkbox toggle and the complete-profile page's vanilla-JS conditional field, both noted
+  above) — a handful of lines of Alpine calling one small JSON endpoint satisfies "real-time" without
+  pulling the whole form into Livewire's request lifecycle. Reconsider this if a later requisition task
+  (e.g. T-036's signature canvas, which is inherently more stateful) makes a stronger case for Livewire
+  and it becomes worth converting the whole flow at once.
+- **T-031's requester identity fields are never form input.** FR-RQ-01 says "auto-fill จาก profile" —
+  read literally, that could mean pre-filled-but-editable fields. Instead `RequisitionController::store()`
+  snapshots `requester_status`/`requester_phone`/`student_code`/`program`/`faculty`/`advisor_id`
+  straight from the authenticated user's own columns server-side; the create form shows them read-only
+  for the requester's own confirmation and `RequisitionRequest` doesn't even accept those keys. Chosen
+  because these are exactly the fields BR-11's complete-profile page already owns as the single edit
+  point — letting a student silently overwrite their own `faculty`/`program` on a random requisition
+  form would undermine that gate and let a STUDENT's requisition claim a mismatched advisor. If a real
+  need for a per-requisition override (e.g. a temporary contact number) surfaces later, add it as an
+  explicit, separately-validated field rather than making the snapshot fields editable.
+- **`Requisition::advisor_signature_hash` (T-032) has no spec-defined formula**, unlike BR-08's
+  explicit ledger hash chain. Computed as `SHA256(requisition_id|advisor_id|decision|timestamp)` — a
+  lightweight non-repudiation marker for a decision made without a drawn signature (that's T-036's
+  e-signature canvas, for the *receiver* at issue time, not the advisor). Scoped to one decision, not
+  a chain. Revisit if a later task needs to verify this hash rather than just record it.
+- **BR-02's check lives in `ApprovalService::scientistDecide()` itself, checked directly against
+  `advisor_signed_at`, not delegated to `RequisitionState`** — even though `RequisitionState` (T-030)
+  already refuses a STUDENT's `SUBMITTED → scientistApprove` transition via its own requester-status
+  check. The two checks aren't redundant: `RequisitionState` only knows the abstract state diagram
+  (current `status` string + requester type), so it can't catch a hypothetical data-integrity bug
+  where `status` is ADVISOR_APPROVED but `advisor_signed_at` is somehow still NULL. BR-02's literal
+  wording checks the column, not the status, so `ApprovalService` checks both layers — this was
+  spec's own explicit instruction ("Implement ที่ ApprovalService::scientistDecide()"), not redundancy
+  to clean up later.
+- **T-033's signed-URL POST target is the request's own current URL (`url()->full()`), not a freshly
+  generated signed URL.** Laravel's signature verification is path+query based (via the `signed`
+  middleware), independent of HTTP verb or route name — so the exact same signed URL used for the GET
+  page load remains valid when that same URL is POSTed to (the form's `action` is literally `{{
+  url()->full() }}`). This is why the GET and POST routes for `/approve/{requisition}` don't need to
+  share a route name; only the GET one is named (it's the only one anything calls `route()` on).
+- **T-033 builds both channels FR-RQ-07 names** ("อาจารย์อนุมัติผ่านระบบ หรือ Signed Link ทางอีเมล") even
+  though the backlog title only says "Signed URL" — the in-system channel was cheap to add (one Policy
+  ability + a form on the existing show page, reusing the same `ApprovalService::advisorDecide()`) and
+  skipping it would have left half of FR-RQ-07 unimplemented. No separate task covers it elsewhere in
+  the backlog.
+- **T-033 does not build T-044's general notification infrastructure** (the `notifications` table,
+  daily scheduled jobs, in-app bell, FR-NT-01/02/03/05/06). The advisor approval email is a direct,
+  immediate `Mail::send()` call from `RequisitionService::submit()` — narrowly scoped to FR-RQ-07's own
+  literal ask, not a queued digest or an in-app notification record. FR-NT-03 ("มีใบเบิกรออนุมัติ", the
+  general "something needs approval" notice covering both the advisor and scientist stages) and
+  FR-NT-04 (approval/rejection result notice back to the requester) are explicitly T-044's job and
+  still open — the scientist stage (T-034) currently has no notification at all, by design, until then.
+- **T-035 added `requisition_items.overage_approved_by`** (nullable FK to `users`) — spec's DDL has no
+  column for BR-04's "over 10% needs LAB_MANAGER approval" and, unlike BR-06's adjustment approval
+  (also uncovered, but that's a later phase not yet built), this rule needed enforcing *now*. Same
+  pattern as T-016/T-022 adding a missing `ulid` column mid-task. A new permission,
+  `requisition.issue_override` (granted to LAB_MANAGER only), gates who may be named as this approver —
+  `IssueService` checks the given user actually holds it, not just that a distinct id was supplied.
+- **FEFO ranking (T-035, BR-03) treats a container with a known `expiry_date` as higher priority than
+  one with none, within the same status tier** — spec's own wording only defines the tie-break for two
+  containers that both have NULL expiry ("received_at เก่าสุด"); it says nothing about ranking a NULL-
+  expiry container against one with a real date. Read literally as FEFO ("first-expired-first-out"), a
+  container that *will* expire is more urgent to use up than one that (as far as the system knows)
+  never does — so known-expiry sorts first. Revisit if this reads differently once real inventory data
+  makes the actual expectation clear (e.g. items that structurally never carry an expiry date, where
+  this ordering might feel backwards).
+- **`IssueService::issue()` defaults the receiver to the requisition's own `requester`** — spec doesn't
+  detail who physically receives at issue time separately from who requested, and `issue_transactions.
+  receiver_id` is `NOT NULL`. This is the common case (the student/staff picks up what they themselves
+  asked for); T-036's e-signature/OTP layer is the natural place to let a *different* physical receiver
+  be confirmed, if that need surfaces once signature capture exists.
+- **T-035's issue page is one Blade view per requisition (not per line, not a wizard)** — every
+  unfulfilled line gets its own FEFO table + barcode form on the same page, matching the project's
+  established preference (GRN's add-line pattern, T-031's requisition lines) for one straightforward
+  page over a multi-step flow. Each line's form POSTs independently, so issuing against one line never
+  disturbs another line's in-progress input.
+- **T-036's OTP (FR-RQ-11 fallback) is stored in the cache (Redis), not a database table.** It's a
+  single-use, 10-minute-TTL confirmation that the named receiver is present and agrees to the issue —
+  not a credential and not something that needs an audit trail of its own (the resulting
+  `issue_transactions.signature_hash` is the durable record), so there was no reason to add a table
+  spec's own schema never called for. `ReceiverOtpService` mirrors the shape of `RequisitionState`
+  et al. — small, single-purpose, no persistence beyond what the feature strictly needs.
+- **The signature pad (T-036) is a hand-rolled `<canvas>` with plain pointer/touch listeners wired
+  through Alpine, not a signature-pad library.** Same reasoning already used for the mobile nav
+  checkbox toggle and the complete-profile page's conditional field: the simplest tool that satisfies
+  the requirement, and in this case CSP's script-src has no allowance for a third-party signature-pad
+  library anyway (would need adding to the nonce'd script-src, which isn't in scope here). A real bug
+  from this: the canvas set its own backing-store width from `offsetWidth` inside `x-init`, before
+  Alpine had actually finished laying out the DOM, producing a 2px-wide unusable canvas — only caught
+  by eye during manual browser verification, not by any automated test (headless test drivers don't
+  render layout the same way). Fixed by deferring that read into `$nextTick`. **Any future canvas
+  sizing that depends on layout should go through `$nextTick`, not a bare `x-init` read** — this class
+  of bug won't fail a test, only look broken in a real browser.
+- **T-037's F-01 PDF layout has no verified source template to match pixel-for-pixel** — unlike F-03,
+  which FR-LG-01/02 describe column-by-column, spec never lays out F-01's exact fields/positions. The
+  layout was designed directly from every field the `Requisition` model actually carries (requester
+  info, line items, both decisions, receiver confirmation), same class of judgment call as T-015's GHS
+  statement language and T-023's hand-drawn pictograms — ship the best-supported version rather than
+  guess at a paper form nobody could show this session. Revisit if a real F-01 template surfaces later.
+  Printable at any stage (not gated on being fully issued) since acceptance criterion §14.9 just asks
+  that the PDF "ตรงตามแบบฟอร์มเดิม" (matches the original form), which is about layout fidelity, not
+  about restricting *when* it can be printed — pending stages render as "รอพิจารณา" rather than blank.
+- **T-038 (Feature Test FT-01..FT-10) intentionally leaves FT-05, FT-07, and FT-08's HTTP-level check
+  unwritten** — this closes Phase 3, but those three scenarios exercise Return (T-040), Stock Take
+  variance detection (T-041), and the Adjustment workflow's HTTP/Policy layer (T-043), all Phase 4.
+  Only their underlying `LedgerService::return()`/`adjust()` primitives exist and are already tested
+  (since T-021, including BR-06's same-actor rejection in `LedgerServiceTest.php`). Same judgment call
+  as T-017's deferred ST-04 (no real target existed yet either) — write these three for real once
+  T-040/T-041/T-043 exist, against the actual requisition-integrated flows, not the bare primitives.
+  **Do not consider Phase 3 "fully tested against spec §11.2" until those three land** — flag this
+  explicitly if a later review checklist asks whether FT-01..FT-10 are all green.
 
 ## Known open items (spec §15, need a human decision before those tasks close)
 

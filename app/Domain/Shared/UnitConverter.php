@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Shared;
 
 use App\Domain\Inventory\Exceptions\MissingDensityException;
+use App\Models\Item;
 use App\Models\Unit;
 
 final class UnitConverter
@@ -53,5 +54,35 @@ final class UnitConverter
         return $fromDimension === 'MASS'
             ? bcdiv($qtyBase, $d, self::SCALE)
             : bcmul($qtyBase, $d, self::SCALE);
+    }
+
+    /**
+     * Converts a quantity given in an arbitrary unit into an item's own `base_unit_id`
+     * terms — crossing dimensions via the item's density when the given unit isn't the
+     * same kind of measurement as the item's base unit (spec §5.1: every "_base" column
+     * is stored in the item's own base unit, not the dimension's smallest unit — that
+     * smallest unit is only the intermediate this conversion routes through).
+     *
+     * @param  numeric-string  $qty
+     * @return numeric-string
+     */
+    public function toItemBase(Item $item, Unit $fromUnit, string $qty): string
+    {
+        /** @var Unit $itemBaseUnit */
+        $itemBaseUnit = $item->baseUnit()->firstOrFail();
+        $dimensionBaseQty = $this->toBase($qty, $fromUnit);
+
+        if ($fromUnit->dimension === $itemBaseUnit->dimension) {
+            return $this->fromBase($dimensionBaseQty, $itemBaseUnit);
+        }
+
+        $crossed = $this->crossDimension(
+            $dimensionBaseQty,
+            $fromUnit->dimension,
+            $itemBaseUnit->dimension,
+            $item->density_g_per_ml !== null ? (float) $item->density_g_per_ml : null,
+        );
+
+        return $this->fromBase($crossed, $itemBaseUnit);
     }
 }

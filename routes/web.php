@@ -6,12 +6,17 @@ use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\Auth\SsoLoginController;
 use App\Http\Controllers\Auth\SsoLogoutController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\DocumentVerifyController;
 use App\Http\Controllers\GoodsReceiptController;
 use App\Http\Controllers\GoodsReceiptItemController;
 use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LedgerExportController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\RequisitionApprovalController;
+use App\Http\Controllers\RequisitionController;
+use App\Http\Controllers\RequisitionIssueController;
+use App\Http\Controllers\RequisitionItemController;
 use App\Livewire\Admin\UserRoleManager;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +33,17 @@ Route::middleware('throttle:20,1')->group(function () {
 });
 
 Route::get('/logout', SsoLogoutController::class)->name('logout');
+
+// §7.2 GET /verify/{ulid} — public, no login; only doc_no/date/status, never personal data.
+Route::get('/verify/{ulid}', [DocumentVerifyController::class, 'show'])->name('verify.show');
+
+// FR-RQ-07: the advisor's emailed alternative to logging in — a 72-hour Laravel signed
+// URL is the only authorization this needs (no `auth` middleware, deliberately public).
+Route::middleware('signed')->group(function () {
+    Route::get('/approve/{requisition}', [RequisitionApprovalController::class, 'showSigned'])
+        ->name('requisitions.approve.signed');
+    Route::post('/approve/{requisition}', [RequisitionApprovalController::class, 'decideSigned']);
+});
 
 Route::middleware('auth')->prefix('account')->name('account.')->group(function () {
     Route::get('/pending-role', PendingRoleController::class)->name('pending-role');
@@ -89,4 +105,27 @@ Route::middleware('auth')->prefix('goods-receipts')->name('goods-receipts.')->gr
     Route::post('/{goods_receipt}/confirm', [GoodsReceiptController::class, 'confirm'])->name('confirm');
     Route::post('/{goods_receipt}/cancel', [GoodsReceiptController::class, 'cancel'])->name('cancel');
     Route::get('/{goods_receipt}/labels/{size}', [GoodsReceiptController::class, 'labels'])->name('labels');
+});
+
+// FR-RQ-01..05 — authorization enforced per-action inside the controllers/RequisitionPolicy.
+Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(function () {
+    Route::get('/', \App\Livewire\Requisitions\RequisitionTable::class)->name('index');
+    Route::get('/create', [RequisitionController::class, 'create'])->name('create');
+    Route::post('/', [RequisitionController::class, 'store'])->name('store');
+    Route::get('/items/{item}/balance', [RequisitionController::class, 'itemBalance'])->name('items.balance');
+    Route::get('/{requisition}', [RequisitionController::class, 'show'])->name('show');
+    Route::get('/{requisition}/pdf', [RequisitionController::class, 'pdf'])->name('pdf');
+    Route::put('/{requisition}', [RequisitionController::class, 'update'])->name('update');
+    Route::post('/{requisition}/items', [RequisitionItemController::class, 'store'])->name('items.store');
+    Route::delete('/{requisition}/items/{requisition_item}', [RequisitionItemController::class, 'destroy'])->name('items.destroy');
+    Route::post('/{requisition}/submit', [RequisitionController::class, 'submit'])->name('submit');
+    Route::post('/{requisition}/cancel', [RequisitionController::class, 'cancel'])->name('cancel');
+    Route::post('/{requisition}/advisor-decide', [RequisitionApprovalController::class, 'decide'])->name('advisor-decide');
+    Route::post('/{requisition}/scientist-decide', [RequisitionApprovalController::class, 'scientistDecide'])->name('scientist-decide');
+    Route::get('/{requisition}/issue', [RequisitionIssueController::class, 'create'])->name('issue.create');
+    Route::post('/{requisition}/items/{requisition_item}/issue', [RequisitionIssueController::class, 'store'])->name('items.issue');
+    // FR-RQ-11 OTP fallback: rate limited so a scientist can't spam a receiver's inbox.
+    Route::post('/{requisition}/receiver-otp', [RequisitionIssueController::class, 'sendReceiverOtp'])
+        ->middleware('throttle:5,1')
+        ->name('receiver-otp.send');
 });

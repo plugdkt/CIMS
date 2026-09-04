@@ -48,24 +48,9 @@ final class GoodsReceiptService
         string $containerCount,
         string $qtyPerContainer,
     ): string {
-        /** @var Unit $itemBaseUnit */
-        $itemBaseUnit = $item->baseUnit()->firstOrFail();
-
         $qtyInLineUnit = bcmul($containerCount, $qtyPerContainer, self::SCALE);
-        $dimensionBaseQty = $this->converter->toBase($qtyInLineUnit, $lineUnit);
 
-        if ($lineUnit->dimension === $itemBaseUnit->dimension) {
-            return $this->converter->fromBase($dimensionBaseQty, $itemBaseUnit);
-        }
-
-        $crossed = $this->converter->crossDimension(
-            $dimensionBaseQty,
-            $lineUnit->dimension,
-            $itemBaseUnit->dimension,
-            $item->density_g_per_ml !== null ? (float) $item->density_g_per_ml : null,
-        );
-
-        return $this->converter->fromBase($crossed, $itemBaseUnit);
+        return $this->converter->toItemBase($item, $lineUnit, $qtyInLineUnit);
     }
 
     /**

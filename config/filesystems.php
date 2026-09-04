@@ -58,6 +58,16 @@ return [
             'report' => false,
         ],
 
+        // FR-RQ-11: receiver e-signatures, same "outside webroot, no direct URL" shape
+        // as the attachments disk (SEC-FU-03/SEC-AZ-06) — nothing serves these directly.
+        'signatures' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/signatures'),
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

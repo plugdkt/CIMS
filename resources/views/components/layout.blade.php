@@ -54,6 +54,12 @@
                     {{ __('nav.goods_receipts') }}
                 </a>
             @endcan
+            @can('viewAny', App\Models\Requisition::class)
+                <a href="{{ route('requisitions.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('requisitions.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.requisitions') }}
+                </a>
+            @endcan
 
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
                 {{ __('nav.group_system') }}

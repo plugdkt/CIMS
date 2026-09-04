@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
  * @property numeric-string $initial_qty_base
  * @property numeric-string $remaining_qty_base
  * @property numeric-string|null $unit_price
+ * @property \Illuminate\Support\Carbon $received_at
  * @property \Illuminate\Support\Carbon|null $expiry_date
  */
 #[Fillable([

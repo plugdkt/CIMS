@@ -29,6 +29,7 @@ final class PermissionSeeder extends Seeder
             'requisition.approve_advisor' => 'อนุมัติใบขอเบิก (อาจารย์ที่ปรึกษา)',
             'requisition.approve_scientist' => 'พิจารณาใบขอเบิก (นักวิทยาศาสตร์)',
             'requisition.issue' => 'จ่ายของตามใบขอเบิก',
+            'requisition.issue_override' => 'อนุมัติจ่ายเกิน 10% จากที่ขอ (BR-04)',
             'receiving.manage' => 'รับของเข้าคลัง',
             'stocktake.manage' => 'ดำเนินการตรวจนับสต๊อก',
             'ledger.view' => 'ดูบัญชีคุมวัสดุ',
@@ -60,8 +61,8 @@ final class PermissionSeeder extends Seeder
                 'item.view', 'report.view',
             ],
             'LAB_MANAGER' => [
-                'requisition.view_all', 'ledger.view', 'ledger.adjust', 'disposal.approve',
-                'item.view', 'item.manage', 'location.manage', 'report.view',
+                'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
             ],
             'ADMIN' => ['user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view'],
             'AUDITOR' => [

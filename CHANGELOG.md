@@ -236,6 +236,143 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   denied"), which is distinct from the trigger's SQLSTATE `45000` ("append-only") — proving the grant
   itself is what's rejecting it, not an incidental re-trigger. A control test confirms the restriction is
   table-specific, not a broken connection (`items` still updates fine via the same raw-SQL path).
+- T-030: `RequisitionState` (BR-01) — a pure, stateless lookup for the requisition status state
+  machine (DRAFT → SUBMITTED → ADVISOR_APPROVED/APPROVED → ISSUED, with REJECTED/CANCELLED as the
+  other terminals). Callers ask `apply()` for the next status and persist it themselves; nothing in
+  this class touches the database. Encodes the one context-dependent edge in spec's diagram itself —
+  a SUBMITTED requisition only goes straight to a scientist decision when the requester isn't a
+  STUDENT — while BR-02's stronger check (`advisor_signed_at IS NULL` against the real model) is left
+  to `ApprovalService` (T-032). 8 unit tests cover every edge and every terminal state.
+- T-031: requisition form + dynamic line items (FR-RQ-01..05). `Requisition`/`RequisitionItem`/
+  `RequisitionApproval` models, `RequisitionPolicy` (`view_own` scoped to requester/advisor,
+  `view_all` for SCIENTIST/LAB_MANAGER/AUDITOR), `RequisitionService` (line items + the DRAFT→
+  SUBMITTED/CANCELLED transitions via `RequisitionState`). Requester identity fields (name, phone,
+  status, student code, program, faculty) are snapshotted server-side from the authenticated user's
+  profile at creation time — never accepted as form input — enforcing BR-11 point 4's complete-profile
+  gate (redirects to the complete-profile page) at the one real trigger point that gate was deferred
+  to back in T-011. Added `UnitConverter::toItemBase()` (item + arbitrary unit + qty → the item's own
+  base unit, crossing dimensions via density same as T-018's GRN line totals) and refactored
+  `GoodsReceiptService::calculateLineTotalBase()` to use it, removing the duplicated conversion logic
+  between GRN and requisition lines. FR-RQ-05's real-time balance display next to the item picker is a
+  small Alpine `fetch()` against a new `GET /requisitions/items/{item}/balance` JSON endpoint — plain
+  controller + FormRequest + Blade + a touch of Alpine, matching the GRN precedent (T-022) rather than
+  a full Livewire form; see CLAUDE.md for the reasoning. Verified: 12 feature tests (permission gate,
+  BR-11 profile-complete redirect, requester-field snapshotting for both STUDENT and STAFF, same-
+  dimension and cross-dimension line-item base-unit conversion, add/remove lines, submit requires ≥1
+  line and sets `submitted_at`, cancel from both DRAFT and SUBMITTED, view_own vs. view_all scoping,
+  the balance endpoint) plus a full manual run through the real UI (create → auto-filled profile →
+  add a 2 kg line converted correctly into the item's gram base unit → submit → index list), confirmed
+  in the browser end-to-end.
+- T-032: `ApprovalService` + BR-02 enforcement (FR-RQ-06). `advisorDecide()`/`scientistDecide()` each
+  write one `requisition_approvals` row and advance `Requisition::status` through `RequisitionState`
+  (T-030). BR-02 is checked directly against `advisor_signed_at` (not merely inferred from `status`),
+  so a STUDENT requisition can never reach APPROVED without real advisor sign-off, even defensively.
+  A REJECT decision (either step) requires a non-empty reason; `advisorDecide()` also enforces that
+  only the requisition's own `advisor_id` may act (a business rule about *which* advisor, enforced in
+  the service the same way BR-06's distinct-approver rule lives inside `LedgerService::adjust()`
+  rather than only in a Policy). `advisor_signature_hash` is a lightweight SHA-256 non-repudiation
+  marker (`requisition_id|advisor_id|decision|timestamp`) — spec has no formula for this field (unlike
+  BR-08's ledger hash chain); documented as an inferred convention in CLAUDE.md. Verified: 9 tests
+  including FT-01 (scientist can't approve a STUDENT requisition with no advisor sign-off yet) and
+  FT-06 (scientist can't reject without a reason).
+- T-033: signed-URL advisor approval, 72 hours (FR-RQ-07). `RequisitionService::submit()` now emails
+  the advisor an `AdvisorApprovalMail` (queued) carrying a `URL::temporarySignedRoute()` link the
+  moment a STUDENT requisition is submitted — no email for non-student requesters, since BR-02 never
+  applies to them. `GET/POST /approve/{requisition}` (outside the `auth` group, spec §7.2, gated only
+  by the `signed` route middleware) renders and processes the decision form without requiring the
+  advisor to log in at all; the POST target is the page's own current URL (`url()->full()`), which
+  carries the same `signature`/`expires` query params forward since Laravel's signature check is
+  path+query based, not tied to a specific route name or HTTP verb. Also added the "ผ่านระบบ" in-system
+  channel FR-RQ-07 asks for alongside it: an `advisorDecide` Policy ability plus a form on the
+  requisition's own show page, visible only to the requisition's own advisor while it's SUBMITTED.
+  Verified: 9 tests (email sent only for STUDENT requesters, valid/tampered/expired signed links,
+  approve and reject-without-reason via the signed link, in-system decide by the correct vs. a
+  different advisor) plus a full manual run — real signed URL generated via tinker, opened in the
+  browser, approved, confirmed the requisition actually moved to ADVISOR_APPROVED in the database.
+- T-034: scientist review page (FR-RQ-08). Reuses the requisition show page (T-031/T-033) rather than
+  a separate screen — a new section, gated by `RequisitionPolicy::scientistDecide` (`requisition.
+  approve_scientist` + status SUBMITTED or ADVISOR_APPROVED), posts to `ApprovalService::
+  scientistDecide()` (T-032) via a dedicated `RequisitionScientistDecisionRequest`. Uses FR-RQ-08's own
+  wording — "เห็นควรให้เบิก" / "ไม่เห็นควรให้เบิก" — distinct from the advisor's "อนุมัติ"/"ไม่อนุมัติ" text
+  elsewhere on the same page; reject still requires a reason. Verified: 6 tests (approve, reject
+  without/with a reason, BR-02's friendly error surfaces correctly through the HTTP layer, permission
+  gate, the decision form only renders when the requisition is actually eligible) plus a manual browser
+  run confirming the exact Thai wording renders and a real decision moves the requisition to APPROVED.
+- T-035: dispensing page — FEFO + multi-container (FR-RQ-09/10, BR-03, BR-04). `FefoContainerSelector`
+  ranks eligible containers (IN_USE before SEALED, empty/disposed/quarantined never eligible) by
+  soonest `expiry_date`, falling back to oldest `received_at` when both compared containers have no
+  expiry (spec's literal fallback) — a known expiry is ranked ahead of no expiry within the same tier,
+  an inferred convention documented in CLAUDE.md since spec only spells out the both-NULL case.
+  `IssueService` issues from one container against one requisition line per call (FR-RQ-10 covers
+  multiple containers per line by calling it more than once), delegates the actual `stock_ledger` write
+  to `LedgerService::issue()` (still the only writer), and owns `issue_transactions` + `requisition_
+  items.qty_issued_base` + advancing `Requisition::status` to PARTIALLY_ISSUED/ISSUED via `RequisitionState`.
+  BR-04's tolerance is enforced in the service itself: no remark needed at or under the requested
+  quantity, a remark required for any overage, and past 10% over, an approver who actually holds a new
+  `requisition.issue_override` permission (LAB_MANAGER per PermissionSeeder) — added a migration for
+  `requisition_items.overage_approved_by` since spec's own DDL has nowhere to record this (same class of
+  gap T-016/T-022 already filled for `ulid` columns). The issue page (`GET /requisitions/{requisition}/
+  issue`) shows FEFO ranking with a red expiry warning per container and pre-fills the barcode field
+  with the recommended pick; `POST .../items/{requisition_item}/issue` looks the container up by
+  barcode ("สแกน barcode" per FR-RQ-09), not by picking an id from a dropdown. Verified: 6 FEFO-ranking
+  tests, 7 `IssueService` tests (exact match, two-container split, partial issue, both BR-04 tiers,
+  item/container mismatch, wrong requisition status), 5 HTTP tests, plus a full manual run — two real
+  containers with different expiry dates, confirmed the sooner-expiring one was recommended and
+  correctly decremented while the other was left untouched, and the requisition moved to ISSUED.
+- T-036: receiver e-signature canvas + OTP fallback (FR-RQ-11). `IssueService::issue()` now requires a
+  `signatureHash` (BR-04's decision-making stays the service's job; whether that hash came from a
+  drawn signature or an OTP is the controller's). Two ways to confirm the receiver at issue time, on
+  the same page (T-035), same POST: (1) an HTML5 `<canvas>` signature pad — plain pointer/touch event
+  handlers in Alpine, no signature-pad library (CSP has no allowance for one anyway, and the project's
+  established preference is the simplest tool that works — same reasoning as the mobile nav toggle and
+  the complete-profile page's vanilla-JS field) — captured as a PNG data URL, decoded and validated by
+  a new `SignatureImageService` (PNG magic-byte check, 512 KB cap, UUID filename on a new `signatures`
+  disk that mirrors `AttachmentUploadService`'s "never the client's name" shape) and hashed with
+  SHA-256; or (2) a 6-digit OTP emailed to the requisition's requester via a new `ReceiverOtpService` —
+  single-use, 10-minute TTL, stored in the cache (Redis) rather than a database table, since it's a
+  one-time confirmation of presence, not a credential (SEC-AU-01 still holds: no local passwords
+  anywhere). Exactly one of `signature_image`/`otp_code` is required per submission. Verified: 4
+  `SignatureImageService` tests (valid PNG, wrong MIME, not a data URL at all, garbage base64), 3
+  `ReceiverOtpService` tests (verifies once then fails on reuse, wrong code, code scoped to its own
+  requisition), the `IssueService`/HTTP suites updated for the new required parameter, plus a manual
+  browser run drawing a real signature (confirmed a valid, correctly-hashed PNG was written to disk)
+  and completing the emailed-OTP path end to end. Caught and fixed one real bug from that manual run:
+  the canvas read its own width via `offsetWidth` inside `x-init`, before Alpine had finished laying
+  out the DOM, producing a 2px-wide canvas — fixed by deferring that read into `$nextTick`. Also
+  switched `RequisitionIssueControllerTest` to `Storage::fake('signatures')`, since the earlier version
+  (before this fix was caught) was writing real tiny PNGs into the dev disk on every test run.
+- T-037: printable F-01 + QR verify + public verify page (FR-RQ-12, §7.2). `Fr01PdfService` renders
+  the requisition as a full-page A4 PDF via `MpdfFactory` (real Sarabun, per T-025) — header/requester
+  info, the line-items table, the advisor's and scientist's decisions (gracefully showing "รอพิจารณา"/
+  "ไม่ต้องผ่านอาจารย์ที่ปรึกษา" for stages not yet reached, since spec's own report list implies F-01
+  should be printable at any point in its life, not only once fully issued), the receiver block (embeds
+  the actual signature PNG when one was drawn, or states "ยืนยันตัวตนด้วยรหัส OTP" when the OTP channel
+  was used instead — T-036), and a QR code in the bottom-right corner (wiring in T-023's `QrCodeGenerator`,
+  built and left unused for exactly this) linking to a new public `GET /verify/{ulid}` route. That route
+  (`DocumentVerifyController`, no `auth` middleware, spec §7.2) shows only `doc_no`/`doc_date`/`status`
+  and explicitly nothing else, per spec's own "ห้ามแสดงข้อมูลส่วนบุคคล" — verified by asserting the
+  requester's name and email are both absent from the response, not merely that the page loads. No
+  literal visual template for F-01 exists to match pixel-for-pixel (unlike F-03, which spec's own FR-LG-
+  01/02 describe column-by-column) — the layout was designed from the data the `Requisition` model
+  actually carries, the same kind of judgment call as T-015's GHS statement language and T-023's
+  hand-drawn pictograms where no verified source template was available. Verified: 6 PDF/permission
+  tests, 2 verify-page tests, plus a manual render of a real, fully-issued requisition — read back and
+  visually confirmed correct (real Thai text, all sections populated, QR present) — and the QR's actual
+  target URL opened directly, confirming the verify page shows the right status with no personal data.
+- T-038: Feature Test FT-01..FT-10 (§11.2). Added `AcceptanceFeatureTest.php` running spec's own
+  numbered scenarios verbatim, with spec's own numbers where it gives them: FT-02 (submit → advisor
+  approve → scientist approve → issue 12.5 g from a 500 g bottle → remaining exactly 487.5 g, exactly
+  one ISSUE ledger row, status ISSUED), FT-03 (issuing more than the container holds throws
+  `InsufficientStockException` and writes no new ledger row), FT-04 (request 100 mL, issue 60 mL →
+  PARTIALLY_ISSUED). FT-01/06/09/10 already existed verbatim in earlier tasks' own test files
+  (`ApprovalServiceTest`, `ScientistDecisionTest`, `FefoContainerSelectorTest`, `Fr03ExportTest`) and
+  weren't duplicated. **FT-05, FT-07, and FT-08's HTTP-403 layer are deferred, not written** — they
+  exercise Return (T-040), Stock Take variance detection (T-041), and the Adjustment workflow's HTTP/
+  Policy layer (T-043), none of which exist as features yet in this phase; only their underlying
+  `LedgerService::return()`/`adjust()` primitives do (already tested since T-021, including BR-06's
+  same-actor rejection). Writing a shallow test against only the primitive wouldn't exercise what these
+  three scenarios actually describe, so — same judgment call as T-017's ST-04 — they're left for the
+  tasks that build the real target rather than guessed at now. See CLAUDE.md.
 
 ### Fixed
 
