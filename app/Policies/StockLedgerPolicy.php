@@ -13,4 +13,10 @@ final class StockLedgerPolicy extends Policy
     {
         return $this->hasPermission($user, 'ledger.view');
     }
+
+    /** FR-LG-07: the adjustment list + form is gated on ledger.adjust (LAB_MANAGER only). */
+    public function adjust(User $user): bool
+    {
+        return $this->hasPermission($user, 'ledger.adjust');
+    }
 }

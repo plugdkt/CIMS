@@ -94,6 +94,32 @@ test('Fr03PdfService renders a non-empty PDF', function () {
     expect($pdf)->toStartWith('%PDF');
 });
 
+test('SEC-IN-10: a receiver_name/remark starting with = + - @ is CSV-injection guarded', function () {
+    $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $creator = User::factory()->create();
+    $container = Container::create([
+        'item_id' => $item->id,
+        'barcode' => 'BC-EXPORT-2',
+        'received_at' => now()->toDateString(),
+        'initial_qty_base' => '0.000000',
+        'remaining_qty_base' => '0.000000',
+        'status' => 'SEALED',
+    ]);
+    $ctx = new LedgerEntryData(
+        displayUnitId: $g->id,
+        createdBy: $creator->id,
+        receiverName: '=cmd|/c calc',
+        remark: '+1;DROP TABLE users',
+    );
+    app(LedgerService::class)->receive($container->id, '10.000000', $ctx);
+
+    $rows = (new Fr03Export($item, new LedgerFilter(), $g))->collection();
+
+    expect($rows[0][3])->toBe("'=cmd|/c calc");
+    expect($rows[0][8])->toBe("'+1;DROP TABLE users");
+});
+
 test('a user without ledger.view gets 403 on both export routes', function () {
     $user = User::factory()->create();
     $item = makeItem();

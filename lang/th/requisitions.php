@@ -111,6 +111,14 @@ return [
     'record_issue' => 'บันทึกการจ่าย',
     'issue_recorded' => 'บันทึกการจ่ายเรียบร้อยแล้ว',
 
+    // FR-ST-01 / BR-05: returning unused material back into its original container
+    'return_title' => 'คืนของ',
+    'returnable' => 'คืนได้สูงสุด',
+    'field_return_container' => 'ภาชนะที่จะคืนเข้า',
+    'field_qty_returned' => 'ปริมาณที่คืน',
+    'record_return' => 'บันทึกการคืน',
+    'return_recorded' => 'บันทึกการคืนเรียบร้อยแล้ว',
+
     // FR-RQ-11: receiver identity confirmation — signature canvas or OTP
     'receiver_mode_signature' => 'ผู้รับลงลายมือชื่อ',
     'receiver_mode_otp' => 'ยืนยันด้วย OTP ทางอีเมล',
@@ -156,5 +164,8 @@ return [
         'signature_or_otp_required' => 'กรุณาให้ผู้รับลงลายมือชื่อ หรือยืนยันด้วยรหัส OTP',
         'otp_code_digits' => 'รหัส OTP ต้องเป็นตัวเลข 6 หลัก',
         'otp_code_invalid' => 'รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว',
+        'container_required' => 'กรุณาเลือกภาชนะที่จะคืนเข้า',
+        'qty_returned_required' => 'กรุณาระบุปริมาณที่คืน',
+        'qty_returned_gt' => 'ปริมาณที่คืนต้องมากกว่า 0',
     ],
 ];

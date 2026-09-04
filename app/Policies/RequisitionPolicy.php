@@ -78,4 +78,11 @@ final class RequisitionPolicy extends Policy
         return $this->hasPermission($user, 'requisition.issue')
             && in_array($requisition->status, ['APPROVED', 'PARTIALLY_ISSUED'], true);
     }
+
+    /** FR-ST-01: returning is only meaningful once something has actually been issued. */
+    public function return(User $user, Requisition $requisition): bool
+    {
+        return $this->hasPermission($user, 'requisition.issue')
+            && in_array($requisition->status, ['PARTIALLY_ISSUED', 'ISSUED'], true);
+    }
 }

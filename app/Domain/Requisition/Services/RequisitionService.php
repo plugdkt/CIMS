@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Requisition\Services;
 
+use App\Domain\Notification\Services\NotificationService;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Shared\UnitConverter;
 use App\Mail\AdvisorApprovalMail;
@@ -25,6 +26,7 @@ final class RequisitionService
     public function __construct(
         private readonly UnitConverter $converter,
         private readonly RequisitionState $state,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -75,6 +77,21 @@ final class RequisitionService
         $advisor = $requisition->advisor;
         if ($requisition->requester_status === 'STUDENT' && $advisor !== null) {
             $this->mailAdvisor($requisition, $advisor);
+            // FR-NT-03's "Email" channel for this step is already the richer signed-URL
+            // email above (T-033) — sending a second, generic notification email would
+            // just duplicate it. Only the in-app half is new here.
+            $this->notifications->notifyInApp(
+                $advisor,
+                'requisition.pending_advisor',
+                __('notifications.pending_advisor_title'),
+                __('notifications.pending_advisor_body', [
+                    'doc_no' => $requisition->doc_no,
+                    'requester' => (string) $requisition->requester?->full_name,
+                ]),
+                route('requisitions.show', $requisition),
+            );
+        } elseif ($requisition->requester_status !== 'STUDENT') {
+            $this->notifyScientistsPending($requisition);
         }
 
         return $requisition;
@@ -89,6 +106,20 @@ final class RequisitionService
         );
 
         Mail::to($advisor->email)->send(new AdvisorApprovalMail($requisition, $signedUrl));
+    }
+
+    /** FR-NT-03: a requisition just became actionable by a scientist — notify every SCIENTIST. */
+    private function notifyScientistsPending(Requisition $requisition): void
+    {
+        foreach ($this->notifications->usersWithAnyPermission('requisition.approve_scientist') as $scientist) {
+            $this->notifications->notifyInAppAndEmail(
+                $scientist,
+                'requisition.pending_scientist',
+                __('notifications.pending_scientist_title'),
+                __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]),
+                route('requisitions.show', $requisition),
+            );
+        }
     }
 
     /** BR-01: DRAFT | SUBMITTED → CANCELLED. */

@@ -60,6 +60,30 @@
                     {{ __('nav.requisitions') }}
                 </a>
             @endcan
+            @can('viewAny', App\Models\StockTake::class)
+                <a href="{{ route('stock-takes.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('stock-takes.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.stock_takes') }}
+                </a>
+            @endcan
+            @can('viewAny', App\Models\Disposal::class)
+                <a href="{{ route('disposals.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('disposals.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.disposals') }}
+                </a>
+            @endcan
+            @can('adjust', App\Models\StockLedger::class)
+                <a href="{{ route('adjustments.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('adjustments.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.adjustments') }}
+                </a>
+            @endcan
+            @can('report.view')
+                <a href="{{ route('reports.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('reports.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.reports') }}
+                </a>
+            @endcan
 
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
                 {{ __('nav.group_system') }}
@@ -86,6 +110,15 @@
             </label>
 
             <div class="ml-auto flex items-center gap-3">
+                @php($unreadCount = auth()->user()->notifications()->whereNull('read_at')->count())
+                <a href="{{ route('notifications.index') }}" class="relative w-9 h-9 rounded-lg border border-border flex items-center justify-center text-ink-muted hover:bg-surface-alt hover:text-ink" aria-label="{{ __('notifications.index_title') }}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"/></svg>
+                    @if ($unreadCount > 0)
+                        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center">
+                            {{ $unreadCount > 9 ? '9+' : $unreadCount }}
+                        </span>
+                    @endif
+                </a>
                 <div class="text-right hidden sm:block">
                     <div class="text-sm font-semibold leading-none">{{ auth()->user()->full_name }}</div>
                     <div class="text-xs text-ink-muted mt-0.5">{{ auth()->user()->username }}</div>

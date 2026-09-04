@@ -7,9 +7,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 
+/**
+ * @property numeric-string $reorder_point_base
+ * @property int|null $shelf_life_days_after_open
+ */
 #[Fillable([
     'item_code', 'category_id', 'name_th', 'name_en', 'cas_no', 'formula', 'brand', 'grade',
     'package_size', 'package_unit_id', 'sub_unit_id', 'base_unit_id', 'density_g_per_ml',
@@ -73,5 +78,11 @@ class Item extends Model
     public function attachments(): MorphMany
     {
         return $this->morphMany(Attachment::class, 'owner');
+    }
+
+    /** @return HasMany<Container, $this> */
+    public function containers(): HasMany
+    {
+        return $this->hasMany(Container::class);
     }
 }

@@ -397,6 +397,197 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   **Do not consider Phase 3 "fully tested against spec §11.2" until those three land** — flag this
   explicitly if a later review checklist asks whether FT-01..FT-10 are all green.
 
+## Phase 4 — Operations
+
+- **T-040 has no dedicated "return" table** — spec's schema never defines one, so `ReturnService`
+  validates BR-05's "same container it was issued from" check by querying `issue_transactions` for
+  which `container_id`s this `requisition_item_id` was ever issued against, rather than reversing a
+  specific issue transaction by id. A return is just another `stock_ledger` RETURN row (via
+  `LedgerService::return()`) plus incrementing `requisition_items.qty_returned_base` — no new table,
+  matching spec's own literal schema exactly.
+- **A real bug caught only by manual browser testing, not by any automated test**: `RequisitionPolicy::
+  return` deliberately stays true for both PARTIALLY_ISSUED and ISSUED (returning unused material is
+  still meaningful once a requisition is fully issued), but the issue/return page's own controller
+  gate (`RequisitionIssueController::create()`) originally checked only the `issue` ability — so once a
+  requisition became fully ISSUED, the *entire page* 403'd before the return section could ever render,
+  even though the Policy correctly allowed the return itself. Every automated test constructed its own
+  fixtures directly against the service layer or POSTed straight to the return route, so none of them
+  ever loaded the page in the ISSUED state the way a real user would. Fixed by gating page access on
+  "can issue OR can return" instead of "can issue" alone, with a regression test added afterward.
+  **Any future page that serves two abilities with different eligibility windows must gate on "any of
+  them", not just the one named in the controller's primary action** — this class of bug won't fail a
+  test that only exercises the POST target directly, only a test (or a human) that loads the actual
+  page in every state that ability is supposed to cover.
+- **T-041 has no separate `StockTakeState` class**, unlike `RequisitionState` (T-030). BR-01's diagram
+  has real branching (the SUBMITTED(non-student) shortcut) that justified a small, independently
+  testable pure class; a stock take's OPEN→COUNTING→PENDING_APPROVAL→APPROVED/CANCELLED flow has no
+  branching at all — every transition is a single straight-line check — so the abstraction wouldn't
+  pull its weight here. Transitions are checked directly inline in `StockTakeService`, each with its
+  own guard clause. Revisit only if a later requirement adds real branching to this flow.
+- **"Active" containers for FR-ST-02's line generation means SEALED, IN_USE, or QUARANTINE** — spec's
+  wording ("containers ที่ active ใน lab") doesn't enumerate which statuses count as active. EMPTY is
+  excluded because its count is already trivially known (zero); DISPOSED is excluded because it no
+  longer physically exists to count. QUARANTINE is included because it's still physically present and
+  its true quantity is exactly what a stock take needs to confirm, even though it isn't available for
+  issue. A container with no `location_id` is never included in any lab's round — same gap as T-016's
+  BR-10 note, `location_id` being nullable everywhere containers reference it.
+- **FR-ST-03's counted quantity is entered directly in the item's own base unit, with no unit
+  selector** — unlike issuing/returning, spec's literal wording ("กรอกยอดนับจริง") never mentions
+  switching units for a stock take count, so this avoids introducing a third unit-conversion path
+  (`UnitConverter::toItemBase()`) where the two existing ones (issue, return) already fully cover the
+  cases spec actually asks to convert.
+- **T-042's disposal approval has no BR-06-style distinct-actor check beyond ordinary role
+  separation.** BR-06 ("ผู้อนุมัติต้องไม่ใช่คนเดียวกับผู้สร้างรายการ") is titled "การปรับปรุงยอด" (stock
+  adjustment) and is never repeated under §7.6's disposal requirement (FR-ST-05), unlike how T-041's
+  stock take approval explicitly reuses it for adjustments a count produces. `disposal.request`
+  (SCIENTIST) and `disposal.approve` (LAB_MANAGER) are already separate permissions on separate roles
+  per `PermissionSeeder`, which is the separation-of-duties mechanism spec's §3 actually names for this
+  case — adding a same-person check on top would be enforcing a rule spec never asked for here. Revisit
+  if a later spec reading or a real incident shows disposal needs the same explicit protection.
+- **`Disposal::reject()` stores no rejection reason** — spec's own `disposals` DDL has no column for
+  one (unlike `requisitions.reject_reason`), so none is invented. The `status` flip to REJECTED plus
+  `approved_by`/`approved_at` (who decided, and when) is the entire record spec's schema provides for;
+  a real reason would need its own column added the same way T-016/T-022/T-035 added missing columns
+  when a rule genuinely needed one — FR-ST-05 doesn't ask for a reject reason, so none was added.
+- **`DisposalService::approve()` re-validates the requested quantity against the container's *current*
+  remaining stock, not just what was true at request time** — a disposal can sit PENDING for a while,
+  during which other transactions (an issue, another disposal, an adjustment) may have already reduced
+  what's left. Approving a stale request as-is could silently try to remove more than physically
+  remains; re-checking at the point of the actual ledger write catches this before it happens, the same
+  defensive principle already applied at every other "write happens later than the check" point in this
+  codebase (e.g. `IssueService`'s BR-04 tolerance check happens at issue time, not request time, since
+  there is no separate request step there).
+- **T-043 (Adjustment, BR-06) is a single-step create-and-approve form, not a two-phase request →
+  approve workflow** — unlike stock take/disposal, spec's schema has no "pending adjustment request"
+  table for it; BR-06's own wording ("ต้องมี approved_by เป็น LAB_MANAGER ที่ไม่ใช่คนเดียวกับ created_by")
+  describes one action naming two people at once, so `AdjustmentController::store()` takes barcode +
+  direction + qty + remark + approver in a single POST. `LedgerService::adjust()` (T-021) already
+  enforced "approver ≠ creator" and the ≥10-char remark; `AdjustmentService` adds the one check that
+  method alone can't make — the named approver must actually **hold** `ledger.adjust` (LAB_MANAGER
+  only, per `PermissionSeeder`), not merely be a different user id.
+- **Added `stock_ledger.approved_by` (nullable FK to `users`) via migration** — BR-06 literally requires
+  an adjustment row to "have approved_by = LAB_MANAGER", but spec's own §5.2 DDL for `stock_ledger` has
+  no such column at all (unlike `stock_takes`/`disposals`, both of which do carry one). Same class of
+  gap as T-035's `overage_approved_by` and T-016/T-022's missing `ulid` columns — the rule needs
+  enforcing now, so the column was added rather than silently discarding the already-existing
+  `LedgerEntryData::$approvedBy` DTO field (which, before this task, was checked at write time but never
+  actually persisted anywhere — auditors reviewing the ledger had no way to see who authorized an
+  adjustment). `LedgerService::appendRow()` now writes it for every txn type (null except ADJUST_IN/
+  ADJUST_OUT). BR-08's row-hash formula (`LedgerHasher::compute()`) is an explicit fixed field list per
+  spec §10.3, not a hash-everything-on-the-row approach, so adding this column does not change or break
+  any existing row's hash. Any future task that reads "who approved this ledger row" should use this
+  column (`StockLedger::$approved_by` / the `approver()` relation) rather than assuming it's only
+  available via the now-defunct one-off check.
+- **The adjustment approver picker (`AdjustmentController::create()`) excludes both the current user and
+  any `is_active = false` account.** This is the first raw "pick a user from a dropdown" UI in the app
+  (disposal/stock-take approval are Policy-gated actions on an existing record, not a picker; the
+  requisition advisor is auto-linked from the requester's own profile) — filtering inactive accounts
+  follows the same convention already used for the `labs`/`items` dropdowns elsewhere (T-031), so a
+  deactivated test/former-staff account never appears as a selectable approver.
+- **`/adjustments` (index) is a plain paginated Blade view, not a Livewire component** — same
+  "simplest tool that satisfies the requirement" precedent as T-031's decision for the requisition
+  create/show flow; there's no live-updating requirement here (FR-LG-07 just asks for "หน้ารายการ
+  ปรับปรุงยอด", a list page) that would justify Livewire's request lifecycle over a normal paginated
+  controller response.
+- **T-004 already created the `notifications` table** (spec's full §5.2 DDL, migrated at project init
+  along with every other table) — T-044 found this only when its own `create_notifications_table`
+  migration failed with "table already exists". No code had ever written to it before T-044. Added a
+  `ulid` column via a normal `add_ulid_to_notifications_table` migration instead (same AGENT RULE #9 gap
+  as `locations`/`labs`), rather than a duplicate create migration. **Lesson for future tasks**: check
+  `Schema::hasTable(...)` / the migrations folder before assuming a spec table doesn't exist yet — T-004's
+  backlog title ("Migration ทุกตารางตาม §5.2") means every table in the spec's DDL already has a
+  migration, even ones no later task has used yet.
+- **T-044's three channel combinations are three explicit `NotificationService` methods**
+  (`notifyInApp`, `notifyInAppAndEmail`, `emailOnly`) rather than one method with boolean flags — spec's
+  own FR-NT-01..06 table only ever uses one of exactly three combinations ("Email + In-app", "In-app",
+  "Email" routed to ADMIN), so a call site reading `notifyInApp(...)` vs `emailOnly(...)` states which
+  channels fire without needing to trace a flag's default. One generic `NotificationMail` (title/body/
+  link) covers every notification type — mirrors the `notifications` table's own generic shape, so no
+  reason to build 6 near-identical Mailable classes the way `AdvisorApprovalMail`/`ReceiverOtpMail`
+  needed richer, type-specific content.
+- **The advisor-pending step (FR-NT-03) does not send a second email.** T-033 already emails the
+  advisor a rich, signed-URL approval link the moment a STUDENT requisition is submitted — that already
+  satisfies FR-NT-03's "Email" channel for this one step. T-044 only adds the in-app half
+  (`notifyInApp`, not `notifyInAppAndEmail`) so the advisor doesn't get two separate emails for the same
+  event. Every other FR-NT-03/04 notification (scientist-pending, and every approve/reject decision back
+  to the requester) had **no** notification of any kind before T-044 and uses the full `notifyInAppAndEmail`.
+- **FR-NT-01/02/05's recipient pool is chosen by permission, not by an explicit "who gets alerts"
+  setting spec never defines.** Reorder-point alerts (FR-NT-01) go to `item.manage` holders (LAB_MANAGER
+  — the role actually responsible for restocking, per `PermissionSeeder`). Expiry (FR-NT-02) and
+  shelf-life-after-open (FR-NT-05) alerts go to the union of `item.manage` **and** `disposal.request`
+  (LAB_MANAGER + SCIENTIST) — both plausible stakeholders for a physically-expiring container, unlike
+  reorder which is purely a procurement concern. No lab-scoping exists (same gap as disposal/adjustment
+  approval before it) — every alert goes to every holder of the relevant permission(s) app-wide.
+- **FR-NT-02 fires on the exact day a container crosses one of the 90/30/7-day thresholds, not on every
+  day it happens to be "close."** Read literally ("ใกล้หมดอายุ 90/30/7 วัน"), this is three staged
+  reminders per container, not an every-day-until-it-expires nag — `notifications:check-expiry` queries
+  `expiry_date = today + N days` for each `N`, so (assuming the job runs daily without gaps) each
+  container is flagged at most 3 times over its life. FR-NT-01 (reorder) and FR-NT-05 (shelf-life) do
+  the opposite deliberately — both re-check and re-notify on every run for as long as the condition
+  holds, since spec's own "Daily" cadence for those two reads as "tell me the current state every day,"
+  not "tell me once when it first crosses." No dedup/suppression logic was added for any of the three;
+  revisit if repeated shelf-life/reorder emails turn out to be too noisy in real use.
+- **FR-NT-06 (hash chain, "Immediate") runs hourly, not on a true immediate trigger — because no such
+  trigger exists.** Every `stock_ledger` write goes through `LedgerService::appendRow()`, which always
+  computes the correct hash, and the DB grants (T-027) plus append-only triggers (T-017) block every
+  other write to that table — so nothing in the app's own write path can ever produce a broken chain.
+  A break can only come from outside the app entirely (direct DB tampering, a bad restore), which only a
+  periodic scan can catch. `notifications:check-hash-chain` reuses `LedgerHasher::verifyChain()` (T-020)
+  per item, exactly like the existing `ledger:verify` CLI command, but emails every ADMIN (not just
+  printing to the console) when it finds a break. Scheduled hourly as the closest practical stand-in for
+  "immediate" given there's no real event to hook. This command sends **no** in-app `notifications` row
+  for anyone — spec's own table lists only "Email → ADMIN" for this row, unlike every other FR-NT-0x
+  which lists "+ In-app" explicitly.
+- **The notification bell (header, all pages) computes its unread count with one extra query per page
+  load** (`auth()->user()->notifications()->whereNull('read_at')->count()`) rather than caching it —
+  first raw "always-on" badge in the app, and there's no existing precedent for caching a per-user count
+  like this. Simplest-tool-first; revisit if this measurably matters once the app has real traffic.
+- **T-045's `ReportController` is gated on a bare `Gate::authorize('report.view')` call, not a
+  dedicated `ReportPolicy` class.** Every other Policy in this app gates access to a real Eloquent
+  resource (`Item`, `Requisition`, `StockLedger`, …), giving Laravel's naming-convention auto-discovery
+  something to bind to; reports have no such resource. A `ReportPolicy` would need a fake marker model
+  under `App\Models` just to satisfy that convention — worse than skipping the Policy class entirely.
+  `AppServiceProvider`'s existing `Gate::before()` hook already bridges any seeded permission code to a
+  bare ability check (`$user->roles->...->contains('code', $ability)`), so `report.view` works correctly
+  as a plain string with zero extra registration. Every route in the controller still calls
+  `$this->authorize('report.view')` explicitly (AGENT RULE #7's spirit — authorization checked on every
+  action — is intact even without a Policy file).
+- **T-045's CSV injection fix surfaced a real, already-shipped gap**: `Fr03Export` (T-025) had no
+  SEC-IN-10 guard at all — `receiver_name`/`remark` are free text a requester or receiver types once,
+  and neither was ever sanitized before this task. Retrofitted with the same `CsvInjectionGuard` every
+  new export uses, plus a regression test (`Fr03ExportTest`) proving a `=`/`+`/`-`/`@`-prefixed value
+  now gets the leading `'`. Any future export must run every free-text cell through
+  `CsvInjectionGuard::sanitize()` — nothing catches a missed one automatically (no PHPStan rule, no
+  linter), so a manual check for this is worth adding to review whenever a new export ships.
+- **"Below reorder point" and "dead stock" (§7.8) both take an optional `lab` filter, even though item
+  balance is global** (spec's schema has no per-lab stock split, same fact already noted for
+  `NotifyReorderPointCommand`/T-044). The filter narrows to items/containers that have at least one
+  container physically in that lab (`containers.location_id` → `locations.lab_id`), not a lab-scoped
+  balance — the same interpretation T-044's daily checks already use for their own recipient scoping.
+- **"Dead stock" is evaluated per container, not per item** — deliberately, since a container is the
+  physically actionable unit (the one thing you'd actually go dispose of or reallocate), unlike "below
+  reorder point" which is inherently item-level (the reorder decision is made per catalog item, not per
+  container). A container counts as dead stock when `remaining_qty_base > 0` and no `stock_ledger` row
+  has referenced its `container_id` in the last 12 months — checked directly against `stock_ledger`
+  rather than via a cached "last movement" column, since nothing in the schema tracks that separately
+  and the query is cheap (one `whereDoesntHave` per container).
+- **PHPStan gotcha refined during T-045**: chained relation access through a nullable FK
+  (`$container->location()->first()?->lab()->first()`) can trigger `nullsafe.neverNull` even when every
+  intermediate step is genuinely optional (`locations.lab_id`/`containers.location_id` are both
+  nullable) — neither the magic property, `->first()`, nor `firstOrFail()` reliably fixes it, unlike
+  the simpler one-hop cases documented earlier in this file. What actually works: assign each hop to a
+  local variable and narrow it with an explicit `if ($x === null) { return ...; }`, not `?->` or `??`
+  chains — PHPStan's flow analysis trusts an explicit `if` far more consistently than nullsafe operator
+  inference. See `ExpiringStockExport::labNameFor()`/`DeadStockExport::labNameFor()` for the pattern.
+- **NFR-02's "PDF ledger 100,000 rows < 15s via Queue + notify-on-completion" was not built for any of
+  T-045's reports.** Every export in this app (T-024's on-screen ledger, T-025's F-03 PDF/Excel, T-037's
+  F-01 PDF, and all six of T-045's new reports) renders synchronously in the request/response cycle —
+  none of them queue the work or notify the user when a background job finishes. This matches the
+  existing precedent exactly (`Fr03PdfService` was already synchronous before this task), so T-045
+  didn't regress anything, but the literal NFR-02 requirement is still open. Revisit if a real report
+  turns out slow enough in practice to need it — likely only the controlled-substances or usage-summary
+  exports at real scale, since neither paginates its underlying query.
+
 ## Known open items (spec §15, need a human decision before those tasks close)
 
 - ~~CMIS not registered as an SSO client~~ — **registered 2026-08-31**: `client_id=CMIS`,

@@ -14,12 +14,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric-string $qty_in_base
  * @property numeric-string $qty_out_base
  * @property numeric-string $balance_base
+ * @property int|null $approved_by
  */
 #[Fillable([
     'item_id', 'container_id', 'txn_date', 'txn_type', 'ref_type', 'ref_id', 'ref_doc_no',
     'qty_in_base', 'qty_out_base', 'balance_base', 'display_unit_id', 'issuer_id',
-    'receiver_id', 'receiver_name', 'signature_hash', 'remark', 'created_by', 'created_at',
-    'prev_row_hash', 'row_hash',
+    'receiver_id', 'receiver_name', 'signature_hash', 'remark', 'created_by', 'approved_by',
+    'created_at', 'prev_row_hash', 'row_hash',
 ])]
 class StockLedger extends Model
 {
@@ -75,6 +76,12 @@ class StockLedger extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     /** @return BelongsTo<Container, $this> */

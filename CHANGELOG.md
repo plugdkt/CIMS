@@ -374,6 +374,135 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   three scenarios actually describe, so — same judgment call as T-017's ST-04 — they're left for the
   tasks that build the real target rather than guessed at now. See CLAUDE.md.
 
+## Phase 4 — Operations
+
+### Added
+
+- T-040: Return flow (FR-ST-01, BR-05). `ReturnService::return()` enforces BR-05's two checks —
+  `qty_issued_base - qty_returned_base > 0` (something left to return) and the target container must
+  be one this line was actually issued from (queried from `issue_transactions`, since spec's schema has
+  no dedicated return table — a return is just another `stock_ledger` RETURN row plus incrementing
+  `requisition_items.qty_returned_base`) — then delegates the actual ledger write to
+  `LedgerService::return()` (T-021's primitive, still the only writer of `stock_ledger`). Added a
+  "คืนของ" section to the existing issue/return page (T-035), gated by a new `RequisitionPolicy::return`
+  ability that — unlike `issue` — stays true for both PARTIALLY_ISSUED and ISSUED, since returning
+  unused material remains meaningful even after a requisition is fully issued. **Caught and fixed a
+  real bug from manual browser verification**: the page itself was still gated on the `issue` ability
+  only, so a fully ISSUED requisition — the exact case a return needs — made the whole page 403 before
+  the return section could ever render; fixed by gating page access on "can issue OR can return", with
+  a regression test added since no automated test had caught it. Verified: 5 `ReturnService` tests
+  (FT-05 with spec's own numbers — 20 mL back from 50 mL issued — plus both BR-05 checks and multi-
+  return accumulation), 4 HTTP tests (including the regression test for the page-reachability bug),
+  plus a full manual run confirming a real return correctly credited the container.
+- T-041: stock take + mobile scan (FR-ST-02..04). `StockTakeService::create()` snapshots
+  `system_qty_base` from every "active" container (SEALED/IN_USE/QUARANTINE — EMPTY has a trivially
+  known count and DISPOSED no longer physically exists, so neither needs counting) in the chosen lab,
+  found via `containers.location_id` → `locations.lab_id` (a container with no location can't be
+  attributed to any lab and is simply never included). `recordCount()` is FR-ST-03's mobile scan
+  target — barcode in, counted quantity in the item's own base unit out, `diff_base` computed
+  immediately. `approve()` is the only path that writes `ADJUST_IN`/`ADJUST_OUT` (via `LedgerService::
+  adjust()`, still the only writer of `stock_ledger`) and, per BR-06, checks *every* affected line's
+  counter against the approver upfront — an approval is all-or-nothing, never partially applied because
+  one line happened to have been counted by the same person now approving. The scan page
+  (`GET .../scan`) is a deliberately minimal, large-tap-target, single-purpose mobile view that loops
+  back to itself after each save, showing a running "counted X / Y" tally. Verified: 6 service tests
+  (including FT-07 with a real ADJUST_OUT row and BR-06's same-actor rejection), 5 HTTP tests, plus a
+  full manual run through every stage — created a round, counted a real shortage via the mobile scan
+  page, submitted, approved as a different user (LAB_MANAGER), and confirmed both the container and a
+  real ADJUST_OUT ledger row in the database matched exactly.
+- T-042: Disposal (FR-ST-05). Added `LedgerService::dispose()` — the fifth and final ledger-writing
+  primitive, same shape as `issue()` but the container's terminal status is DISPOSED (not EMPTY) once
+  fully consumed, since a disposed container never becomes available again. `DisposalService` owns the
+  `disposals` request → approve/reject workflow: a request is checked against the container's remaining
+  stock at request time, and — since time passes between request and approval — checked *again* against
+  whatever the container's remaining stock actually is at approval time, not the stale figure from the
+  original request. Approving is the only path that writes the `DISPOSE` row; rejecting never touches
+  the ledger at all (spec's schema has no column for a rejection reason, unlike requisitions'
+  `reject_reason`, so none is stored). Deliberately does **not** add a BR-06-style "approver ≠
+  requester" check beyond ordinary role separation (`disposal.request` vs. `disposal.approve` are
+  different permissions on different roles) — BR-06's literal wording is specifically about
+  adjustments, not disposal, and spec never repeats that requirement here; see CLAUDE.md. Verified: 6
+  service tests (including the request-time vs. approval-time re-check), 5 HTTP tests, plus a full
+  manual run — requested disposal of an entire expired container, approved as a different user
+  (LAB_MANAGER), confirmed the container was fully credited down to zero and flipped to DISPOSED.
+- T-043: Adjustment workflow (FR-LG-07, BR-06). Unlike stock take/disposal, spec's schema has no
+  "pending adjustment request" table for this flow, so `AdjustmentService::adjust()` is a single-step
+  action naming both the adjustment and its distinct, authorized approver at once (mirrors T-035's
+  `requisition.issue_override` pattern) rather than a two-phase request → approve workflow.
+  `LedgerService::adjust()` (T-021) already enforced "approver ≠ creator" and "remark ≥ 10 chars";
+  `AdjustmentService` adds the other half BR-06 implies but that check alone can't see — the named
+  approver must actually **hold** `ledger.adjust` (currently LAB_MANAGER only per `PermissionSeeder`),
+  not merely be a different user id. Also added `stock_ledger.approved_by` (nullable FK to `users`) via
+  migration — BR-06 literally says an adjustment row must "have approved_by = LAB_MANAGER", but spec's
+  own §5.2 DDL for `stock_ledger` has no such column (unlike `stock_takes`/`disposals`, which do); same
+  class of gap as T-035's `overage_approved_by`. `LedgerService::appendRow()` now persists it for every
+  txn type (null for anything but ADJUST_IN/ADJUST_OUT); BR-08's hash formula is an explicit fixed list
+  per spec §10.3 and doesn't include this column, so the hash chain is unaffected. New `/adjustments`
+  index (plain paginated Blade view, not Livewire — same "simplest tool" precedent as T-031) lists every
+  ADJUST_IN/ADJUST_OUT row with its creator and approver; `/adjustments/create` is a single form
+  (barcode, direction, qty, remark, approver picker excluding the current user and any inactive account).
+  Verified: 7 service tests (including BR-06's four rejection paths and confirming `approved_by` is
+  recorded only for adjustment rows, never for RECEIVE/etc.), 6 HTTP tests (including FT-07/FT-08 by
+  spec's own numbers), plus a full manual run — recorded a real ADJUST_OUT as one LAB_MANAGER naming a
+  second as approver, confirmed the container balance, the ledger row, and the approver's name all
+  matched in the browser.
+- T-044: Notification jobs + scheduler (FR-NT-01..06). `notifications` was already a real table since
+  T-004 (spec's §5.2 DDL, migrated back at project init but never used) — added the missing `ulid`
+  column (AGENT RULE #9, same gap as `locations`/`labs` before them) rather than creating a duplicate
+  table. New `NotificationService` (`Domain/Notification`) exposes exactly the three channel
+  combinations spec's own table lists: `notifyInApp` (FR-NT-05, in-app only), `notifyInAppAndEmail`
+  (FR-NT-01..04, both), and `emailOnly` (FR-NT-06, routed to ADMIN) — one generic `NotificationMail`
+  covers every type, mirroring the `notifications` table's own generic (type/title/body/link_url)
+  shape. FR-NT-03/04 are wired directly into `RequisitionService::submit()` and
+  `ApprovalService::advisorDecide()`/`scientistDecide()`: a STUDENT submission notifies the advisor
+  in-app only (T-033's signed-URL email already covers that step's "Email" channel — a second generic
+  email would just duplicate it); a non-student submission, or an advisor's APPROVE decision, notifies
+  every `requisition.approve_scientist` holder in-app **and** by email (this stage had zero notification
+  before T-044); every advisor/scientist decision (approve or reject) notifies the requester of the
+  result. Four new scheduled Artisan commands cover the daily/periodic checks: `notifications:check-
+  reorder` (FR-NT-01, item balance < `reorder_point_base`), `notifications:check-expiry` (FR-NT-02,
+  containers hitting exactly 90/30/7 days to `expiry_date`), `notifications:check-shelf-life` (FR-NT-05,
+  containers open longer than `shelf_life_days_after_open`, in-app only), and `notifications:check-hash-
+  chain` (FR-NT-06, reuses `LedgerHasher::verifyChain()` from T-020, emails every ADMIN on a break) —
+  scheduled in `routes/console.php` (`Schedule::command(...)->dailyAt('07:00')` for the first three,
+  `->hourly()` for the hash-chain check since spec's own "Immediate" has no real trigger point to hook
+  — see CLAUDE.md). New `/notifications` page (plain Blade, not Livewire) plus a header bell with an
+  unread-count badge round out the in-app half; every user sees only their own (`NotificationPolicy`).
+  Verified: 5 service tests, 5 requisition-integration tests (advisor/scientist notification wiring), 3
+  tests each for the reorder/expiry/shelf-life commands, 2 for the hash-chain command (intact + broken
+  chain, reusing T-020's tamper-a-row-directly technique since the DB grants block `UPDATE`), 4
+  controller tests (index scoping, read, IDOR, mark-all-read) — 19 new tests total — plus a full manual
+  run: submitted a real requisition as a STUDENT, approved as the advisor, rejected as the scientist,
+  confirming the correct in-app rows and emails (via `queue:work`) at every step; ran all four commands
+  against real dev-DB fixtures (a low-stock item, containers landing on real 90/30/7-day thresholds, an
+  over-shelf-life container) and confirmed exactly the right recipients and channels for each.
+- T-045: Reports (FR-8) + CSV injection guard (SEC-IN-10). Two of §7.8's eight reports already existed
+  (F-03 item ledger from T-024/025, F-01 requisition PDF from T-037); this task builds the other six —
+  usage summary, near-expiry, below-reorder-point, dead stock, controlled substances, and stock-take
+  variance — plus a `CsvInjectionGuard` (prefixes a cell value with `'` when it starts with `= + - @`)
+  applied to every free-text cell across every export in the app, including retrofitting T-025's
+  existing `Fr03Export` (`issuer`/`receiver`/`remark`), which had shipped with no guard at all. New
+  `ReportController` (`/reports` hub + one export action per report) is gated on a bare
+  `Gate::authorize('report.view')` call rather than a dedicated Policy class — reports have no
+  underlying Eloquent resource for object-level rules the way every other Policy in this app gates one,
+  so a Policy class would need a fake marker model just to satisfy Laravel's auto-discovery convention;
+  `AppServiceProvider`'s existing `Gate::before()` permission bridge already makes a bare ability string
+  work correctly. "Below reorder point" and "dead stock" both accept an optional `lab` filter even
+  though item balance is global (spec's schema has no per-lab stock split) — the filter narrows to items/
+  containers physically present in that lab via `containers.location_id` → `locations.lab_id`, not a
+  lab-scoped balance. "Dead stock" is evaluated per **container** (not per item) — the container is the
+  physically actionable unit — as "no `stock_ledger` row referencing this `container_id` in the last 12
+  months, while `remaining_qty_base > 0`". Two reports (controlled substances, stock-take variance) ship
+  both Excel and PDF, reusing `MpdfFactory` (Sarabun) the same way `Fr03PdfService` does. Verified: a
+  `CsvInjectionGuardTest`, one Export test file per report (data correctness, filters, and CSV-injection
+  guarding), two PDF smoke tests, a `ReportControllerTest` (permission gating + every route reachable),
+  and a regression test added to `Fr03ExportTest` confirming the retrofitted guard — 27 new tests total —
+  plus a full manual run: built real fixtures for all six reports (a below-reorder item, a controlled
+  substance with a movement, a near-expiry container, a dead-stock container with a 15-month-old ledger
+  row, a stock-take round with one counted line, and a real issued requisition) and downloaded every one
+  of the 8 export routes through the actual browser session, confirming 200 OK and the correct
+  Content-Type on each; confirmed a STUDENT gets a real 403 page and no "รายงาน" nav link at all.
+
 ### Fixed
 
 - `StockLedger` needs `protected $table = 'stock_ledger'` — Eloquent's default pluralization guesses

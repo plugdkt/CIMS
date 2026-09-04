@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
@@ -15,6 +16,7 @@ use Illuminate\Support\Str;
  * @property numeric-string|null $unit_price
  * @property \Illuminate\Support\Carbon $received_at
  * @property \Illuminate\Support\Carbon|null $expiry_date
+ * @property \Illuminate\Support\Carbon|null $opened_at
  */
 #[Fillable([
     'ulid', 'barcode', 'item_id', 'location_id', 'lot_no', 'received_at', 'expiry_date',
@@ -57,5 +59,11 @@ class Container extends Model
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
+    }
+
+    /** @return HasMany<StockLedger, $this> */
+    public function stockLedgerRows(): HasMany
+    {
+        return $this->hasMany(StockLedger::class, 'container_id');
     }
 }

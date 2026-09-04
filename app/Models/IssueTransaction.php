@@ -9,7 +9,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
 
-/** @property numeric-string $qty_issued_base */
+/**
+ * @property numeric-string $qty_issued_base
+ * @property \Illuminate\Support\Carbon $issued_at
+ */
 #[Fillable([
     'ulid', 'requisition_item_id', 'container_id', 'qty_issued_base', 'issued_at',
     'issuer_id', 'receiver_id', 'signature_hash', 'signature_image_path', 'remark',

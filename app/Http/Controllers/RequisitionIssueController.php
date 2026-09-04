@@ -11,6 +11,7 @@ use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Exceptions\InvalidSignatureImageException;
 use App\Domain\Requisition\Services\IssueService;
 use App\Domain\Requisition\Services\ReceiverOtpService;
+use App\Domain\Requisition\Services\ReturnService;
 use App\Domain\Requisition\Services\SignatureImageService;
 use App\Http\Requests\RequisitionIssueRequest;
 use App\Models\Container;
@@ -24,16 +25,25 @@ use Illuminate\Http\RedirectResponse;
 /** FR-RQ-09/10: dispensing against an APPROVED/PARTIALLY_ISSUED requisition, one container at a time. */
 final class RequisitionIssueController extends Controller
 {
-    public function create(Requisition $requisition, FefoContainerSelector $selector): View
+    /**
+     * Gated on "can issue OR can return", not just "can issue" — a fully ISSUED
+     * requisition can no longer be issued against but can still be returned against
+     * (BR-05), so this page must stay reachable for that case too.
+     */
+    public function create(Requisition $requisition, FefoContainerSelector $selector, ReturnService $returns): View
     {
-        $this->authorize('issue', $requisition);
+        /** @var User|null $user */
+        $user = auth()->user();
+        abort_unless($user !== null && ($user->can('issue', $requisition) || $user->can('return', $requisition)), 403);
 
         $requisition->load(['items.item', 'items.unit', 'requester']);
 
         $lines = $requisition->items->map(fn (RequisitionItem $line) => [
             'line' => $line,
             'remaining_base' => bcsub($line->qty_requested_base, $line->qty_issued_base, 6),
+            'returnable_base' => bcsub($line->qty_issued_base, $line->qty_returned_base, 6),
             'containers' => $selector->recommend($line->item()->firstOrFail()),
+            'issued_containers' => $returns->issuedContainersFor($line),
         ]);
 
         return view('requisitions.issue', [
@@ -41,6 +51,7 @@ final class RequisitionIssueController extends Controller
             'lines' => $lines,
             'units' => Unit::orderBy('sort_order')->get(),
             'selector' => $selector,
+            'canReturn' => auth()->user()?->can('return', $requisition) ?? false,
         ]);
     }
 

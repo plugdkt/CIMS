@@ -7,6 +7,7 @@ namespace App\Domain\Reporting\Exports;
 use App\Domain\Inventory\DTO\LedgerFilter;
 use App\Domain\Inventory\DTO\LedgerRow;
 use App\Domain\Inventory\Services\LedgerQueryService;
+use App\Domain\Reporting\Services\CsvInjectionGuard;
 use App\Models\Item;
 use App\Models\Unit;
 use Illuminate\Support\Collection;
@@ -45,13 +46,13 @@ final class Fr03Export implements FromCollection, WithHeadings, WithTitle
         return [
             $row->txnDate->format('d/m/Y'),
             (string) __('ledger.txn_'.strtolower($row->txnType)),
-            $row->issuerName ?? '',
-            $row->receiverName ?? '',
+            CsvInjectionGuard::sanitize($row->issuerName ?? ''),
+            CsvInjectionGuard::sanitize($row->receiverName ?? ''),
             $row->qtyIn !== null ? "{$row->qtyIn} {$unitCode}" : '',
             $row->qtyOut !== null ? "{$row->qtyOut} {$unitCode}" : '',
             "{$row->balance} {$unitCode}",
             $row->signed ? (string) __('ledger.signed_yes') : '',
-            $row->remark ?? '',
+            CsvInjectionGuard::sanitize($row->remark ?? ''),
         ];
     }
 

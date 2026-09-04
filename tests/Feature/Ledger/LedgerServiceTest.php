@@ -195,7 +195,45 @@ test('adjust() rejects a decrease that would push the container balance negative
     ])))->toThrow(InsufficientStockException::class);
 });
 
-test('a full receive -> issue -> return -> adjust sequence produces an intact hash chain', function () {
+test('dispose() reduces the container remaining quantity and writes a DISPOSE row', function () {
+    $service = app(LedgerService::class);
+    $user = User::factory()->create();
+    $container = makeContainer();
+
+    $service->receive($container->id, '20.000000', ledgerCtx($user));
+    $row = $service->dispose($container->id, '5.000000', ledgerCtx($user));
+
+    expect($row->txn_type)->toBe('DISPOSE');
+    expect($row->qty_out_base)->toBe('5.000000');
+    expect($row->balance_base)->toBe('15.000000');
+    expect($container->fresh()->remaining_qty_base)->toBe('15.000000');
+});
+
+test('dispose() sets the container to DISPOSED once fully consumed', function () {
+    $service = app(LedgerService::class);
+    $user = User::factory()->create();
+    $container = makeContainer();
+
+    $service->receive($container->id, '10.000000', ledgerCtx($user));
+    $service->dispose($container->id, '10.000000', ledgerCtx($user));
+
+    $fresh = $container->fresh();
+    expect($fresh->remaining_qty_base)->toBe('0.000000');
+    expect($fresh->status)->toBe('DISPOSED');
+});
+
+test('dispose() rejects a quantity larger than what remains in the container', function () {
+    $service = app(LedgerService::class);
+    $user = User::factory()->create();
+    $container = makeContainer();
+
+    $service->receive($container->id, '5.000000', ledgerCtx($user));
+
+    expect(fn () => $service->dispose($container->id, '10.000000', ledgerCtx($user)))
+        ->toThrow(InsufficientStockException::class);
+});
+
+test('a full receive -> issue -> return -> adjust -> dispose sequence produces an intact hash chain', function () {
     $service = app(LedgerService::class);
     $creator = User::factory()->create();
     $approver = User::factory()->create();
@@ -208,9 +246,10 @@ test('a full receive -> issue -> return -> adjust sequence produces an intact ha
         'remark' => 'พบส่วนต่างจากการตรวจนับประจำเดือน',
         'approvedBy' => $approver->id,
     ]));
+    $service->dispose($container->id, '3.000000', ledgerCtx($creator));
 
     $result = app(LedgerHasher::class)->verifyChain($container->item_id);
 
     expect($result['ok'])->toBeTrue();
-    expect($container->fresh()->remaining_qty_base)->toBe('16.000000');
+    expect($container->fresh()->remaining_qty_base)->toBe('13.000000');
 });

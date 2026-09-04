@@ -5,7 +5,9 @@ use App\Http\Controllers\Auth\PendingRoleController;
 use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\Auth\SsoLoginController;
 use App\Http\Controllers\Auth\SsoLogoutController;
+use App\Http\Controllers\AdjustmentController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\DisposalController;
 use App\Http\Controllers\DocumentVerifyController;
 use App\Http\Controllers\GoodsReceiptController;
 use App\Http\Controllers\GoodsReceiptItemController;
@@ -13,10 +15,14 @@ use App\Http\Controllers\ItemController;
 use App\Http\Controllers\LabController;
 use App\Http\Controllers\LedgerExportController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\RequisitionApprovalController;
 use App\Http\Controllers\RequisitionController;
 use App\Http\Controllers\RequisitionIssueController;
 use App\Http\Controllers\RequisitionItemController;
+use App\Http\Controllers\RequisitionReturnController;
+use App\Http\Controllers\StockTakeController;
 use App\Livewire\Admin\UserRoleManager;
 use Illuminate\Support\Facades\Route;
 
@@ -124,8 +130,59 @@ Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(
     Route::post('/{requisition}/scientist-decide', [RequisitionApprovalController::class, 'scientistDecide'])->name('scientist-decide');
     Route::get('/{requisition}/issue', [RequisitionIssueController::class, 'create'])->name('issue.create');
     Route::post('/{requisition}/items/{requisition_item}/issue', [RequisitionIssueController::class, 'store'])->name('items.issue');
+    Route::post('/{requisition}/items/{requisition_item}/return', [RequisitionReturnController::class, 'store'])->name('items.return');
     // FR-RQ-11 OTP fallback: rate limited so a scientist can't spam a receiver's inbox.
     Route::post('/{requisition}/receiver-otp', [RequisitionIssueController::class, 'sendReceiverOtp'])
         ->middleware('throttle:5,1')
         ->name('receiver-otp.send');
+});
+
+// FR-ST-02..04 — authorization enforced per-action inside the controller/StockTakePolicy.
+Route::middleware('auth')->prefix('stock-takes')->name('stock-takes.')->group(function () {
+    Route::get('/', \App\Livewire\StockTakes\StockTakeTable::class)->name('index');
+    Route::get('/create', [StockTakeController::class, 'create'])->name('create');
+    Route::post('/', [StockTakeController::class, 'store'])->name('store');
+    Route::get('/{stock_take}', [StockTakeController::class, 'show'])->name('show');
+    Route::get('/{stock_take}/scan', [StockTakeController::class, 'scan'])->name('scan');
+    Route::post('/{stock_take}/count', [StockTakeController::class, 'recordCount'])->name('count');
+    Route::post('/{stock_take}/submit', [StockTakeController::class, 'submit'])->name('submit');
+    Route::post('/{stock_take}/approve', [StockTakeController::class, 'approve'])->name('approve');
+    Route::post('/{stock_take}/cancel', [StockTakeController::class, 'cancel'])->name('cancel');
+});
+
+// FR-ST-05 — authorization enforced per-action inside the controller/DisposalPolicy.
+Route::middleware('auth')->prefix('disposals')->name('disposals.')->group(function () {
+    Route::get('/', \App\Livewire\Disposals\DisposalTable::class)->name('index');
+    Route::get('/create', [DisposalController::class, 'create'])->name('create');
+    Route::post('/', [DisposalController::class, 'store'])->name('store');
+    Route::get('/{disposal}', [DisposalController::class, 'show'])->name('show');
+    Route::post('/{disposal}/approve', [DisposalController::class, 'approve'])->name('approve');
+    Route::post('/{disposal}/reject', [DisposalController::class, 'reject'])->name('reject');
+});
+
+// FR-LG-07 — a single-step create-and-approve form; authorization gated on ledger.adjust (LAB_MANAGER).
+Route::middleware('auth')->prefix('adjustments')->name('adjustments.')->group(function () {
+    Route::get('/', [AdjustmentController::class, 'index'])->name('index');
+    Route::get('/create', [AdjustmentController::class, 'create'])->name('create');
+    Route::post('/', [AdjustmentController::class, 'store'])->name('store');
+});
+
+// FR-NT-01..06 — the in-app half of every notification; every user sees only their own.
+Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
+    Route::get('/', [NotificationController::class, 'index'])->name('index');
+    Route::post('/read-all', [NotificationController::class, 'readAll'])->name('read-all');
+    Route::post('/{notification}/read', [NotificationController::class, 'read'])->name('read');
+});
+
+// FR-8 / §7.8 — every report not already served by F-01/F-03; gated on report.view.
+Route::middleware('auth')->prefix('reports')->name('reports.')->group(function () {
+    Route::get('/', [ReportController::class, 'index'])->name('index');
+    Route::get('/usage-summary/excel', [ReportController::class, 'usageSummaryExcel'])->name('usage-summary.excel');
+    Route::get('/expiring-stock/excel', [ReportController::class, 'expiringStockExcel'])->name('expiring-stock.excel');
+    Route::get('/below-reorder-point/excel', [ReportController::class, 'belowReorderPointExcel'])->name('below-reorder-point.excel');
+    Route::get('/dead-stock/excel', [ReportController::class, 'deadStockExcel'])->name('dead-stock.excel');
+    Route::get('/controlled-substances/excel', [ReportController::class, 'controlledSubstancesExcel'])->name('controlled-substances.excel');
+    Route::get('/controlled-substances/pdf', [ReportController::class, 'controlledSubstancesPdf'])->name('controlled-substances.pdf');
+    Route::get('/stock-takes/{stock_take}/excel', [ReportController::class, 'stockTakeVarianceExcel'])->name('stock-take.excel');
+    Route::get('/stock-takes/{stock_take}/pdf', [ReportController::class, 'stockTakeVariancePdf'])->name('stock-take.pdf');
 });

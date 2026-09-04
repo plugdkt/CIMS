@@ -78,7 +78,7 @@ final class LedgerService
                 ? 'EMPTY'
                 : 'IN_USE';
             if ($container->opened_at === null) {
-                $container->opened_at = now()->toDateString();
+                $container->opened_at = now();
             }
             $container->save();
 
@@ -163,6 +163,39 @@ final class LedgerService
         }, 3);
     }
 
+    /**
+     * FR-ST-05: writes off approved disposal quantity. Same "reduces stock" shape as
+     * `issue()`, but the container's terminal status is DISPOSED, not EMPTY, once fully
+     * consumed — a disposed container never becomes available again.
+     *
+     * @param  numeric-string  $qtyBase
+     */
+    public function dispose(int $containerId, string $qtyBase, LedgerEntryData $ctx): StockLedger
+    {
+        return DB::transaction(function () use ($containerId, $qtyBase, $ctx) {
+            $container = Container::whereKey($containerId)->lockForUpdate()->firstOrFail();
+
+            if (bccomp($container->remaining_qty_base, $qtyBase, self::SCALE) < 0) {
+                throw new InsufficientStockException(
+                    "ปริมาณคงเหลือไม่เพียงพอสำหรับทำลาย (คงเหลือ {$container->remaining_qty_base})"
+                );
+            }
+
+            $last = $this->lockLastRow($container->item_id);
+            $balance = bcsub($this->balanceOf($last), $qtyBase, self::SCALE);
+
+            $row = $this->appendRow($container, 'DISPOSE', '0', $qtyBase, $balance, $last?->row_hash, $ctx);
+
+            $container->remaining_qty_base = bcsub($container->remaining_qty_base, $qtyBase, self::SCALE);
+            if (bccomp($container->remaining_qty_base, '0', self::SCALE) === 0) {
+                $container->status = 'DISPOSED';
+            }
+            $container->save();
+
+            return $row;
+        }, 3);
+    }
+
     private function lockLastRow(int $itemId): ?StockLedger
     {
         return StockLedger::where('item_id', $itemId)
@@ -209,6 +242,7 @@ final class LedgerService
             'signature_hash' => $ctx->signatureHash,
             'remark' => $ctx->remark,
             'created_by' => $ctx->createdBy,
+            'approved_by' => $ctx->approvedBy,
             'created_at' => now(),
             'prev_row_hash' => $prevRowHash,
         ]);

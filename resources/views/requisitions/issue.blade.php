@@ -194,6 +194,49 @@
                         </div>
                     </form>
                 @endif
+
+                @if ($canReturn && $row['returnable_base'] > 0)
+                    <div class="border-t border-border mt-4 pt-4">
+                        <h3 class="text-sm font-semibold mb-2">
+                            {{ __('requisitions.return_title') }}
+                            <span class="text-xs text-ink-muted font-normal">({{ __('requisitions.returnable') }} {{ $row['returnable_base'] }})</span>
+                        </h3>
+                        <form method="POST" action="{{ route('requisitions.items.return', [$requisition, $line]) }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                            @csrf
+                            <div>
+                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_return_container') }}</label>
+                                <select name="container_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                    <option value="">{{ __('items.select_placeholder') }}</option>
+                                    @foreach ($row['issued_containers'] as $container)
+                                        <option value="{{ $container->id }}">{{ $container->barcode }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_qty_returned') }}</label>
+                                <input type="text" name="qty_returned" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_unit') }}</label>
+                                <select name="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                    <option value="">{{ __('items.select_placeholder') }}</option>
+                                    @foreach ($units as $unit)
+                                        <option value="{{ $unit->id }}" @selected($unit->id === $line->unit_id)>{{ $unit->code }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_issue_remark') }}</label>
+                                <input type="text" name="remark" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            </div>
+                            <div class="sm:col-span-4">
+                                <button type="submit" class="rounded-lg border border-border hover:bg-surface-alt text-sm font-semibold px-4 py-2.5">
+                                    {{ __('requisitions.record_return') }}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                @endif
             </div>
         @endforeach
     </div>

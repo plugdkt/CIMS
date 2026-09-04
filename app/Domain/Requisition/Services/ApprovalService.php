@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Requisition\Services;
 
+use App\Domain\Notification\Services\NotificationService;
 use App\Domain\Requisition\Exceptions\InvalidApprovalDecisionException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Models\Requisition;
@@ -18,8 +19,10 @@ use App\Models\User;
  */
 final class ApprovalService
 {
-    public function __construct(private readonly RequisitionState $state)
-    {
+    public function __construct(
+        private readonly RequisitionState $state,
+        private readonly NotificationService $notifications,
+    ) {
     }
 
     /**
@@ -56,6 +59,11 @@ final class ApprovalService
         }
         $requisition->status = $newStatus;
         $requisition->save();
+
+        $this->notifyRequesterOfDecision($requisition, 'ADVISOR', $decision);
+        if ($decision === 'APPROVE') {
+            $this->notifyScientistsPending($requisition);
+        }
 
         return $requisition;
     }
@@ -97,6 +105,8 @@ final class ApprovalService
         $requisition->scientist_signed_at = now();
         $requisition->status = $newStatus;
         $requisition->save();
+
+        $this->notifyRequesterOfDecision($requisition, 'SCIENTIST', $decision);
 
         return $requisition;
     }
@@ -146,5 +156,40 @@ final class ApprovalService
             $decision,
             now()->toISOString(),
         ]));
+    }
+
+    /**
+     * FR-NT-04: tell the requester the result of either approval step, approve or reject.
+     *
+     * @param  'ADVISOR'|'SCIENTIST'  $step
+     * @param  'APPROVE'|'REJECT'  $decision
+     */
+    private function notifyRequesterOfDecision(Requisition $requisition, string $step, string $decision): void
+    {
+        $requester = $requisition->requester()->firstOrFail();
+        $titleKey = $decision === 'APPROVE' ? 'notifications.decision_approved_title' : 'notifications.decision_rejected_title';
+        $bodyKey = $step === 'ADVISOR' ? 'notifications.decision_body_advisor' : 'notifications.decision_body_scientist';
+
+        $this->notifications->notifyInAppAndEmail(
+            $requester,
+            'requisition.decision',
+            __($titleKey, ['doc_no' => $requisition->doc_no]),
+            __($bodyKey, ['doc_no' => $requisition->doc_no]),
+            route('requisitions.show', $requisition),
+        );
+    }
+
+    /** FR-NT-03: a requisition just became actionable by a scientist — notify every SCIENTIST. */
+    private function notifyScientistsPending(Requisition $requisition): void
+    {
+        foreach ($this->notifications->usersWithAnyPermission('requisition.approve_scientist') as $scientist) {
+            $this->notifications->notifyInAppAndEmail(
+                $scientist,
+                'requisition.pending_scientist',
+                __('notifications.pending_scientist_title'),
+                __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]),
+                route('requisitions.show', $requisition),
+            );
+        }
     }
 }

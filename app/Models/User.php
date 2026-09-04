@@ -76,4 +76,10 @@ class User extends Authenticatable
     {
         return $this->roles->contains('code', $code);
     }
+
+    /** @return HasMany<Notification, $this> */
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class)->orderByDesc('id');
+    }
 }
