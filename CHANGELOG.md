@@ -527,6 +527,31 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the SVG chart's actual `<rect>`/`<text>` values inspected directly via the browser's DOM, not just a
   screenshot) against real fixtures (a below-reorder item, a near-expiry container, one SUBMITTED and one
   ISSUED requisition).
+- T-047: `ledger_snapshots` monthly job (performance). `ledger_snapshots` was already a real table since
+  T-004 (same "check the migrations folder first" lesson as T-044's `notifications` table) — no new
+  migration needed, just the model, service, and command. `LedgerSnapshotService::generateForPeriod()`
+  computes one row per (item, calendar month): `closing_base` is always read directly off the **last
+  `stock_ledger` row in that period** (BR-07's own running balance — the single source of truth), never
+  recomputed as `opening + in − out`, so a snapshot can never drift from the ledger itself;
+  `total_in_base`/`total_out_base` are informational sums only. `opening_base` chains from the previous
+  month's `closing_base` when an earlier snapshot exists, or falls back to the last ledger row strictly
+  before the period (so jumping straight to month 6 with no snapshots for months 1–5 still derives the
+  correct opening balance from raw history). Every item with ledger activity up to the period, **or**
+  with an earlier snapshot on record, gets a row for every later month even with zero movement — this
+  keeps the monthly chain gap-free, unlike an item that has genuinely never been touched, which is
+  skipped entirely (nothing to summarize). `php artisan ledger:snapshot {month?}` (Gregorian `YYYY-MM`,
+  defaults to last calendar month) is idempotent via `updateOrCreate` on the schema's own
+  `uq_snapshot(item_id, period_ym)`, scheduled `monthlyOn(1, '01:00')` in `routes/console.php`. Per the
+  backlog's own literal title ("job", not "job + read-path integration"), nothing else in the app reads
+  from `ledger_snapshots` yet — see CLAUDE.md. Verified: 7 service tests (first-ever snapshot, month-to-
+  month chaining, a zero-movement month still snapshotting, an untouched item being skipped, jumping
+  straight to a later month, idempotent re-run, `last_ledger_id` correctness) and 3 command tests
+  (explicit month, invalid format failing cleanly, no-argument defaulting) — 10 new tests total — plus a
+  full manual run against the real dev database's actual `stock_ledger` history (spanning 2025-06 to
+  2026-09 across 19 items): generated August 2026 (1 item had pre-existing history, correctly derived
+  its opening balance from before the period since no snapshot had ever been made), then September 2026
+  (19 items), confirmed the chain carried August's closing into September's opening for that one item,
+  and confirmed re-running September was a no-op (still exactly 20 rows, not 39).
 
 ### Fixed
 

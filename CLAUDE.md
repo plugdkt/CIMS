@@ -605,6 +605,28 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   CSP constraint already noted for T-036's signature canvas (`script-src` is `'self' 'nonce-...'` only,
   no CDN allowance) and the same "simplest tool" precedent used throughout this app. A server-rendered
   SVG needs no JavaScript at all, so there was never a CSP question to begin with.
+- **`ledger_snapshots` was already a real table since T-004** (spec's full §5.2 DDL) — same "check the
+  migrations folder before assuming a table doesn't exist" lesson T-044 already documented for
+  `notifications`. T-047 only needed the model/service/command, no new migration.
+- **`LedgerSnapshotService::generateForItem()` always reads `closing_base` off the actual last
+  `stock_ledger` row in the period, never recomputes it as `opening + total_in − total_out`.** The
+  ledger's own `balance_base` (BR-07's running balance) is already the single source of truth; deriving
+  `closing_base` independently by addition would risk silent drift if any edge case in the sums ever
+  disagreed with the ledger — better to have one column simply *be* the same fact the ledger already
+  proves, and let `total_in_base`/`total_out_base` stay purely informational.
+- **An item gets a snapshot for a month it had zero movement in, as long as it has ledger activity or a
+  prior snapshot from an earlier month** — deliberately, so the monthly chain has no gaps once an item
+  starts being tracked (a later query can always find "last month's row" to chain from). An item with
+  truly no history at all (never received) is skipped entirely for every period — there's nothing to
+  summarize.
+- **T-047 only ships the write side (the job that populates `ledger_snapshots`) — nothing in the app
+  reads from it yet.** The backlog's own title is literally "`ledger_snapshots` monthly job
+  (performance)", not "...and rewire balance lookups to use it" — every existing balance read (the
+  reorder-point check, the requisition create form's real-time balance, every report) still queries
+  `stock_ledger` directly via `orderByDesc('id')->value('balance_base')`, which is already correct and
+  already tested. Wiring a snapshot-aware fast path into any of those is a separate, real change (with
+  its own correctness risk around "is this snapshot still fresh") that wasn't asked for here — revisit
+  once real data volume actually makes the direct `stock_ledger` scan slow.
 
 ## Known open items (spec §15, need a human decision before those tasks close)
 

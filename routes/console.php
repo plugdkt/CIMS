@@ -16,3 +16,7 @@ Schedule::command('notifications:check-shelf-life')->dailyAt('07:00');
 // FR-NT-06: spec says "Immediate", but no real trigger point exists (see the command's own
 // docblock) — hourly is the closest practical stand-in for a periodic integrity scan.
 Schedule::command('notifications:check-hash-chain')->hourly();
+
+// T-047: monthly ledger balance snapshot (performance) — runs early on the 1st, covering
+// the calendar month that just closed (the command's own default with no argument).
+Schedule::command('ledger:snapshot')->monthlyOn(1, '01:00');
