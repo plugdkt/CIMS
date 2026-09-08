@@ -587,6 +587,24 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   didn't regress anything, but the literal NFR-02 requirement is still open. Revisit if a real report
   turns out slow enough in practice to need it — likely only the controlled-substances or usage-summary
   exports at real scale, since neither paginates its underlying query.
+- **T-046's pending-requisition count sums every action-queue the viewer's permissions make them
+  responsible for, rather than picking one branch per role.** A SCIENTIST holds both
+  `requisition.approve_scientist` and `requisition.issue`, so their card is genuinely "decisions I owe
+  plus issuances I owe" added together — showing only one of the two would silently hide real pending
+  work. A role holding none of `approve_advisor`/`approve_scientist`/`issue` (LAB_MANAGER, ADMIN,
+  AUDITOR) falls back to "my own requisitions still in flight," which is correctly `0` for those roles
+  since they never file requisitions themselves — not a bug, just an honest answer to a question that
+  doesn't apply to them.
+- **Top-10-issued-items and the 12-month chart both rank by issue-transaction *frequency*, not summed
+  quantity** — same reasoning as T-045's dashboard-adjacent reports: items are measured in incompatible
+  units (mg vs mL vs pcs), so summing raw base quantities across different items would produce a
+  meaningless number. Both are grouped/counted in PHP via `Collection::countBy()`, not a raw SQL
+  `GROUP BY`, per AGENT RULE #3 — acceptable at this app's scale since `issue_transactions` is a
+  low-write-volume table; revisit if it ever needs to scale past what fits comfortably in memory.
+- **The monthly issuance chart is a hand-rolled inline SVG bar chart, not a JS charting library** — same
+  CSP constraint already noted for T-036's signature canvas (`script-src` is `'self' 'nonce-...'` only,
+  no CDN allowance) and the same "simplest tool" precedent used throughout this app. A server-rendered
+  SVG needs no JavaScript at all, so there was never a CSP question to begin with.
 
 ## Known open items (spec §15, need a human decision before those tasks close)
 

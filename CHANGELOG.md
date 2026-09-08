@@ -502,6 +502,31 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   row, a stock-take round with one counted line, and a real issued requisition) and downloaded every one
   of the 8 export routes through the actual browser session, confirming 200 OK and the correct
   Content-Type on each; confirmed a STUDENT gets a real 403 page and no "รายงาน" nav link at all.
+- T-046: Dashboard (FR-9). The home page (`/`, previously a placeholder quick-links grid) is now a real
+  dashboard via `DashboardController` + `DashboardService`. The pending-requisitions card is the one
+  metric spec explicitly says varies "แยกตาม role ของผู้ใช้" — it sums whichever action queues the
+  viewer's permissions make them responsible for (`requisition.approve_advisor` → their own advisees
+  awaiting a decision; `requisition.approve_scientist` → every ADVISOR_APPROVED/non-student-SUBMITTED
+  requisition system-wide; `requisition.issue` → every APPROVED/PARTIALLY_ISSUED requisition awaiting
+  issuance), falling back to the viewer's own in-flight requisitions for a plain requester (STUDENT/
+  STAFF) or a bare `0` for a role with none of those permissions (LAB_MANAGER/ADMIN/AUDITOR — correct,
+  not a bug, since none of them act on requisitions directly). Every other card (below-reorder count,
+  containers expiring ≤30 days, top-10 issued items over 3 months, a 12-month issuance chart) is gated
+  behind `report.view` and shown identically to every holder of it, same as the `/reports` hub. Top
+  items and the monthly chart both rank/bucket by **issue-transaction frequency, not summed quantity** —
+  items are measured in incompatible units (mg vs mL vs pcs), so a quantity total across different items
+  would not be a meaningful comparison; both are computed by grouping in PHP (`Collection::countBy()`)
+  rather than a raw SQL `GROUP BY`, per AGENT RULE #3. The monthly chart is a hand-rolled inline SVG bar
+  chart with no JS/charting library at all — this app's CSP `script-src` has no CDN allowance (self +
+  nonce only, same constraint noted for T-036's signature canvas), and a server-rendered SVG needs zero
+  JS to begin with. Verified: 10 `DashboardServiceTest` cases (one per role-branch of the pending count,
+  plus reorder/expiry/top-items/monthly-series correctness and window boundaries) and 3
+  `DashboardControllerTest` cases (guest sees `welcome`, a STUDENT sees only the pending card, a
+  SCIENTIST sees every card) — 13 new tests total — plus a full manual run logged in as an ADVISOR,
+  STUDENT, SCIENTIST, and LAB_MANAGER in turn, confirming each saw the exact expected numbers (including
+  the SVG chart's actual `<rect>`/`<text>` values inspected directly via the browser's DOM, not just a
+  screenshot) against real fixtures (a below-reorder item, a near-expiry container, one SUBMITTED and one
+  ISSUED requisition).
 
 ### Fixed
 

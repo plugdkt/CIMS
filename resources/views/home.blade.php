@@ -4,6 +4,66 @@
         <p class="text-sm text-ink-muted mt-1">{{ __('home.subtitle') }}</p>
     </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-surface border border-border rounded-xl p-5">
+            <div class="text-xs text-ink-muted">{{ __('home.pending_requisitions') }}</div>
+            <div class="font-display text-2xl font-bold mt-1">{{ $pendingRequisitions }}</div>
+        </div>
+        @if (isset($belowReorderCount))
+            <div class="bg-surface border border-border rounded-xl p-5">
+                <div class="text-xs text-ink-muted">{{ __('home.below_reorder') }}</div>
+                <div class="font-display text-2xl font-bold mt-1 {{ $belowReorderCount > 0 ? 'text-warning' : '' }}">{{ $belowReorderCount }}</div>
+            </div>
+        @endif
+        @if (isset($expiringCount))
+            <div class="bg-surface border border-border rounded-xl p-5">
+                <div class="text-xs text-ink-muted">{{ __('home.expiring_soon') }}</div>
+                <div class="font-display text-2xl font-bold mt-1 {{ $expiringCount > 0 ? 'text-danger' : '' }}">{{ $expiringCount }}</div>
+            </div>
+        @endif
+    </div>
+
+    @if (isset($topItems) && isset($monthlySeries))
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <div class="bg-surface border border-border rounded-xl p-5">
+                <h2 class="font-semibold text-sm mb-3">{{ __('home.top_items_title') }}</h2>
+                @if ($topItems->isEmpty())
+                    <p class="text-xs text-ink-faint">{{ __('home.top_items_empty') }}</p>
+                @else
+                    <ol class="space-y-2">
+                        @foreach ($topItems as $row)
+                            <li class="flex items-center justify-between text-sm">
+                                <span class="truncate pr-2">{{ $loop->iteration }}. {{ $row['item']->name_th }}</span>
+                                <span class="text-ink-muted whitespace-nowrap">{{ $row['issue_count'] }} {{ __('home.issue_count_unit') }}</span>
+                            </li>
+                        @endforeach
+                    </ol>
+                @endif
+            </div>
+
+            <div class="bg-surface border border-border rounded-xl p-5">
+                <h2 class="font-semibold text-sm mb-3">{{ __('home.monthly_chart_title') }}</h2>
+                @php
+                    $maxCount = max(1, $monthlySeries->max('count'));
+                @endphp
+                <svg viewBox="0 0 360 140" class="w-full" role="img" aria-label="{{ __('home.monthly_chart_title') }}">
+                    @foreach ($monthlySeries as $i => $row)
+                        @php
+                            $barWidth = 22;
+                            $gap = 8;
+                            $x = $i * ($barWidth + $gap) + 4;
+                            $barHeight = (int) round(($row['count'] / $maxCount) * 90);
+                            $y = 100 - $barHeight;
+                        @endphp
+                        <rect x="{{ $x }}" y="{{ $y }}" width="{{ $barWidth }}" height="{{ $barHeight }}" rx="2" fill="#6d28d9"></rect>
+                        <text x="{{ $x + $barWidth / 2 }}" y="112" text-anchor="middle" font-size="8" fill="currentColor" class="text-ink-faint">{{ $row['month']->format('m') }}</text>
+                        <text x="{{ $x + $barWidth / 2 }}" y="{{ max(10, $y - 3) }}" text-anchor="middle" font-size="8" fill="currentColor">{{ $row['count'] }}</text>
+                    @endforeach
+                </svg>
+            </div>
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
         @can('viewAny', App\Models\Item::class)
             <a href="{{ route('items.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">

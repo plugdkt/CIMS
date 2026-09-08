@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\SsoLoginController;
 use App\Http\Controllers\Auth\SsoLogoutController;
 use App\Http\Controllers\AdjustmentController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DisposalController;
 use App\Http\Controllers\DocumentVerifyController;
 use App\Http\Controllers\GoodsReceiptController;
@@ -26,11 +27,8 @@ use App\Http\Controllers\StockTakeController;
 use App\Livewire\Admin\UserRoleManager;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    // No real dashboard yet (spec §7.9 / T-046, Phase 4) — a quick-links home in the
-    // meantime so a logged-in user isn't stranded on a bare login/logout card.
-    return auth()->check() ? view('home') : view('welcome');
-});
+// §7.9: DashboardController itself returns the guest "welcome" view when not logged in.
+Route::get('/', [DashboardController::class, 'index']);
 
 // §7.2 public routes — SEC-AU-04: rate limited, no `auth` middleware (that's the point).
 Route::middleware('throttle:20,1')->group(function () {
