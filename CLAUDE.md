@@ -905,6 +905,25 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   first time (real SSO login, then grant `ADMIN` via tinker) before anyone can use `/admin/users` for
   real again. See the runbook's own "Known open items" for the root-cause candidates worth checking
   if this is ever investigated.
+- **T-055 (documentation) intentionally does not choose a Windows-native Redis solution.** Spec names
+  Redis 7 (§4.1), but Redis has no official Windows Server build — `docs/iis_installation_guide.md`
+  §4 lists the three real options (Memurai, WSL2, a separate host) without picking one, since it's a
+  genuine infrastructure decision for whoever actually provisions the production server, not something
+  this task should guess at. Same judgment-call class as T-015's GHS statements or T-037's F-01
+  layout — document the real choice honestly rather than silently pick one and hide the trade-off.
+- **T-055's install guide flags SEC-DB-01 (3 separate DB users: `cmis_app`/`cmis_ledger`/`cmis_report`)
+  as still unbuilt**, repeating T-027's already-recorded gap at the point where it matters most —
+  right before a real deployment. Nothing new was built to close it; this is a documentation pass
+  making an existing gap visible at go-live time, not a re-decision.
+- **`docs/user_manual.md`/`docs/admin_manual.md` were written directly against real routes/
+  permissions/lang strings** (`php artisan route:list`, `PermissionSeeder`'s `$grants` array, `lang/
+  th/*.php`), not from memory of what the app "should" do — every workflow claim was checked against
+  actual code first. This caught one real draft error before it shipped: the disposal reason `WASTE`
+  was first guessed as "ใช้หมด" (used up) but the actual lang string is "ของเสีย" (waste/spoilage) —
+  fixed by checking `lang/th/disposals.php` directly rather than trusting the enum name's English
+  gloss. **Any future user-facing documentation for this app should be checked against the actual
+  `lang/th/*.php` strings the same way** — guessing a Thai label from an English DB enum value is an
+  easy, silent way to ship a wrong instruction.
 
 ## Known open items (spec §15, need a human decision before those tasks close)
 

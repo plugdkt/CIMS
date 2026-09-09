@@ -831,3 +831,22 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   root cause of the earlier loss unknown; backups aren't shipped off-host yet; RTO only validated
   against a near-empty dataset). Full suite: 367/367 passing, PHPStan level 8 clean, Pint clean,
   `composer audit` clean.
+- T-055: Documentation — IIS installation guide, user manual, admin manual. Three new Thai-language
+  docs (matching `sso_integration_guide.md`'s existing style — Thai prose with English technical
+  terms inline), no code changes. `docs/iis_installation_guide.md` covers the real deployment target
+  spec §4.1 actually names (IIS 10 / Windows Server 2022 / FastCGI), which this project's Docker
+  Compose setup never touches — directory layout, MariaDB/Redis/PHP-FPM install steps, `web.config`
+  (already present in the repo, verified identical to spec §9.6's own sample), Task Scheduler in
+  place of cron (Laravel scheduler + a Windows-service-wrapped queue worker via NSSM, since
+  `queue:work` needs to run continuously, which Task Scheduler alone doesn't suit), backup scheduling
+  (referencing T-054's runbook), and a go-live security checklist. Flags two real, unresolved
+  deployment gaps rather than glossing over them: **Redis has no native Windows build** (spec names
+  Redis 7, but Windows Server needs Memurai, WSL2, or a separate host — not decided here, since it's
+  a real infrastructure choice someone has to make) and **SEC-DB-01's 3-separate-DB-users design was
+  never built** (T-027 only restricted the single `cmis_app` connection's grants — already a known
+  gap, repeated here since it matters most at actual deployment time). `docs/user_manual.md` and
+  `docs/admin_manual.md` were written directly against the real routes/permissions/lang strings
+  (`php artisan route:list`, `PermissionSeeder`, `lang/th/*.php`) rather than guessed — every claim
+  about what a screen does or what text it shows was checked against the actual code before being
+  written down; one draft error caught this way: disposal reason `WASTE` labels as "ของเสีย", not
+  "ใช้หมด" as first guessed, fixed before finalizing.
