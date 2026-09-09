@@ -850,3 +850,30 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   about what a screen does or what text it shows was checked against the actual code before being
   written down; one draft error caught this way: disposal reason `WASTE` labels as "ของเสีย", not
   "ใช้หมด" as first guessed, fixed before finalizing.
+- T-056: UAT test plan + penetration testing. Delivered `docs/uat_test_plan.md` (per-role end-to-end
+  scenarios mapped to spec §14's acceptance criteria, for real human testers — explicitly not
+  something this task could run itself) and `docs/penetration_test_report.md`, scoped honestly as an
+  agent-conducted security review, not a substitute for a licensed third-party pentest before real
+  PII is processed. Ran OWASP ZAP's **active scan** (`zap-full-scan.py`, real attack payloads — SQLi
+  across 5 database engines, XSS, SSRF, SSTI, XXE, RCE including Log4Shell/Spring4Shell/Text4Shell,
+  command injection, path traversal, and more) against the nginx+PHP-FPM stack: 132 rules passed, 0
+  new confirmed vulnerabilities. Of 4 Medium-risk alerts, 2 were the already-approved CSP exception
+  (T-053), 1 ("Bypassing 403", `X-Original-URL` header) was investigated and confirmed a false
+  positive by hand (the header has zero effect on this app's routing — verified against both a
+  protected and a public route with/without it), and 1 ("HTTP Only Site") is expected for this
+  TLS-less local Docker environment and must be re-checked against the real HTTPS production URL
+  before go-live. Manually verified (via direct HTTP requests bypassing the UI, using each role's own
+  real CSRF token) every business-logic authorization case a generic scanner can't reason about: ST-04
+  (IDOR — a second student cannot open another student's requisition by URL), ST-05 (a PHP webshell
+  renamed `.pdf` is rejected, no attachment record created), ST-10 (STUDENT/SCIENTIST/LAB_MANAGER/
+  AUDITOR all correctly 403 on every endpoint outside their role, including direct POSTs to
+  write endpoints, not just GET on the create page), and ST-10b (a logged-in, roleless user can reach
+  only the pending-role page). **Found and fixed a real availability bug along the way**: the `app`
+  container's operations run as root and write to the same bind-mounted `storage`/`bootstrap/cache`
+  the `fpm` container's `www-data`-owned worker also needs to write to — once `app` touches those
+  paths, `fpm` loses write access and every request needing to log or compile a view (including the
+  `/up` health check) 500s with no clear error. Fixed with `chown -R www-data:www-data storage
+  bootstrap/cache`; documented as a recurring gotcha, not a one-time fix, since any future `docker
+  compose exec app ...` write will reintroduce it. Full suite: 367/367 passing, PHPStan level 8 clean,
+  Pint clean, `composer audit` clean — this task added no application code, only docs and a ZAP
+  waiver-config entry.

@@ -924,6 +924,49 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   gloss. **Any future user-facing documentation for this app should be checked against the actual
   `lang/th/*.php` strings the same way** — guessing a Thai label from an English DB enum value is an
   easy, silent way to ship a wrong instruction.
+- **T-056's UAT test plan is a script for real human testers, not something this task could run
+  itself** — `docs/uat_test_plan.md` maps every spec §14 acceptance criterion plus a full per-role
+  end-to-end scenario list, but the actual execution needs real people acting as each role. Same
+  reasoning as T-055's install guide: some deliverables are documentation *for* a human step, not a
+  substitute for it.
+- **T-056's "penetration test" is explicitly scoped as an agent-conducted security review, not a
+  licensed third-party pentest** — `docs/penetration_test_report.md` says so on its first page.
+  Ran OWASP ZAP's active scan (`zap-full-scan.py`, real attack payloads, not just T-053's passive
+  baseline) — 132 rules passed (SQLi across 5 DB engines, XSS, SSRF, SSTI, XXE, RCE including
+  Log4Shell/Spring4Shell/Text4Shell, command injection, path traversal, and more), 0 new confirmed
+  vulnerabilities. Investigated all 4 Medium-risk alerts individually rather than blanket-accepting
+  or blanket-dismissing them: 2 are the already-approved CSP exception (T-053); 1 ("Bypassing 403",
+  `X-Original-URL` header) was manually confirmed a false positive — this app's nginx/Laravel never
+  read that header, verified by sending it to both a protected route (identical 302-to-login with or
+  without it) and an already-public one (identical 200 either way); 1 ("HTTP Only Site") is expected
+  for this TLS-less local Docker environment and is explicitly flagged as needing re-verification
+  against the real HTTPS production URL before go-live, not silently waived. The false-positive
+  waiver is recorded in `docker/zap/baseline.conf` (rule `40038`) with the investigation, same pattern
+  as T-053's CSP waiver — nothing hidden, every exclusion has a reason attached.
+- **Manually verified every business-logic authorization case a generic scanner can't reason about**,
+  using each test role's own real CSRF token and hitting endpoints directly (bypassing the UI, not
+  just checking that a button is hidden): ST-04 (IDOR — a second student 403s opening another
+  student's requisition by URL), ST-05 (a PHP webshell renamed `.pdf` is rejected — confirmed via the
+  database, not just the HTTP response, that no `Attachment` row was created), ST-10 (STUDENT/
+  SCIENTIST/LAB_MANAGER/AUDITOR all 403 on every endpoint outside their role, including a direct POST
+  to `/adjustments` with a valid CSRF token — proves the Policy layer itself blocks it, not just that
+  CSRF happens to fail first), and ST-10b (a logged-in, roleless user reaches only the pending-role
+  page, 403 everywhere else including `/`).
+- **Found and fixed a real availability bug while testing (T-056), specific to the `fpm`/`nginx`
+  stack T-052 added**: `docker compose exec app ...` (the CLI dev container) runs as root and shares
+  the same bind-mounted `storage`/`bootstrap/cache` that `fpm`'s worker needs to write to as
+  `www-data` (`docker/php-fpm/www.conf`'s `user = www-data` — correct least-privilege for a real
+  web-facing process). Once `app` touches those paths (any `artisan` command that writes a log line
+  or compiles a view), ownership flips to root and `fpm` loses write access — every subsequent
+  request needing to log or compile a view then 500s with no clear error, **including the `/up`
+  health check itself**, which is what made this concrete and traceable rather than a vague "some
+  pages break" report. Fixed with `chown -R www-data:www-data storage bootstrap/cache` (run from
+  either container, both have root for this). **This is not a one-time fix** — it recurs every time
+  `docker compose exec app` writes to those paths again, so re-run the `chown` before testing
+  anything through `localhost:8091` after using `localhost:8090`/`docker compose exec app` for
+  artisan commands. Not a real production concern (IIS's Application Pool identity is the only
+  process touching webroot files there, per `docs/iis_installation_guide.md` — this is purely a
+  side effect of two containers sharing one bind mount for local dev/test convenience).
 
 ## Known open items (spec §15, need a human decision before those tasks close)
 
