@@ -17,7 +17,7 @@
     </div>
 
     <div class="bg-surface border border-border rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" tabindex="0">
             <table class="w-full text-sm">
                 <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                     <tr>

@@ -2,6 +2,7 @@
 
 Full spec (single source of truth): [`_spec.md_AI_Agent_.md`](_spec.md_AI_Agent_.md).
 SSO protocol details: [`sso_integration_guide.md`](sso_integration_guide.md), [`sso_client_quickstart.md`](sso_client_quickstart.md).
+PDPA breach response plan (SEC-PD-05, still a draft — see its own status line): [`pdpa_breach_response_plan.md`](pdpa_breach_response_plan.md).
 
 Read the full spec's `§0 AGENT OPERATING RULES`, `§13 BACKLOG`, and `§12 DEFINITION OF DONE` before implementing
 any task. Work the backlog in order — do not skip ahead. If a requirement is ambiguous, stop and ask; do not guess.
@@ -47,7 +48,17 @@ docker compose exec app vendor/bin/phpstan analyse
 ```
 
 App container runs `php artisan serve` on port 8000 internally, forwarded to `localhost:8090`.
-`.env` doubles as the docker-compose env file (same DB/Redis credentials on both sides).
+`.env` doubles as the docker-compose env file (same DB/Redis credentials on both sides). All normal
+dev/test work goes through this `app` container — the `fpm`/`nginx` services below are a separate,
+additive pair added for T-052's load test and don't change anything about the workflow above.
+
+**`fpm` + `nginx` (`:8091` by default, `FORWARD_NGINX_PORT`) is a second, production-representative way
+to serve the exact same codebase** — `docker/php-fpm/` (php-fpm base image, `pm.max_children=60`, OPcache
+shared across all pool workers) behind `docker/nginx/` (a standard `fastcgi_pass` server block). Added
+during T-052 because `php artisan serve` turned out fundamentally unable to validate NFR-01 (100
+concurrent users) — see CLAUDE.md's T-052 notes below. Use `curl`/a browser against `localhost:8091` for
+anything that needs to look like real concurrent-request behavior; use `localhost:8090` (or `docker
+compose exec app ...`) for everything else, same as always.
 
 **Two databases exist on purpose**: `cmis` (dev data — the `mariadb` container's `MARIADB_DATABASE`) and
 `cmis_testing` (created manually, see deviations below). Tests use `cmis_testing` exclusively via
@@ -628,6 +639,181 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   its own correctness risk around "is this snapshot still fresh") that wasn't asked for here — revisit
   once real data volume actually makes the direct `stock_ledger` scan slow.
 
+## Phase 5 — Hardening & Release
+
+- **T-050's Privacy Notice consent gate (`EnsurePrivacyConsent`) is prepended *before*
+  `EnsureRoleAssigned` in the `web` middleware group, and `SsoCallbackController`/
+  `PrivacyNoticeController::accept()` both check consent before role.** SEC-PD-02 applies to a user
+  regardless of what role they end up with — a STUDENT and an ADMIN both need to consent before doing
+  anything else — so consent is the more fundamental gate. This mattered concretely:
+  `PrivacyNoticeController::accept()` originally just did `redirect()->intended('/')` after saving
+  consent, which for a roleless user would have fallen straight through to `EnsureRoleAssigned`'s 403
+  on `/` instead of the pending-role page — caught before writing tests, by tracing the exact same
+  two-gate interaction `SsoCallbackController` already has to handle explicitly.
+  `EnsureRoleAssigned`'s own exempt-route list also needed `privacy-notice.show`/`.accept` added (an
+  already-consented-but-roleless user navigating back to the notice URL would otherwise 403 there too).
+- **`UserFactory` defaults every fixture to already-consented** (`privacy_consent_at` = now,
+  `privacy_consent_version` = the current config value), with a new `->unconsented()` state for the
+  handful of tests that specifically exercise the consent gate. Introducing a global,
+  every-request middleware after 340+ existing tests already existed meant either touching every
+  fixture individually or fixing it once at the factory — the factory fix meant zero of the
+  pre-existing tests needed to change. **Any future global gate like this should default the factory
+  the same way**, not require every existing test file to opt in.
+- **SEC-PD-03's "my-data" page and export cover profile fields + the user's own requisitions, not an
+  exhaustive dump of every table that references them** (every issue_transaction, every audit_log
+  mention, every notification, etc.). This is a representative, defensible scope for the
+  access/copy right, not the literal maximum — a fully exhaustive cross-table export would be a
+  larger, separate undertaking. Revisit if PDPA compliance review calls for more.
+- **SEC-PD-04's `PseudonymizeUserService` leaves `sso_subject` untouched, deliberately** — it's an
+  opaque SSO identifier, not personal data on its own, and clearing it would let a future SSO
+  re-provision of the same real person silently create a second "new" user sharing that identity's
+  history under a fresh row, which is worse than leaving the original opaque subject string in place
+  on an otherwise-scrubbed, deactivated row.
+- **`php artisan users:pseudonymize` has no automatic scheduled trigger** — unlike every other
+  scheduled command in this app (T-044's notification checks, T-047's snapshot job), this one is
+  manual-only, gated by an interactive confirmation prompt, and has no permission check of its own
+  (same reasoning as `ledger:verify`/`ledger:snapshot`: it's a CLI tool, so server access is the actual
+  access-control boundary). The reason it can't be scheduled yet: **no written data-retention period
+  exists** to decide *when* a given user qualifies — see Known open items below. Building the
+  scheduled-trigger half without that policy decided would mean guessing at a number nobody has
+  approved.
+- **`pdpa_breach_response_plan.md` names roles by job title/placeholder, not real people** — same
+  "don't fabricate what nobody has confirmed" judgment as T-015's GHS statements and T-037's F-01
+  layout, just applied to an incident-response org chart instead of technical content. The plan is
+  usable as a structural template today but needs the university to name actual people/contact
+  channels before it's a real operational plan.
+- **T-051 (NFR-07, WCAG 2.1 AA) is an audit task, not a "build X" task** — spec's entire guidance on
+  this requirement is one terse table row with zero elaboration anywhere else in the ~1600-line spec.
+  Read literally, the only honest way to "implement" it is to actually run a real accessibility scanner
+  against the live app and fix whatever it finds — so this task did exactly that with axe-core 4.10.2,
+  not a guess at what WCAG might require. The app's strict CSP (`connect-src 'self'`) blocks fetching
+  the library from any CDN, even from console-executed JS (confirmed empirically) — worked around by
+  copying axe-core into `public/` as a temporary same-origin file (deleted again once the audit
+  finished), never by relaxing CSP.
+- **Three systemic issues found, all pre-existing since whichever task first wrote the affected
+  markup — none caught by PHPStan/Pint/any prior manual test, because none of them check this class of
+  structural/visual property:**
+  1. **Missing form-label association** (WCAG 1.3.1/4.1.2/3.3.2) — every form field app-wide used a
+     bare sibling `<label class="block ...">` right before its `<input>`/`<select>`, no `id`/`for` at
+     all. Fixed across 14 files (~82 fields). Before touching any file, each was checked for whether its
+     labeled fields sit inside a `@foreach` that could produce duplicate ids on one page — two files
+     genuinely did: `requisitions/issue.blade.php` (loops over line items) uses the line's own PK as an
+     `id` suffix (`id="barcode-{{ $line->id }}"`); `reports/index.blade.php` (several independent static
+     forms reusing generic names like `from`/`to`/`lab_id`) uses `aria-label` instead of `for`/`id`
+     entirely, since it had no visible `<label>` to begin with. Every other file's labeled fields render
+     exactly once per page (any surrounding `@foreach` was a read-only display table, not the form
+     itself), so those got plain matching `id`s. **Any new form field added anywhere in this app must
+     pair its `<label for="...">` with a matching `id="..."` on the input/select from the start** — this
+     won't fail any automated check if forgotten, only a real scanner or a screen-reader user.
+  2. **Scrollable regions not keyboard-focusable** (WCAG 2.1.1, axe rule `scrollable-region-focusable`)
+     — every `overflow-x-auto`/`overflow-y-auto` wrapper (wide tables, the GHS hazard/precautionary
+     statement pickers, the Privacy Notice's own scrollable body) had no `tabindex`, so a keyboard-only
+     user could never scroll it. Fixed with `tabindex="0"` on all 16 occurrences across 15 files —
+     deliberately *not* `role="region"`/`aria-label` on top, since that's a broader ARIA enhancement
+     neither the literal WCAG SC nor axe's own rule asks for. Axe only flags this when the region is
+     genuinely overflowing at scan time, so two of these (a table page and the Privacy Notice) only
+     surfaced once real/long-enough content was loaded — a scan against an empty table won't catch it.
+     **Any new `overflow-x-auto`/`overflow-y-auto` wrapper needs `tabindex="0"` from the start** — the
+     new `AccessibilityStructureTest` now catches a missed one automatically (see below).
+  3. **Insufficient color contrast** (WCAG 1.4.3, axe rule `color-contrast`) — the shared Tailwind token
+     `ink.faint` (`#85769D` on white) measured 4.13:1, short of the 4.5:1 floor for normal-size text, and
+     is used for "faint helper text" (`<dt>` labels, hints, etc.) across effectively every page. Fixed by
+     changing the one token value in `tailwind.config.js` (`#85769D` → `#786A8D`, ~4.95:1 — a deliberate
+     margin above the floor, not a bare pass) rather than hunting down every individual usage site, since
+     it's a single design-system value, not a per-page bug. **This project's Docker Compose has no
+     Node/Vite container** — `npm run build` was run from the host (which already had Node installed),
+     not inside `docker compose exec app`, since `node`/`npm` aren't on that container's PATH. Any future
+     Tailwind/asset change needs the same host-side build step; there's no `npm run dev` hot-reload
+     server running either.
+- **`AccessibilityStructureTest` (T-051) is a lightweight structural regression guard, not a full a11y
+  test suite** — one test statically scans every `.blade.php` file for an `overflow-x-auto`/
+  `overflow-y-auto` tag missing `tabindex`, the other hits `/items/create` (the richest real form) and
+  asserts every visible `<label for="...">` has a matching `id="..."` in the rendered response. It does
+  **not** re-check color contrast (that's a design-token property, not a markup pattern a Pest test can
+  meaningfully assert) or re-run axe itself (no CDN access in CI, and the point of these two tests is a
+  cheap regression tripwire, not re-doing the full manual audit). The full audit was verified live in a
+  browser against every page type reachable by every role — see CHANGELOG.md's T-051 entry for the list.
+- **T-052 (NFR-02) found that `Fr03PdfService`'s HTML/CSS-table rendering (unchanged since T-025) costs
+  ~1.9ms and ~90KB *per row*** — real, measured, not estimated. At 100,000 rows that's ~190s/~9GB, nowhere
+  close to NFR-02's <15s target, and chunking the `WriteHTML()` calls doesn't help at all (the cost is
+  mPDF's own internal DOM/CSS layout-engine state accumulating per row, not the size of the HTML string
+  fed to it — the earlier chunking fix only solved a *different* problem, a `pcre.backtrack_limit` crash
+  at ~5,000 rows). **Rewrote the table body to use mPDF's raw `Cell()`/`Ln()` drawing API instead**
+  (fixed column widths in mm, manual page-break + header-row-repeat logic, `GetStringWidth()`-based
+  truncation-with-ellipsis for any value too long for its column) — this skips the HTML/CSS parser
+  entirely for the row-count-dependent part. Re-measured: 100,000 real rows now render in **9.88s at
+  761MB peak**. User-approved 2026-09-09 (asked directly: rewrite the renderer vs. document the gap and
+  move on — chose the rewrite). Title/item-info block stays plain `WriteHTML()` — it's small and
+  fixed-size regardless of row count, so there was nothing to fix there. **Any future mPDF report with a
+  row count that can genuinely grow unbounded should draw its table body the same way (`Cell()`, not
+  `WriteHTML()`)** — the HTML/CSS path is fine for anything with a small, bounded row count (every other
+  export in this app).
+- **T-052's queued PDF export (`LedgerExportRequest` + `GenerateLedgerPdfExportJob`) routes to the
+  background once a filtered ledger exceeds 5,000 rows** (`LedgerExportController::ASYNC_ROW_THRESHOLD`)
+  — picked from the same measurement: even the *old* renderer took ~9.67s for 5,000 rows (uncomfortably
+  close to blocking a web request), and the new one easily clears that in under a second, so 5,000 is a
+  comfortable, empirically-grounded cutover rather than a guess. The job itself raises its own
+  `memory_limit` to 1536M via `ini_set()` — safe only because this runs off the request cycle entirely;
+  a real deployment's queue worker should be sized the same way in its own php.ini.
+- **The queued export's status/download page (`/ledger-exports/{ulid}`) is the first real, genuinely
+  user-owned, URL-addressed resource this app has ever had** — `LedgerExportRequestPolicy::view()` checks
+  `requested_by` and a new `IdorTest`-style check lives in `LedgerAsyncExportTest` (ST-04). T-017 deferred
+  this exact test back in Phase 1/2 for lack of a real target (`Attachment` was gated by role, not
+  ownership); this finally closes that gap. Any *future* per-user-owned URL-addressed resource should
+  reuse this same shape (Policy checking a `requested_by`/`user_id` column, not just a role-wide ability).
+- **Two real MariaDB gotchas hit while adding `ledger_export_requests` (T-052)**: (1) `foreignId(...)->
+  constrained('units')` fails with errno 150 ("Foreign key constraint is incorrectly formed") because
+  `units.id` is `smallIncrements` (smallint unsigned), not the `bigint unsigned` `foreignId()` assumes —
+  same shape as every other `unit_id` FK in the schema (`stock_ledger.display_unit_id`, etc.), needs
+  `unsignedSmallInteger()` + an explicit `foreign()->references()->on()` instead. **Any new column
+  referencing `units.id` needs this same treatment** — `foreignId()` will build fine syntactically and
+  only fail at actual constraint-creation time. (2) A FK failure partway through `Schema::create()`
+  does **not** roll back the columns/keys that already succeeded — MySQL/MariaDB DDL auto-commits
+  per-statement (Laravel compiles a create-with-foreign-keys Blueprint into a `CREATE TABLE` plus one
+  `ALTER TABLE ADD CONSTRAINT` per FK, not one atomic statement), so a failed migration can leave a
+  **partially-created table** behind that then blocks the next attempt with a confusing "table already
+  exists" error. Fix is `Schema::dropIfExists(...)` (via tinker) before retrying, not just fixing the
+  migration file and re-running.
+- **A new table's grants (`docker/mariadb/restrict_app_grants.sql`) must be re-run against
+  `cmis_testing` a *second* time relative to `cmis`** — running it right after `php artisan migrate`
+  only covers `cmis` (the database that migration actually touched); `cmis_testing` doesn't get the new
+  table until the test suite's own first `RefreshDatabase`-triggered `migrate:fresh` creates it, so the
+  very first test run after adding a table fails with "SELECT command denied" (not a migration error)
+  until the grants script is re-run once more, afterward. Found during T-052 adding
+  `ledger_export_requests`; applies to any future new table the same way.
+- **NFR-01 had never been tested until T-052, and the dev environment's only server (`php artisan
+  serve`, the `app` container) turned out fundamentally unable to validate it** — 100 concurrent
+  requests measured 6–13s each from the client side, while the server's own request log showed ~0.1ms
+  processing time per request. The bottleneck is the dev server's own connection-handling path, not
+  Laravel/app code, and is made worse by `php artisan serve --no-reload`'s multi-worker mode giving each
+  worker its own **unshared** OPcache — every worker's *first* request pays a multi-second cold-compile
+  tax that a real server never would (production OPcache is shared across a pool via shared memory).
+  **This project had no production-representative web server at all before T-052** — added one:
+  `docker/php-fpm/` + `docker/nginx/`, wired in as new `fpm`/`nginx` docker-compose services (port 8091),
+  purely additive — every existing `docker compose exec app ...` workflow is untouched. User-approved
+  2026-09-09 (asked directly: build this vs. accept the untested gap and move on — chose to build it).
+  Re-tested the identical 100-concurrent-user scenario against nginx+fpm: P95 355ms, comfortably under
+  the 2s target. **Any future performance-sensitive testing of this app should go through `localhost:8091`
+  (nginx+fpm), not `localhost:8090` (`php artisan serve`)** — the latter was never meant to reflect real
+  request-handling capacity and demonstrably doesn't.
+- **Running `php artisan optimize` (config/route/view caching) breaks the *next* `php artisan test` run
+  silently** — found while trying to test under a more production-like config during T-052 (78 tests
+  failed, all CSRF 419s, no config-related error anywhere). A cached config freezes every `env()` call's
+  *value* at cache time; `phpunit.xml`'s runtime env overrides (`APP_ENV=testing`, `DB_DATABASE=
+  cmis_testing`) then have no effect, so `PreventRequestForgery`'s `runningUnitTests()` self-disable
+  check silently returns false and CSRF actually enforces itself in tests that never expected it to.
+  Fixed by `php artisan optimize:clear`. **Anyone who runs `artisan optimize`/`config:cache` for any
+  reason (perf testing, deployment rehearsal) must run `optimize:clear` before the next `php artisan
+  test`** — the failure mode gives no hint that config caching is the cause.
+- **T-052's load-testing setup permanently added 448,000 `stock_ledger` rows to the dev `cmis`
+  database** (9 throwaway items, bulk-inserted directly via `DB::table('stock_ledger')->insert()` rather
+  than through `LedgerService`, purely to get a real row count for the NFR-02 timing measurement) — same
+  append-only/can't-delete constraint as every other test-data note in this file, just at a much larger
+  scale than usual because the whole point was measuring behavior at real scale. All 9 items are
+  deactivated; the 100 throwaway `dev_loadtest_*` STAFF users created for the NFR-01 test are deactivated
+  too. Harmless (self-evidently test data by item_code/username), but don't be surprised by the row count
+  if a future task inspects `cmis.stock_ledger` directly.
+
 ## Known open items (spec §15, need a human decision before those tasks close)
 
 - ~~CMIS not registered as an SSO client~~ — **registered 2026-08-31**: `client_id=CMIS`,
@@ -639,3 +825,12 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
 - `wittaya.su` is the current (only) real logged-in user, manually granted `ADMIN` via tinker — normal
   bootstrapping since no admin existed yet to use the admin UI (`/admin/users`) to do it. Future role
   grants for other real users should go through that UI instead.
+- **No written data-retention period exists for PDPA (SEC-PD-04)** — the university/faculty needs to
+  decide how long a departed user's PII stays before `php artisan users:pseudonymize` should be run
+  against them. Blocks turning that command into a scheduled, automatic job.
+- **No real Data Protection Officer / breach-response contact has been named** — `pdpa_breach_response_plan.md`
+  (T-050) uses job-title placeholders throughout; needs real names/phone numbers/emails before it's an
+  actually-usable incident plan, not just a structural template.
+- **The Privacy Notice text (`lang/th/privacy.php`, T-050) has not been reviewed by legal counsel** —
+  written to be a genuine, defensible first draft (same class of judgment call as T-015's GHS statement
+  wording), but the notice itself says so explicitly and should not be treated as final without review.

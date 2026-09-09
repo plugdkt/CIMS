@@ -19,20 +19,20 @@
             @csrf
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('disposals.field_barcode') }}</label>
-                <input type="text" name="barcode" value="{{ old('barcode') }}"
+                <label class="block text-sm font-medium mb-1" for="barcode">{{ __('disposals.field_barcode') }}</label>
+                <input type="text" name="barcode" id="barcode" value="{{ old('barcode') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('disposals.field_qty') }}</label>
-                <input type="text" name="qty" value="{{ old('qty') }}"
+                <label class="block text-sm font-medium mb-1" for="qty">{{ __('disposals.field_qty') }}</label>
+                <input type="text" name="qty" id="qty" value="{{ old('qty') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('disposals.field_reason') }}</label>
-                <select name="reason" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <label class="block text-sm font-medium mb-1" for="reason">{{ __('disposals.field_reason') }}</label>
+                <select name="reason" id="reason" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="">{{ __('items.select_placeholder') }}</option>
                     @foreach (['EXPIRED', 'CONTAMINATED', 'DAMAGED', 'WASTE', 'OTHER'] as $reason)
                         <option value="{{ $reason }}" @selected(old('reason') === $reason)>{{ __('disposals.reason_'.strtolower($reason)) }}</option>
@@ -41,15 +41,15 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('disposals.field_method') }}</label>
-                <input type="text" name="method" value="{{ old('method') }}"
+                <label class="block text-sm font-medium mb-1" for="method">{{ __('disposals.field_method') }}</label>
+                <input type="text" name="method" id="method" value="{{ old('method') }}"
                        placeholder="{{ __('disposals.field_method_hint') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('disposals.field_disposal_date') }}</label>
-                <input type="date" name="disposal_date" value="{{ old('disposal_date', now()->toDateString()) }}"
+                <label class="block text-sm font-medium mb-1" for="disposal_date">{{ __('disposals.field_disposal_date') }}</label>
+                <input type="date" name="disposal_date" id="disposal_date" value="{{ old('disposal_date', now()->toDateString()) }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 

@@ -23,6 +23,46 @@ services:
     networks:
       - cmis_net
 
+  # NFR-01 load test / production-representative front end (nginx + PHP-FPM).
+  # `php artisan serve` (the `app` service above) turned out fundamentally
+  # unable to validate NFR-01 at all — even with multiple workers, its own
+  # TCP accept path bottlenecked 100 concurrent connections to 6-13s each
+  # while server-side processing itself stayed under a few hundred ms (seen
+  # directly in `app`'s request log during T-052). `fpm`/`nginx` are not used
+  # by any `docker compose exec app ...` dev workflow — those are untouched.
+  fpm:
+    build:
+      context: ./docker/php-fpm
+    container_name: cmis_fpm
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - cmis_net
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: cmis_nginx
+    volumes:
+      - .:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${FORWARD_NGINX_PORT:-8091}:80"
+    depends_on:
+      - fpm
+    networks:
+      - cmis_net
+
   mariadb:
     image: mariadb:11.4
     container_name: cmis_mariadb

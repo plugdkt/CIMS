@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Auth\CompleteProfileController;
 use App\Http\Controllers\Auth\PendingRoleController;
+use App\Http\Controllers\Auth\PrivacyNoticeController;
 use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\Auth\SsoLoginController;
 use App\Http\Controllers\Auth\SsoLogoutController;
+use App\Http\Controllers\AccountDataController;
 use App\Http\Controllers\AdjustmentController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\DashboardController;
@@ -49,10 +51,19 @@ Route::middleware('signed')->group(function () {
     Route::post('/approve/{requisition}', [RequisitionApprovalController::class, 'decideSigned']);
 });
 
+// SEC-PD-02: outside the `account.` prefix so its route names match the plain
+// `privacy-notice.*` names `EnsurePrivacyConsent`/`SsoCallbackController` both check.
+Route::middleware('auth')->prefix('privacy-notice')->name('privacy-notice.')->group(function () {
+    Route::get('/', [PrivacyNoticeController::class, 'show'])->name('show');
+    Route::post('/', [PrivacyNoticeController::class, 'accept'])->name('accept');
+});
+
 Route::middleware('auth')->prefix('account')->name('account.')->group(function () {
     Route::get('/pending-role', PendingRoleController::class)->name('pending-role');
     Route::get('/complete-profile', [CompleteProfileController::class, 'show'])->name('complete-profile');
     Route::post('/complete-profile', [CompleteProfileController::class, 'update'])->name('complete-profile.update');
+    Route::get('/my-data', [AccountDataController::class, 'show'])->name('my-data');
+    Route::get('/my-data/export', [AccountDataController::class, 'export'])->name('my-data.export');
 });
 
 // FR-AU-07 — SEC-AZ-01: `can:` gates on top of `auth` (UserPolicy::viewAny requires user.manage).
@@ -87,6 +98,12 @@ Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
 // SEC-AZ-06: no direct/public file URL — every download is authorized per-request.
 Route::middleware('auth')->get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])
     ->name('attachments.download');
+
+// NFR-02: status/download page for a queued F-03 export — the notification's own link
+// target, addressed by its own ULID (not nested under /items, since it outlives the
+// item's own ledger page and its ownership check is independent of item.view).
+Route::middleware('auth')->get('/ledger-exports/{ledgerExportRequest}', [LedgerExportController::class, 'showExport'])
+    ->name('ledger-exports.show');
 
 // FR-MD-04/05 — location tree + BR-10 incompatibility warning.
 Route::middleware('auth')->prefix('locations')->name('locations.')->group(function () {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuditLogger;
+use App\Http\Middleware\EnsurePrivacyConsent;
 use App\Http\Middleware\EnsureRoleAssigned;
 use App\Http\Middleware\ForceHttps;
 use App\Http\Middleware\SecurityHeaders;
@@ -17,7 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->prependToGroup('web', [ForceHttps::class, SecurityHeaders::class]);
-        $middleware->appendToGroup('web', [EnsureRoleAssigned::class, AuditLogger::class]);
+        $middleware->appendToGroup('web', [EnsurePrivacyConsent::class, EnsureRoleAssigned::class, AuditLogger::class]);
         $middleware->api(prepend: [ForceHttps::class, SecurityHeaders::class], append: [AuditLogger::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

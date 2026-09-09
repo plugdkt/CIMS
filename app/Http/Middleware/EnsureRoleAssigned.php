@@ -20,7 +20,7 @@ final class EnsureRoleAssigned
     {
         $user = $request->user();
 
-        $exempt = ['account.pending-role', 'logout', 'login', 'sso.callback'];
+        $exempt = ['account.pending-role', 'privacy-notice.show', 'privacy-notice.accept', 'logout', 'login', 'sso.callback'];
 
         if ($user !== null && $user->roles->isEmpty() && ! $request->routeIs(...$exempt)) {
             abort(403);

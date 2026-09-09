@@ -30,13 +30,13 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_item_code') }}</label>
-                    <input type="text" name="item_code" value="{{ old('item_code', $item->item_code) }}"
+                    <label class="block text-sm font-medium mb-1" for="item_code">{{ __('items.field_item_code') }}</label>
+                    <input type="text" name="item_code" id="item_code" value="{{ old('item_code', $item->item_code) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_category') }}</label>
-                    <select name="category_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="category_id">{{ __('items.field_category') }}</label>
+                    <select name="category_id" id="category_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach ($categories as $category)
                             <option value="{{ $category->id }}" @selected((int) old('category_id', $item->category_id) === $category->id)>{{ $category->name_th }}</option>
@@ -47,52 +47,52 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_name_th') }}</label>
-                    <input type="text" name="name_th" value="{{ old('name_th', $item->name_th) }}"
+                    <label class="block text-sm font-medium mb-1" for="name_th">{{ __('items.field_name_th') }}</label>
+                    <input type="text" name="name_th" id="name_th" value="{{ old('name_th', $item->name_th) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_name_en') }}</label>
-                    <input type="text" name="name_en" value="{{ old('name_en', $item->name_en) }}"
-                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_cas_no') }}</label>
-                    <input type="text" name="cas_no" value="{{ old('cas_no', $item->cas_no) }}"
-                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_formula') }}</label>
-                    <input type="text" name="formula" value="{{ old('formula', $item->formula) }}"
+                    <label class="block text-sm font-medium mb-1" for="name_en">{{ __('items.field_name_en') }}</label>
+                    <input type="text" name="name_en" id="name_en" value="{{ old('name_en', $item->name_en) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_brand') }}</label>
-                    <input type="text" name="brand" value="{{ old('brand', $item->brand) }}"
+                    <label class="block text-sm font-medium mb-1" for="cas_no">{{ __('items.field_cas_no') }}</label>
+                    <input type="text" name="cas_no" id="cas_no" value="{{ old('cas_no', $item->cas_no) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_grade') }}</label>
-                    <input type="text" name="grade" value="{{ old('grade', $item->grade) }}"
+                    <label class="block text-sm font-medium mb-1" for="formula">{{ __('items.field_formula') }}</label>
+                    <input type="text" name="formula" id="formula" value="{{ old('formula', $item->formula) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="brand">{{ __('items.field_brand') }}</label>
+                    <input type="text" name="brand" id="brand" value="{{ old('brand', $item->brand) }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="grade">{{ __('items.field_grade') }}</label>
+                    <input type="text" name="grade" id="grade" value="{{ old('grade', $item->grade) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_package_size') }}</label>
-                    <input type="text" name="package_size" value="{{ old('package_size', $item->package_size) }}"
+                    <label class="block text-sm font-medium mb-1" for="package_size">{{ __('items.field_package_size') }}</label>
+                    <input type="text" name="package_size" id="package_size" value="{{ old('package_size', $item->package_size) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_package_unit') }}</label>
-                    <select name="package_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="package_unit_id">{{ __('items.field_package_unit') }}</label>
+                    <select name="package_unit_id" id="package_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach ($units as $unit)
                             <option value="{{ $unit->id }}" @selected((int) old('package_unit_id', $item->package_unit_id) === $unit->id)>{{ $unit->code }}</option>
@@ -100,8 +100,8 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_sub_unit') }}</label>
-                    <select name="sub_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="sub_unit_id">{{ __('items.field_sub_unit') }}</label>
+                    <select name="sub_unit_id" id="sub_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach ($units as $unit)
                             <option value="{{ $unit->id }}" @selected((int) old('sub_unit_id', $item->sub_unit_id) === $unit->id)>{{ $unit->code }}</option>
@@ -112,8 +112,8 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_base_unit') }}</label>
-                    <select name="base_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="base_unit_id">{{ __('items.field_base_unit') }}</label>
+                    <select name="base_unit_id" id="base_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach ($units as $unit)
                             <option value="{{ $unit->id }}" @selected((int) old('base_unit_id', $item->base_unit_id) === $unit->id)>{{ $unit->code }} ({{ $unit->dimension }})</option>
@@ -121,26 +121,26 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_density') }}</label>
-                    <input type="text" name="density_g_per_ml" value="{{ old('density_g_per_ml', $item->density_g_per_ml) }}"
+                    <label class="block text-sm font-medium mb-1" for="density_g_per_ml">{{ __('items.field_density') }}</label>
+                    <input type="text" name="density_g_per_ml" id="density_g_per_ml" value="{{ old('density_g_per_ml', $item->density_g_per_ml) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_reorder_point') }}</label>
-                    <input type="text" name="reorder_point_base" value="{{ old('reorder_point_base', $item->reorder_point_base) }}"
+                    <label class="block text-sm font-medium mb-1" for="reorder_point_base">{{ __('items.field_reorder_point') }}</label>
+                    <input type="text" name="reorder_point_base" id="reorder_point_base" value="{{ old('reorder_point_base', $item->reorder_point_base) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_storage_class') }}</label>
-                    <input type="text" name="storage_class" value="{{ old('storage_class', $item->storage_class) }}"
+                    <label class="block text-sm font-medium mb-1" for="storage_class">{{ __('items.field_storage_class') }}</label>
+                    <input type="text" name="storage_class" id="storage_class" value="{{ old('storage_class', $item->storage_class) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('items.field_shelf_life') }}</label>
-                    <input type="text" name="shelf_life_days_after_open" value="{{ old('shelf_life_days_after_open', $item->shelf_life_days_after_open) }}"
+                    <label class="block text-sm font-medium mb-1" for="shelf_life_days_after_open">{{ __('items.field_shelf_life') }}</label>
+                    <input type="text" name="shelf_life_days_after_open" id="shelf_life_days_after_open" value="{{ old('shelf_life_days_after_open', $item->shelf_life_days_after_open) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
             </div>
@@ -159,8 +159,8 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('items.field_control_class') }}</label>
-                <input type="text" name="control_class" value="{{ old('control_class', $item->control_class) }}"
+                <label class="block text-sm font-medium mb-1" for="control_class">{{ __('items.field_control_class') }}</label>
+                <input type="text" name="control_class" id="control_class" value="{{ old('control_class', $item->control_class) }}"
                        class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
@@ -182,7 +182,7 @@
                 <h2 class="font-display text-sm font-bold mb-2">{{ __('items.h_statements_section_title') }}</h2>
                 <input type="text" x-model="search" placeholder="{{ __('items.search_statements_placeholder') }}"
                        class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent">
-                <div class="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                <div class="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border" tabindex="0">
                     @foreach (config('ghs.hazard_statements') as $code => $text)
                         <label class="flex items-start gap-2 px-3 py-2 text-sm hover:bg-surface-alt cursor-pointer"
                                x-show="@js(mb_strtolower("$code $text")).includes(search.toLowerCase())">
@@ -198,7 +198,7 @@
                 <h2 class="font-display text-sm font-bold mb-2">{{ __('items.p_statements_section_title') }}</h2>
                 <input type="text" x-model="search" placeholder="{{ __('items.search_statements_placeholder') }}"
                        class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-accent">
-                <div class="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border">
+                <div class="max-h-56 overflow-y-auto rounded-lg border border-border divide-y divide-border" tabindex="0">
                     @foreach (config('ghs.precautionary_statements') as $code => $text)
                         <label class="flex items-start gap-2 px-3 py-2 text-sm hover:bg-surface-alt cursor-pointer"
                                x-show="@js(mb_strtolower("$code $text")).includes(search.toLowerCase())">
@@ -255,12 +255,12 @@
                         @csrf
                         <input type="hidden" name="doc_type" value="SDS">
                         <div class="flex-1 min-w-[200px]">
-                            <label class="block text-xs font-medium mb-1">{{ __('attachments.field_file') }}</label>
-                            <input type="file" name="file" required class="w-full text-sm">
+                            <label class="block text-xs font-medium mb-1" for="sds_file">{{ __('attachments.field_file') }}</label>
+                            <input type="file" name="file" id="sds_file" required class="w-full text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">{{ __('attachments.field_revised_date') }}</label>
-                            <input type="date" name="revised_date" class="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            <label class="block text-xs font-medium mb-1" for="sds_revised_date">{{ __('attachments.field_revised_date') }}</label>
+                            <input type="date" name="revised_date" id="sds_revised_date" class="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                         </div>
                         <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5">
                             {{ __('attachments.upload') }}

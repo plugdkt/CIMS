@@ -39,6 +39,12 @@ final class SsoCallbackController extends Controller
         $request->session()->regenerate();
 
         // SEC-AU-11: always redirect out of /sso/callback immediately.
+        // SEC-PD-02: consent comes before role assignment — it applies regardless of
+        // what role the user ends up with, so it's checked first.
+        if (! $user->hasValidPrivacyConsent()) {
+            return redirect()->route('privacy-notice.show');
+        }
+
         if ($user->roles()->doesntExist()) {
             return redirect()->route('account.pending-role');
         }

@@ -119,13 +119,15 @@
                         </span>
                     @endif
                 </a>
-                <div class="text-right hidden sm:block">
-                    <div class="text-sm font-semibold leading-none">{{ auth()->user()->full_name }}</div>
-                    <div class="text-xs text-ink-muted mt-0.5">{{ auth()->user()->username }}</div>
-                </div>
-                <div class="w-9 h-9 rounded-full bg-accent-soft text-accent-soft-ink flex items-center justify-center font-display font-bold text-xs">
-                    {{ Illuminate\Support\Str::of(auth()->user()->full_name)->substr(0, 2) }}
-                </div>
+                <a href="{{ route('account.my-data') }}" class="flex items-center gap-3" title="{{ __('privacy.my_data_title') }}">
+                    <div class="text-right hidden sm:block">
+                        <div class="text-sm font-semibold leading-none">{{ auth()->user()->full_name }}</div>
+                        <div class="text-xs text-ink-muted mt-0.5">{{ auth()->user()->username }}</div>
+                    </div>
+                    <div class="w-9 h-9 rounded-full bg-accent-soft text-accent-soft-ink flex items-center justify-center font-display font-bold text-xs">
+                        {{ Illuminate\Support\Str::of(auth()->user()->full_name)->substr(0, 2) }}
+                    </div>
+                </a>
                 <form method="GET" action="{{ route('logout') }}">
                     <button type="submit" class="text-xs font-semibold text-ink-muted hover:text-danger">
                         {{ __('nav.logout') }}

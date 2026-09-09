@@ -54,7 +54,7 @@
 
         <div class="bg-surface border border-border rounded-xl p-6 mt-6">
             <h2 class="font-display text-base font-bold mb-3">{{ __('stock_takes.lines_title') }}</h2>
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto" tabindex="0">
                 <table class="w-full text-sm">
                     <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                         <tr>

@@ -22,18 +22,18 @@
             @if ($lab->exists) @method('PUT') @endif
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('labs.field_code') }}</label>
-                <input type="text" name="code" value="{{ old('code', $lab->code) }}"
+                <label class="block text-sm font-medium mb-1" for="code">{{ __('labs.field_code') }}</label>
+                <input type="text" name="code" id="code" value="{{ old('code', $lab->code) }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('labs.field_name_th') }}</label>
-                <input type="text" name="name_th" value="{{ old('name_th', $lab->name_th) }}"
+                <label class="block text-sm font-medium mb-1" for="name_th">{{ __('labs.field_name_th') }}</label>
+                <input type="text" name="name_th" id="name_th" value="{{ old('name_th', $lab->name_th) }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('labs.field_faculty') }}</label>
-                <input type="text" name="faculty" value="{{ old('faculty', $lab->faculty) }}"
+                <label class="block text-sm font-medium mb-1" for="faculty">{{ __('labs.field_faculty') }}</label>
+                <input type="text" name="faculty" id="faculty" value="{{ old('faculty', $lab->faculty) }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
             <label class="flex items-center gap-2 text-sm">

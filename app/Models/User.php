@@ -21,12 +21,15 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property \Illuminate\Support\Carbon|null $profile_completed_at
  * @property \Illuminate\Support\Carbon|null $last_login_at
  * @property \Illuminate\Support\Carbon|null $last_sso_sync_at
+ * @property \Illuminate\Support\Carbon|null $privacy_consent_at
+ * @property \Illuminate\Support\Carbon|null $pseudonymized_at
  */
 #[Fillable([
     'ulid', 'sso_subject', 'username', 'email', 'full_name', 'pos_name', 'div_name',
     'phone_encrypted', 'person_code_encrypted', 'person_type', 'program', 'faculty',
     'lab_id', 'advisor_id', 'profile_completed_at', 'is_active',
     'last_login_at', 'last_sso_sync_at',
+    'privacy_consent_at', 'privacy_consent_version', 'pseudonymized_at',
 ])]
 #[Hidden(['phone_encrypted', 'person_code_encrypted'])]
 class User extends Authenticatable
@@ -41,6 +44,8 @@ class User extends Authenticatable
             'is_active' => 'boolean',
             'last_login_at' => 'datetime',
             'last_sso_sync_at' => 'datetime',
+            'privacy_consent_at' => 'datetime',
+            'pseudonymized_at' => 'datetime',
             // SEC-CR-05: AES-256-GCM (app-wide cipher, see config/app.php) via Laravel's
             // built-in encrypted cast.
             'phone_encrypted' => 'encrypted',
@@ -75,6 +80,13 @@ class User extends Authenticatable
     public function hasRole(string $code): bool
     {
         return $this->roles->contains('code', $code);
+    }
+
+    /** SEC-PD-02: consented, and to the currently published notice (not a stale one). */
+    public function hasValidPrivacyConsent(): bool
+    {
+        return $this->privacy_consent_at !== null
+            && $this->privacy_consent_version === config('privacy.notice_version');
     }
 
     /** @return HasMany<Notification, $this> */

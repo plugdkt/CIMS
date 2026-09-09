@@ -77,7 +77,7 @@
             <h2 class="font-display text-base font-bold mb-3">{{ __('goods_receipts.lines_title') }}</h2>
 
             @if ($goodsReceipt->items->isNotEmpty())
-                <div class="overflow-x-auto mb-4">
+                <div class="overflow-x-auto mb-4" tabindex="0">
                     <table class="w-full text-sm">
                         <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                             <tr>
@@ -125,8 +125,8 @@
                 <form method="POST" action="{{ route('goods-receipts.items.store', $goodsReceipt) }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-border pt-4">
                     @csrf
                     <div class="sm:col-span-3">
-                        <label class="block text-xs font-medium mb-1">{{ __('goods_receipts.field_item') }}</label>
-                        <select name="item_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="item_id">{{ __('goods_receipts.field_item') }}</label>
+                        <select name="item_id" id="item_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             <option value="">{{ __('items.select_placeholder') }}</option>
                             @foreach ($items as $item)
                                 <option value="{{ $item->id }}">{{ $item->name_th }} ({{ $item->item_code }})</option>
@@ -134,16 +134,16 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('goods_receipts.field_container_count') }}</label>
-                        <input type="number" name="container_count" min="1" value="1" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="container_count">{{ __('goods_receipts.field_container_count') }}</label>
+                        <input type="number" name="container_count" id="container_count" min="1" value="1" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('goods_receipts.field_qty_per_container') }}</label>
-                        <input type="text" name="qty_per_container" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="qty_per_container">{{ __('goods_receipts.field_qty_per_container') }}</label>
+                        <input type="text" name="qty_per_container" id="qty_per_container" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('goods_receipts.field_unit') }}</label>
-                        <select name="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="unit_id">{{ __('goods_receipts.field_unit') }}</label>
+                        <select name="unit_id" id="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             <option value="">{{ __('items.select_placeholder') }}</option>
                             @foreach ($units as $unit)
                                 <option value="{{ $unit->id }}">{{ $unit->code }}</option>
@@ -151,12 +151,12 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('goods_receipts.field_lot_no') }}</label>
-                        <input type="text" name="lot_no" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="lot_no">{{ __('goods_receipts.field_lot_no') }}</label>
+                        <input type="text" name="lot_no" id="lot_no" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('goods_receipts.field_expiry_date') }}</label>
-                        <input type="date" name="expiry_date" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="expiry_date">{{ __('goods_receipts.field_expiry_date') }}</label>
+                        <input type="date" name="expiry_date" id="expiry_date" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     </div>
                     <div class="sm:col-span-3">
                         <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5">

@@ -68,6 +68,17 @@ return [
             'report' => false,
         ],
 
+        // NFR-02: large (queued) F-03 ledger PDF exports — same private, no-direct-URL
+        // shape as attachments/signatures; only LedgerExportController streams these,
+        // after checking the caller is the user who requested the export.
+        'ledger_exports' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/ledger-exports'),
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

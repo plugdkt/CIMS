@@ -52,8 +52,8 @@
             @csrf
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('requisitions.field_lab') }}</label>
-                <select name="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <label class="block text-sm font-medium mb-1" for="lab_id">{{ __('requisitions.field_lab') }}</label>
+                <select name="lab_id" id="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="">{{ __('items.select_placeholder') }}</option>
                     @foreach ($labs as $lab)
                         <option value="{{ $lab->id }}" @selected((int) old('lab_id') === $lab->id)>{{ $lab->name_th }}</option>
@@ -76,8 +76,8 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('requisitions.field_purpose_type') }}</label>
-                <select name="purpose_type" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <label class="block text-sm font-medium mb-1" for="purpose_type">{{ __('requisitions.field_purpose_type') }}</label>
+                <select name="purpose_type" id="purpose_type" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="">{{ __('items.select_placeholder') }}</option>
                     <option value="TEACHING" @selected(old('purpose_type') === 'TEACHING')>{{ __('requisitions.purpose_type_teaching') }}</option>
                     <option value="RESEARCH" @selected(old('purpose_type') === 'RESEARCH')>{{ __('requisitions.purpose_type_research') }}</option>
@@ -86,8 +86,8 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('requisitions.field_purpose_detail') }}</label>
-                <input type="text" name="purpose_detail" value="{{ old('purpose_detail') }}"
+                <label class="block text-sm font-medium mb-1" for="purpose_detail">{{ __('requisitions.field_purpose_detail') }}</label>
+                <input type="text" name="purpose_detail" id="purpose_detail" value="{{ old('purpose_detail') }}"
                        placeholder="{{ __('requisitions.field_purpose_detail_hint') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>

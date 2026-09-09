@@ -46,18 +46,29 @@ test('callback rejects a state that does not match the session without calling t
     expect(session('sso_state'))->toBeNull(); // one-time use, consumed either way
 });
 
-test('callback creates a new user with no role and sends them to the pending-role page', function () {
+test('callback creates a new user with no role and sends them to the Privacy Notice first (SEC-PD-02, before pending-role)', function () {
     $this->withSession(['sso_state' => 'good-state']);
     fakeSsoVerifySuccess(['user_id' => 9999, 'username' => 'newperson']);
 
     $response = $this->get('/sso/callback?token=validtoken&state=good-state');
 
-    $response->assertRedirect(route('account.pending-role'));
+    $response->assertRedirect(route('privacy-notice.show'));
     $this->assertAuthenticated();
 
     $user = User::where('sso_subject', '9999')->first();
     expect($user)->not->toBeNull();
     expect($user->roles)->toBeEmpty();
+    expect($user->privacy_consent_at)->toBeNull();
+});
+
+test('callback sends an already-consented but roleless user to pending-role, past the Privacy Notice', function () {
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess(['user_id' => 8888, 'username' => 'alreadyconsented']);
+    User::factory()->create(['sso_subject' => '8888']); // consented by default (factory)
+
+    $response = $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    $response->assertRedirect(route('account.pending-role'));
 });
 
 test('callback logs in an existing user with a role and redirects past the gate', function () {

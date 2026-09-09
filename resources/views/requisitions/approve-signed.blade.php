@@ -46,8 +46,8 @@
         </div>
 
         <div>
-            <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_reject_reason') }}</label>
-            <textarea name="reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
+            <label class="block text-xs font-medium mb-1" for="reason">{{ __('requisitions.field_reject_reason') }}</label>
+            <textarea name="reason" id="reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
         </div>
 
         <button type="submit" class="w-full rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold py-2.5">

@@ -63,16 +63,16 @@
     <div class="bg-surface border border-border rounded-xl p-4 mb-4">
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div>
-                <label class="block text-xs font-medium mb-1">{{ __('ledger.filter_date_from') }}</label>
-                <input type="date" wire:model.live="dateFrom" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+                <label class="block text-xs font-medium mb-1" for="ledger_date_from">{{ __('ledger.filter_date_from') }}</label>
+                <input type="date" id="ledger_date_from" wire:model.live="dateFrom" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-medium mb-1">{{ __('ledger.filter_date_to') }}</label>
-                <input type="date" wire:model.live="dateTo" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+                <label class="block text-xs font-medium mb-1" for="ledger_date_to">{{ __('ledger.filter_date_to') }}</label>
+                <input type="date" id="ledger_date_to" wire:model.live="dateTo" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-medium mb-1">{{ __('ledger.filter_txn_type') }}</label>
-                <select wire:model.live="txnType" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+                <label class="block text-xs font-medium mb-1" for="ledger_txn_type">{{ __('ledger.filter_txn_type') }}</label>
+                <select id="ledger_txn_type" wire:model.live="txnType" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
                     <option value="">{{ __('ledger.filter_all_types') }}</option>
                     @foreach (['OPENING', 'RECEIVE', 'ISSUE', 'RETURN', 'ADJUST_IN', 'ADJUST_OUT', 'DISPOSE', 'TRANSFER_IN', 'TRANSFER_OUT'] as $type)
                         <option value="{{ $type }}">{{ __('ledger.txn_'.strtolower($type)) }}</option>
@@ -80,16 +80,16 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-medium mb-1">{{ __('ledger.filter_receiver') }}</label>
-                <input type="text" wire:model.live.debounce.300ms="receiverName" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+                <label class="block text-xs font-medium mb-1" for="ledger_receiver">{{ __('ledger.filter_receiver') }}</label>
+                <input type="text" id="ledger_receiver" wire:model.live.debounce.300ms="receiverName" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-medium mb-1">{{ __('ledger.filter_container') }}</label>
-                <input type="text" wire:model.live.debounce.300ms="containerBarcode" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+                <label class="block text-xs font-medium mb-1" for="ledger_container">{{ __('ledger.filter_container') }}</label>
+                <input type="text" id="ledger_container" wire:model.live.debounce.300ms="containerBarcode" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
             </div>
             <div>
-                <label class="block text-xs font-medium mb-1">{{ __('ledger.filter_display_unit') }}</label>
-                <select wire:model.live="displayUnitId" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+                <label class="block text-xs font-medium mb-1" for="ledger_display_unit">{{ __('ledger.filter_display_unit') }}</label>
+                <select id="ledger_display_unit" wire:model.live="displayUnitId" class="w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
                     @foreach ($availableUnits as $unit)
                         <option value="{{ $unit->id }}">{{ $unit->code }}</option>
                     @endforeach
@@ -99,7 +99,7 @@
     </div>
 
     <div class="bg-surface border border-border rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto" tabindex="0">
             <table class="w-full text-sm">
                 <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                     <tr>

@@ -20,13 +20,13 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('goods_receipts.field_receipt_date') }}</label>
-                    <input type="date" name="receipt_date" value="{{ old('receipt_date', now()->toDateString()) }}"
+                    <label class="block text-sm font-medium mb-1" for="receipt_date">{{ __('goods_receipts.field_receipt_date') }}</label>
+                    <input type="date" name="receipt_date" id="receipt_date" value="{{ old('receipt_date', now()->toDateString()) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('goods_receipts.field_lab') }}</label>
-                    <select name="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="lab_id">{{ __('goods_receipts.field_lab') }}</label>
+                    <select name="lab_id" id="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach ($labs as $lab)
                             <option value="{{ $lab->id }}" @selected((int) old('lab_id') === $lab->id)>{{ $lab->name_th }}</option>
@@ -37,26 +37,26 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('goods_receipts.field_po_no') }}</label>
-                    <input type="text" name="po_no" value="{{ old('po_no') }}"
+                    <label class="block text-sm font-medium mb-1" for="po_no">{{ __('goods_receipts.field_po_no') }}</label>
+                    <input type="text" name="po_no" id="po_no" value="{{ old('po_no') }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('goods_receipts.field_invoice_no') }}</label>
-                    <input type="text" name="invoice_no" value="{{ old('invoice_no') }}"
+                    <label class="block text-sm font-medium mb-1" for="invoice_no">{{ __('goods_receipts.field_invoice_no') }}</label>
+                    <input type="text" name="invoice_no" id="invoice_no" value="{{ old('invoice_no') }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('goods_receipts.field_supplier') }}</label>
-                <input type="text" name="supplier" value="{{ old('supplier') }}"
+                <label class="block text-sm font-medium mb-1" for="supplier">{{ __('goods_receipts.field_supplier') }}</label>
+                <input type="text" name="supplier" id="supplier" value="{{ old('supplier') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('goods_receipts.field_remark') }}</label>
-                <textarea name="remark" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">{{ old('remark') }}</textarea>
+                <label class="block text-sm font-medium mb-1" for="remark">{{ __('goods_receipts.field_remark') }}</label>
+                <textarea name="remark" id="remark" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">{{ old('remark') }}</textarea>
             </div>
 
             <div class="pt-2">

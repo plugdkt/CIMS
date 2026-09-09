@@ -32,18 +32,18 @@
             <form method="POST" action="{{ route('stock-takes.count', $stockTake) }}" class="bg-surface border border-border rounded-xl p-6 space-y-4">
                 @csrf
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('stock_takes.field_barcode') }}</label>
-                    <input type="text" name="barcode" autofocus
+                    <label class="block text-sm font-medium mb-1" for="barcode">{{ __('stock_takes.field_barcode') }}</label>
+                    <input type="text" name="barcode" id="barcode" autofocus
                            class="w-full rounded-lg border border-border bg-surface px-4 py-3 text-base font-mono">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('stock_takes.field_counted_qty') }}</label>
-                    <input type="text" name="counted_qty"
+                    <label class="block text-sm font-medium mb-1" for="counted_qty">{{ __('stock_takes.field_counted_qty') }}</label>
+                    <input type="text" name="counted_qty" id="counted_qty"
                            class="w-full rounded-lg border border-border bg-surface px-4 py-3 text-base">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('stock_takes.field_reason') }}</label>
-                    <input type="text" name="reason"
+                    <label class="block text-sm font-medium mb-1" for="reason">{{ __('stock_takes.field_reason') }}</label>
+                    <input type="text" name="reason" id="reason"
                            placeholder="{{ __('stock_takes.field_reason_hint') }}"
                            class="w-full rounded-lg border border-border bg-surface px-4 py-3 text-base">
                 </div>

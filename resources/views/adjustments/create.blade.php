@@ -19,34 +19,34 @@
             @csrf
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('adjustments.field_barcode') }}</label>
-                <input type="text" name="barcode" value="{{ old('barcode') }}"
+                <label class="block text-sm font-medium mb-1" for="barcode">{{ __('adjustments.field_barcode') }}</label>
+                <input type="text" name="barcode" id="barcode" value="{{ old('barcode') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('adjustments.field_direction') }}</label>
-                <select name="direction" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <label class="block text-sm font-medium mb-1" for="direction">{{ __('adjustments.field_direction') }}</label>
+                <select name="direction" id="direction" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="IN" @selected(old('direction') === 'IN')>{{ __('adjustments.direction_in') }}</option>
                     <option value="OUT" @selected(old('direction') === 'OUT')>{{ __('adjustments.direction_out') }}</option>
                 </select>
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('adjustments.field_qty') }}</label>
-                <input type="text" name="qty" value="{{ old('qty') }}"
+                <label class="block text-sm font-medium mb-1" for="qty">{{ __('adjustments.field_qty') }}</label>
+                <input type="text" name="qty" id="qty" value="{{ old('qty') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('adjustments.field_remark') }}</label>
-                <textarea name="remark" rows="3"
+                <label class="block text-sm font-medium mb-1" for="remark">{{ __('adjustments.field_remark') }}</label>
+                <textarea name="remark" id="remark" rows="3"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">{{ old('remark') }}</textarea>
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('adjustments.field_approved_by') }}</label>
-                <select name="approved_by" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <label class="block text-sm font-medium mb-1" for="approved_by">{{ __('adjustments.field_approved_by') }}</label>
+                <select name="approved_by" id="approved_by" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="">{{ __('items.select_placeholder') }}</option>
                     @foreach ($approvers as $approver)
                         <option value="{{ $approver->id }}" @selected((string) old('approved_by') === (string) $approver->id)>{{ $approver->full_name }}</option>

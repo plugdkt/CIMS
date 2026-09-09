@@ -29,21 +29,21 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('locations.field_code') }}</label>
-                    <input type="text" name="code" value="{{ old('code', $location->code) }}"
+                    <label class="block text-sm font-medium mb-1" for="code">{{ __('locations.field_code') }}</label>
+                    <input type="text" name="code" id="code" value="{{ old('code', $location->code) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('locations.field_name') }}</label>
-                    <input type="text" name="name" value="{{ old('name', $location->name) }}"
+                    <label class="block text-sm font-medium mb-1" for="name">{{ __('locations.field_name') }}</label>
+                    <input type="text" name="name" id="name" value="{{ old('name', $location->name) }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('locations.field_level_type') }}</label>
-                    <select name="level_type" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="level_type">{{ __('locations.field_level_type') }}</label>
+                    <select name="level_type" id="level_type" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach (['BUILDING', 'ROOM', 'CABINET', 'SHELF'] as $level)
                             <option value="{{ $level }}" @selected(old('level_type', $location->level_type) === $level)>
@@ -53,8 +53,8 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('locations.field_parent') }}</label>
-                    <select name="parent_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="parent_id">{{ __('locations.field_parent') }}</label>
+                    <select name="parent_id" id="parent_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('locations.no_parent') }}</option>
                         @foreach ($parents as $parent)
                             <option value="{{ $parent->id }}" @selected((int) old('parent_id', $location->parent_id) === $parent->id)>
@@ -67,14 +67,14 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('locations.field_storage_class') }}</label>
-                    <input type="text" name="storage_class" value="{{ old('storage_class', $location->storage_class) }}"
+                    <label class="block text-sm font-medium mb-1" for="storage_class">{{ __('locations.field_storage_class') }}</label>
+                    <input type="text" name="storage_class" id="storage_class" value="{{ old('storage_class', $location->storage_class) }}"
                            placeholder="ACID / BASE / FLAMMABLE / OXIDIZER / TOXIC / FOOD_GRADE / GENERAL"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1">{{ __('locations.field_lab') }}</label>
-                    <select name="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <label class="block text-sm font-medium mb-1" for="lab_id">{{ __('locations.field_lab') }}</label>
+                    <select name="lab_id" id="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                         <option value="">{{ __('items.select_placeholder') }}</option>
                         @foreach ($labs as $lab)
                             <option value="{{ $lab->id }}" @selected((int) old('lab_id', $location->lab_id) === $lab->id)>{{ $lab->name_th }}</option>

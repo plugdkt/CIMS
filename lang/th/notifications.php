@@ -33,4 +33,10 @@ return [
     // FR-NT-06: Hash chain ผิดปกติ
     'hash_chain_title' => 'พบความผิดปกติของ Hash Chain ในบัญชีคุมวัสดุ',
     'hash_chain_body' => 'ตรวจพบ hash chain ที่ไม่สมบูรณ์ในรายการต่อไปนี้: :items — กรุณาตรวจสอบโดยด่วน',
+
+    // NFR-02: F-03 ledger PDF ที่ประมวลผลแบบพื้นหลัง (คิวงาน)
+    'ledger_export_ready_title' => 'ไฟล์ PDF บัญชีคุมของ :item พร้อมดาวน์โหลดแล้ว',
+    'ledger_export_ready_body' => 'ระบบสร้างไฟล์ PDF บัญชีคุมวัสดุของ :item เสร็จเรียบร้อยแล้ว กดลิงก์เพื่อดาวน์โหลด',
+    'ledger_export_failed_title' => 'สร้างไฟล์ PDF บัญชีคุมของ :item ไม่สำเร็จ',
+    'ledger_export_failed_body' => 'เกิดข้อผิดพลาดระหว่างสร้างไฟล์ กรุณาลองส่งออกใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบ',
 ];

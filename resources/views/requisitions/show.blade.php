@@ -71,7 +71,7 @@
             <h2 class="font-display text-base font-bold mb-3">{{ __('requisitions.lines_title') }}</h2>
 
             @if ($requisition->items->isNotEmpty())
-                <div class="overflow-x-auto mb-4">
+                <div class="overflow-x-auto mb-4" tabindex="0">
                     <table class="w-full text-sm">
                         <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                             <tr>
@@ -121,8 +121,8 @@
                       class="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-border pt-4">
                     @csrf
                     <div class="sm:col-span-3">
-                        <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_item') }}</label>
-                        <select name="item_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                        <label class="block text-xs font-medium mb-1" for="item_id">{{ __('requisitions.field_item') }}</label>
+                        <select name="item_id" id="item_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
                                 @change="loadBalance($event.target.selectedOptions[0].dataset.ulid)">
                             <option value="">{{ __('items.select_placeholder') }}</option>
                             @foreach ($items as $item)
@@ -135,12 +135,12 @@
                         </p>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_qty_requested') }}</label>
-                        <input type="text" name="qty_requested" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="qty_requested">{{ __('requisitions.field_qty_requested') }}</label>
+                        <input type="text" name="qty_requested" id="qty_requested" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_unit') }}</label>
-                        <select name="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="unit_id">{{ __('requisitions.field_unit') }}</label>
+                        <select name="unit_id" id="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             <option value="">{{ __('items.select_placeholder') }}</option>
                             @foreach ($units as $unit)
                                 <option value="{{ $unit->id }}">{{ $unit->code }}</option>
@@ -148,8 +148,8 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_reference_doc') }}</label>
-                        <input type="text" name="reference_doc" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <label class="block text-xs font-medium mb-1" for="reference_doc">{{ __('requisitions.field_reference_doc') }}</label>
+                        <input type="text" name="reference_doc" id="reference_doc" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     </div>
                     <div class="sm:col-span-3">
                         <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5">
@@ -203,8 +203,8 @@
                         </label>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_reject_reason') }}</label>
-                        <textarea name="reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
+                        <label class="block text-xs font-medium mb-1" for="advisor_reason">{{ __('requisitions.field_reject_reason') }}</label>
+                        <textarea name="reason" id="advisor_reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
                     </div>
                     <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">
                         {{ __('requisitions.submit_decision') }}
@@ -229,8 +229,8 @@
                         </label>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_reject_reason') }}</label>
-                        <textarea name="reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
+                        <label class="block text-xs font-medium mb-1" for="scientist_reason">{{ __('requisitions.field_reject_reason') }}</label>
+                        <textarea name="reason" id="scientist_reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
                     </div>
                     <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">
                         {{ __('requisitions.submit_decision') }}

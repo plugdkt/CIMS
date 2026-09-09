@@ -33,7 +33,7 @@
                 @if ($row['remaining_base'] <= 0)
                     <p class="text-sm text-success-ink">{{ __('requisitions.line_fully_issued') }}</p>
                 @else
-                    <div class="mb-3 overflow-x-auto">
+                    <div class="mb-3 overflow-x-auto" tabindex="0">
                         <table class="w-full text-xs">
                             <thead class="text-left text-ink-faint uppercase tracking-wide">
                                 <tr>
@@ -123,17 +123,17 @@
                         @csrf
                         <input type="hidden" name="signature_image" x-ref="signatureImageInput">
                         <div>
-                            <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_barcode') }}</label>
-                            <input type="text" name="barcode" value="{{ $row['containers']->first()?->barcode }}"
+                            <label class="block text-xs font-medium mb-1" for="barcode-{{ $line->id }}">{{ __('requisitions.field_barcode') }}</label>
+                            <input type="text" name="barcode" id="barcode-{{ $line->id }}" value="{{ $row['containers']->first()?->barcode }}"
                                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-mono">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_qty_issued') }}</label>
-                            <input type="text" name="qty_issued" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            <label class="block text-xs font-medium mb-1" for="qty_issued-{{ $line->id }}">{{ __('requisitions.field_qty_issued') }}</label>
+                            <input type="text" name="qty_issued" id="qty_issued-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_unit') }}</label>
-                            <select name="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            <label class="block text-xs font-medium mb-1" for="issue_unit_id-{{ $line->id }}">{{ __('requisitions.field_unit') }}</label>
+                            <select name="unit_id" id="issue_unit_id-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                                 <option value="">{{ __('items.select_placeholder') }}</option>
                                 @foreach ($units as $unit)
                                     <option value="{{ $unit->id }}" @selected($unit->id === $line->unit_id)>{{ $unit->code }}</option>
@@ -141,13 +141,13 @@
                             </select>
                         </div>
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_issue_remark') }}</label>
-                            <input type="text" name="remark" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                            <label class="block text-xs font-medium mb-1" for="issue_remark-{{ $line->id }}">{{ __('requisitions.field_issue_remark') }}</label>
+                            <input type="text" name="remark" id="issue_remark-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
                                    placeholder="{{ __('requisitions.field_issue_remark_hint') }}">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_overage_approver') }}</label>
-                            <input type="number" name="overage_approved_by" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                            <label class="block text-xs font-medium mb-1" for="overage_approved_by-{{ $line->id }}">{{ __('requisitions.field_overage_approver') }}</label>
+                            <input type="number" name="overage_approved_by" id="overage_approved_by-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
                                    placeholder="{{ __('requisitions.field_overage_approver_hint') }}">
                         </div>
 
@@ -176,8 +176,8 @@
 
                             <div x-show="mode === 'otp'" class="flex items-end gap-3">
                                 <div>
-                                    <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_otp_code') }}</label>
-                                    <input type="text" name="otp_code" x-ref="otpCodeInput" maxlength="6"
+                                    <label class="block text-xs font-medium mb-1" for="otp_code-{{ $line->id }}">{{ __('requisitions.field_otp_code') }}</label>
+                                    <input type="text" name="otp_code" id="otp_code-{{ $line->id }}" x-ref="otpCodeInput" maxlength="6"
                                            class="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-mono">
                                 </div>
                                 <button type="button" @click="sendOtp" class="text-xs font-semibold text-accent hover:text-accent-strong pb-2.5">
@@ -204,8 +204,8 @@
                         <form method="POST" action="{{ route('requisitions.items.return', [$requisition, $line]) }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                             @csrf
                             <div>
-                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_return_container') }}</label>
-                                <select name="container_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                <label class="block text-xs font-medium mb-1" for="return_container-{{ $line->id }}">{{ __('requisitions.field_return_container') }}</label>
+                                <select name="container_id" id="return_container-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                                     <option value="">{{ __('items.select_placeholder') }}</option>
                                     @foreach ($row['issued_containers'] as $container)
                                         <option value="{{ $container->id }}">{{ $container->barcode }}</option>
@@ -213,12 +213,12 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_qty_returned') }}</label>
-                                <input type="text" name="qty_returned" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                <label class="block text-xs font-medium mb-1" for="qty_returned-{{ $line->id }}">{{ __('requisitions.field_qty_returned') }}</label>
+                                <input type="text" name="qty_returned" id="qty_returned-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_unit') }}</label>
-                                <select name="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                <label class="block text-xs font-medium mb-1" for="return_unit_id-{{ $line->id }}">{{ __('requisitions.field_unit') }}</label>
+                                <select name="unit_id" id="return_unit_id-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                                     <option value="">{{ __('items.select_placeholder') }}</option>
                                     @foreach ($units as $unit)
                                         <option value="{{ $unit->id }}" @selected($unit->id === $line->unit_id)>{{ $unit->code }}</option>
@@ -226,8 +226,8 @@
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium mb-1">{{ __('requisitions.field_issue_remark') }}</label>
-                                <input type="text" name="remark" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                <label class="block text-xs font-medium mb-1" for="return_remark-{{ $line->id }}">{{ __('requisitions.field_issue_remark') }}</label>
+                                <input type="text" name="remark" id="return_remark-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             </div>
                             <div class="sm:col-span-4">
                                 <button type="submit" class="rounded-lg border border-border hover:bg-surface-alt text-sm font-semibold px-4 py-2.5">

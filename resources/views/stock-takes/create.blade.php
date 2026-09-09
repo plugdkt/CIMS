@@ -19,8 +19,8 @@
             @csrf
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('stock_takes.field_lab') }}</label>
-                <select name="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <label class="block text-sm font-medium mb-1" for="lab_id">{{ __('stock_takes.field_lab') }}</label>
+                <select name="lab_id" id="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                     <option value="">{{ __('items.select_placeholder') }}</option>
                     @foreach ($labs as $lab)
                         <option value="{{ $lab->id }}" @selected((int) old('lab_id') === $lab->id)>{{ $lab->name_th }}</option>
@@ -29,8 +29,8 @@
             </div>
 
             <div>
-                <label class="block text-sm font-medium mb-1">{{ __('stock_takes.field_count_date') }}</label>
-                <input type="date" name="count_date" value="{{ old('count_date', now()->toDateString()) }}"
+                <label class="block text-sm font-medium mb-1" for="count_date">{{ __('stock_takes.field_count_date') }}</label>
+                <input type="date" name="count_date" id="count_date" value="{{ old('count_date', now()->toDateString()) }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             </div>
 

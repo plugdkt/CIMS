@@ -18,8 +18,8 @@
                 <input type="text" name="faculty" placeholder="{{ __('reports.field_faculty') }}"
                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="date" name="from" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <input type="date" name="to" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" name="from" aria-label="{{ __('reports.field_from') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" name="to" aria-label="{{ __('reports.field_to') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                 </div>
                 <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">
                     {{ __('reports.download_excel') }}
@@ -33,8 +33,8 @@
             <p class="text-xs text-ink-muted mb-4">{{ __('reports.expiring_stock_desc') }}</p>
             <form method="GET" action="{{ route('reports.expiring-stock.excel') }}" class="space-y-3">
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="date" name="from" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <input type="date" name="to" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" name="from" aria-label="{{ __('reports.field_from') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" name="to" aria-label="{{ __('reports.field_to') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                 </div>
                 <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">
                     {{ __('reports.download_excel') }}
@@ -47,7 +47,7 @@
             <h2 class="font-semibold text-sm mb-1">{{ __('reports.below_reorder_title') }}</h2>
             <p class="text-xs text-ink-muted mb-4">{{ __('reports.below_reorder_desc') }}</p>
             <form method="GET" action="{{ route('reports.below-reorder-point.excel') }}" class="space-y-3">
-                <select name="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                <select name="lab_id" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     <option value="">{{ __('reports.all_labs') }}</option>
                     @foreach ($labs as $lab)
                         <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
@@ -64,7 +64,7 @@
             <h2 class="font-semibold text-sm mb-1">{{ __('reports.dead_stock_title') }}</h2>
             <p class="text-xs text-ink-muted mb-4">{{ __('reports.dead_stock_desc') }}</p>
             <form method="GET" action="{{ route('reports.dead-stock.excel') }}" class="space-y-3">
-                <select name="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                <select name="lab_id" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     <option value="">{{ __('reports.all_labs') }}</option>
                     @foreach ($labs as $lab)
                         <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
@@ -82,8 +82,8 @@
             <p class="text-xs text-ink-muted mb-4">{{ __('reports.controlled_substances_desc') }}</p>
             <form method="GET" action="{{ route('reports.controlled-substances.excel') }}" class="space-y-3" id="controlled-form">
                 <div class="grid grid-cols-2 gap-2">
-                    <input type="date" name="from" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <input type="date" name="to" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" name="from" aria-label="{{ __('reports.field_from') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" name="to" aria-label="{{ __('reports.field_to') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                 </div>
                 <div class="flex gap-2">
                     <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">
@@ -105,7 +105,7 @@
                 <p class="text-xs text-ink-faint">{{ __('reports.no_results') }}</p>
             @else
                 <div class="space-y-3">
-                    <select id="stock-take-select" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <select id="stock-take-select" aria-label="{{ __('reports.field_stock_take') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                         @foreach ($stockTakes as $stockTake)
                             <option value="{{ $stockTake->ulid }}">{{ $stockTake->doc_no }} — {{ $stockTake->lab?->name_th }}</option>
                         @endforeach
