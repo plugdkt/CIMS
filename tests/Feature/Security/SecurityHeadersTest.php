@@ -20,3 +20,15 @@ test('HSTS is sent once the request is actually secure (ST-11)', function () {
 
     $response->assertHeader('Strict-Transport-Security');
 });
+
+test('security headers are still present on a 404 for a completely unmatched path (T-053)', function () {
+    // A path matching no route at all never enters the 'web' group's middleware
+    // on its own — Route::fallback() (routes/web.php) exists specifically so it
+    // does. Found by a real ZAP baseline scan flagging this as a Medium-risk
+    // "CSP Header Not Set" finding before the fallback route was added.
+    $response = $this->get('/this-path-does-not-exist-anywhere');
+
+    $response->assertStatus(404);
+    $response->assertHeader('X-Content-Type-Options', 'nosniff');
+    $response->assertHeader('Content-Security-Policy');
+});

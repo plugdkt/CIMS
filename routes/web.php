@@ -201,3 +201,10 @@ Route::middleware('auth')->prefix('reports')->name('reports.')->group(function (
     Route::get('/stock-takes/{stock_take}/excel', [ReportController::class, 'stockTakeVarianceExcel'])->name('stock-take.excel');
     Route::get('/stock-takes/{stock_take}/pdf', [ReportController::class, 'stockTakeVariancePdf'])->name('stock-take.pdf');
 });
+
+// T-053 (ZAP baseline scan, AC #10): a truly unmatched path never enters the 'web'
+// group's middleware at all (there's no route to attach it to), so ForceHttps/
+// SecurityHeaders never ran on it — ZAP flagged the resulting 404 as missing CSP
+// (Medium). A fallback route IS part of this file's automatic 'web' group, so its
+// 404 gets the same headers as every real page.
+Route::fallback(fn () => abort(404));

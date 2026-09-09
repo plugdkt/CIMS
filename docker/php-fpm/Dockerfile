@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY www.conf /usr/local/etc/php-fpm.d/www.conf
 COPY opcache.ini /usr/local/etc/php/conf.d/zz-opcache.ini
+COPY hardening.ini /usr/local/etc/php/conf.d/zz-hardening.ini
 
 WORKDIR /var/www/html
 

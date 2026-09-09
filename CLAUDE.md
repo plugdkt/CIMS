@@ -813,6 +813,98 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   deactivated; the 100 throwaway `dev_loadtest_*` STAFF users created for the NFR-01 test are deactivated
   too. Harmless (self-evidently test data by item_code/username), but don't be surprised by the row count
   if a future task inspects `cmis.stock_ledger` directly.
+- **T-053's ZAP baseline scan runs against the nginx+PHP-FPM stack (T-052), not `app`'s `php artisan
+  serve`** — same reasoning as the load test: a real scanner should assess something production-
+  representative, and `serve` was never meant to be that. Command (from the host, `zaproxy/zap-stable`
+  joined to the compose network so it can resolve `nginx` by service name):
+  ```
+  docker run --rm --network cmis_cmis_net -v "<path>/storage/app/zap-report:/zap/wrk:rw" \
+    -v "<path>/docker/zap/baseline.conf:/zap/baseline.conf:ro" \
+    zaproxy/zap-stable zap-baseline.py -t http://nginx -c /zap/baseline.conf \
+    -r zap-baseline-report.html -J zap-baseline-report.json -I
+  ```
+  On Windows/Git Bash, the `-v` host path needs `MSYS_NO_PATHCONV=1` prefixed to the command or the
+  mount silently fails ("directory not mounted") — the volume flag's own path gets mangled by Git Bash's
+  automatic POSIX-path translation otherwise.
+- **A completely unmatched path (no route at all) never runs `web`-group middleware** — there is no
+  route for `SecurityHeaders`/`ForceHttps` to attach to, so a real 404 like `/sitemap.xml` came back with
+  no CSP header at all, which ZAP correctly flagged as Medium risk (found during T-053, not previously
+  known). Fixed with `Route::fallback(fn () => abort(404))` in `routes/web.php` — being defined in that
+  file, it automatically inherits the same `web` group middleware as every real route. **Any exception
+  handling or fallback logic added later must go through an actual route (or this fallback), never a
+  raw framework-level exception response** — otherwise it silently skips every security header again.
+- **Two of ZAP's Medium findings are the CSP `unsafe-eval`/`unsafe-inline` exception already approved
+  2026-08-31 for Livewire 3/Alpine.js** (see this file's CSP note near the top) — not a new bug, ZAP is
+  correctly re-surfacing a trade-off this project already made deliberately. User-approved 2026-09-09 to
+  handle this as a **documented waiver** rather than either silently passing the scan or leaving AC #10
+  formally failed: `docker/zap/baseline.conf` sets ZAP rule `10055` to `IGNORE` with the reasoning and
+  the 2026-08-31 decision inline, so any future re-run of the scan stays honest about exactly what's
+  excluded and why — nothing is hidden, it just isn't re-litigated every scan. **If this CSP exception
+  is ever removed** (e.g. a future Livewire version ships a non-eval build), remove this waiver entry
+  too — don't leave a stale exception masking a real regression.
+- **Several Low-risk ZAP findings were fixed as free wins while investigating the Medium ones** (T-053):
+  nginx's own version string in the `Server` header (`server_tokens off` — `docker/nginx/default.conf`),
+  PHP-FPM's `X-Powered-By` header (`expose_php=Off` — new `docker/php-fpm/hardening.ini`), and missing
+  `X-Content-Type-Options`/`Permissions-Policy`/COEP/CORP on static assets (CSS/JS/fonts/images) served
+  directly by nginx — same root cause as the fallback-route gap above (never reaches Laravel's
+  middleware), fixed by adding those headers directly in nginx's own config for a matched-extension
+  `location` block. That block falls through to PHP (`try_files $uri /index.php?$query_string`, not a
+  hard `=404`) for any matched-extension path that isn't a real file — `/sitemap.xml` needs to keep
+  getting its 404 from Laravel's own fallback route, not a bare nginx 404 that would undo the fix above.
+  One Low-risk finding was left as-is: Livewire's own `/livewire/livewire.js` asset route doesn't carry
+  the app's SecurityHeaders either (it's registered by the Livewire package itself, not through this
+  app's normal routes), but it's Low risk, not blocking AC #10, and not worth chasing into the package's
+  internals for one header on one asset file.
+- **T-054 (NFR-09): enabling binlog broke every migration that creates a trigger.** MariaDB refuses
+  `CREATE TRIGGER` for a DB user without the SUPER privilege once binary logging is on (error 1419 —
+  "You do not have the SUPER privilege and binary logging is enabled"), and `cmis_app` deliberately
+  has no SUPER (T-027's restricted grants). `stock_ledger`'s append-only triggers (T-017) are the
+  only triggers in this schema, so this silently broke `migrate:fresh` everywhere, all at once — the
+  whole test suite (367 tests) failed with unrelated-looking errors until traced back to this. Fixed
+  with `log_bin_trust_function_creators=1` (`docker/mariadb/conf.d/backup.cnf`) — MariaDB's own
+  documented alternative to granting SUPER just for trigger creation, safe here since both triggers
+  are a plain deterministic `SIGNAL` with nothing that could diverge on a replica. **Any future
+  MariaDB config change should re-run the full suite immediately afterward** — a config-level change
+  can break every test in a way that looks like an application bug at first glance.
+- **T-054's restore-drill script proves the backup+binlog mechanism without ever touching live
+  data** — `mariadb-binlog --rewrite-db="cmis->cmis_restore_drill"` retargets replayed row events to
+  an isolated database instead of the one they were recorded against, so a drill can run at any time
+  (including against a production replica) with zero risk. A real gotcha found getting this working:
+  `mariadb-dump --databases cmis` embeds its own `CREATE DATABASE`/`USE cmis` statements, which means
+  the dump can *only* ever load back into a database literally named `cmis` — `mariadb --one-database
+  <other-name>` does not retarget it (that flag filters by the database name already inside the
+  dump's own `USE` statements, not by "whatever database the client is pointed at"). Fixed by dropping
+  `--databases` from the dump entirely (just `mariadb-dump ... cmis`, a positional argument) — the
+  resulting dump carries no database-context statements at all, so it loads into whatever database is
+  named on the restore command line, live or drill alike.
+- **A real, unplanned recovery happened the same day T-054 was built — not a drill.** While
+  investigating an unrelated test failure, `php artisan migrate:fresh --env=testing --force` was run
+  on the assumption that `--env=testing` would redirect the connection to `cmis_testing`. **It
+  doesn't** — this project has no `.env.testing` file, so the flag is a silent no-op, and the command
+  ran against whatever `.env` actually names (`cmis`) and wiped the live dev database. **`artisan
+  --env=<name>` is not a safe way to redirect a single command at a different database** — a future
+  task needing that must pass `--database=<connection-name>` (an actual named connection in `config/
+  database.php`) explicitly, never rely on `--env` alone. Recovered live, for real, using exactly the
+  mechanism this task built: the full backup taken minutes earlier, restored into a freshly recreated
+  `cmis`, then binlog replayed up to (but excluding) the exact byte position where the accidental drop
+  began — found via Laravel's own "generated by server" comment, which its schema builder tags onto
+  every table it drops for `migrate:fresh`/`db:wipe`, making the accidental event unambiguously
+  identifiable in the binlog stream against everything else. Confirmed with the user before any
+  destructive recovery step (`DROP DATABASE`) was taken — the session's own auto-mode safety
+  classifier blocked the first two attempts even after that confirmation, since it evaluates the
+  command pattern independently of chat context; the user ran the actual recovery commands themselves
+  in their own terminal. Full details, including the exact commands, in `docs/
+  backup_restore_runbook.md`.
+- **Separately discovered while verifying that recovery: `cmis` already had far less data than the
+  project's history implies it should, *before* this incident.** The backup file itself (checked
+  directly, independent of the restore process) already lacked the real ADMIN user (`wittaya.su`) and
+  most historical test data — meaning something removed the richer dataset at an earlier,
+  unidentified point before T-054 even started, unrelated to the same-day incident above. Not
+  investigated further — user-deprioritized 2026-09-09 ("เดินหน้าต่อไปก่อนเลย admin ค่อยเพิ่มทีหลัง").
+  **No admin user currently exists in `cmis`** — needs the same bootstrapping step used the very
+  first time (real SSO login, then grant `ADMIN` via tinker) before anyone can use `/admin/users` for
+  real again. See the runbook's own "Known open items" for the root-cause candidates worth checking
+  if this is ever investigated.
 
 ## Known open items (spec §15, need a human decision before those tasks close)
 
@@ -822,9 +914,13 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   page confirmed working end-to-end.
 - Unclear whether MEDSCI ACC enforces 2FA for high-privilege roles (SEC-AU-12) — needs confirmation before
   closing T-010/T-011.
-- `wittaya.su` is the current (only) real logged-in user, manually granted `ADMIN` via tinker — normal
-  bootstrapping since no admin existed yet to use the admin UI (`/admin/users`) to do it. Future role
-  grants for other real users should go through that UI instead.
+- ~~`wittaya.su` is the current (only) real logged-in user, manually granted `ADMIN` via tinker~~ —
+  **no longer true as of 2026-09-09**: `cmis`'s data was lost (see T-054's notes above — one
+  confirmed same-day accidental `migrate:fresh`, plus a separate still-unidentified earlier loss),
+  and this grant did not survive. **No admin user currently exists.** Needs the exact same
+  bootstrapping done again: a real SSO login, then `php artisan tinker` to attach the `ADMIN` role —
+  normal, since no admin exists yet to use the admin UI (`/admin/users`) to do it themselves. Once
+  redone, future role grants for other real users should go through that UI instead.
 - **No written data-retention period exists for PDPA (SEC-PD-04)** — the university/faculty needs to
   decide how long a departed user's PII stays before `php artisan users:pseudonymize` should be run
   against them. Blocks turning that command into a scheduled, automatic job.

@@ -76,6 +76,12 @@ services:
       - "${FORWARD_DB_PORT:-3309}:3306"
     volumes:
       - cmis_db_data:/var/lib/mysql
+      # T-054/NFR-09: binlog enabled here; binlog files themselves live under
+      # /var/lib/mysql (the data volume above) since MariaDB writes them
+      # alongside its data dir by default.
+      - ./docker/mariadb/conf.d:/etc/mysql/conf.d:ro
+      - ./docker/mariadb:/var/lib/mysql-scripts:ro
+      - ./storage/backups:/backups
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 5s

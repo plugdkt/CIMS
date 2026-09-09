@@ -1,0 +1,24 @@
+# T-054 / NFR-09 ("Full daily + binlog ต่อเนื่อง, RPO ≤ 15 นาที, RTO ≤ 4 ชม."):
+# continuous binary logging so a full daily backup + replayed binlogs can
+# restore to any point in time between backups, not just to the last
+# midnight. ROW format (not the default MIXED/STATEMENT) is required for a
+# faithful point-in-time replay — statement-based replication can diverge on
+# non-deterministic statements (NOW(), UUID(), etc.), which this app relies
+# on in several places (ULID/timestamp generation).
+[mysqld]
+server-id=1
+log-bin=mysql-bin
+binlog_format=ROW
+binlog_expire_logs_seconds=1209600
+sync_binlog=1
+
+# Without this, CREATE TRIGGER (this app's stock_ledger append-only triggers,
+# T-017) fails with error 1419 ("You do not have the SUPER privilege and
+# binary logging is enabled") for any DB user without SUPER — which
+# `cmis_app` deliberately doesn't have (T-027's restricted grants). This is
+# MariaDB's own documented alternative to granting SUPER just for trigger
+# creation: it vouches that this app's triggers are replication-safe, which
+# they are — both are a plain deterministic SIGNAL, no randomness/side
+# effects that could diverge between primary and a replica. Found only when
+# enabling binlog for T-054 broke every migration that creates a trigger.
+log_bin_trust_function_creators=1
