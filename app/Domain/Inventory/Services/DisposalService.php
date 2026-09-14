@@ -10,6 +10,7 @@ use App\Domain\Shared\DocumentNumberGenerator;
 use App\Models\Container;
 use App\Models\Disposal;
 use App\Models\User;
+use RuntimeException;
 
 /**
  * FR-ST-05: record + approve destroying/discarding material — reason, disposal method,
@@ -70,6 +71,13 @@ final class DisposalService
 
         $item = $container->item()->firstOrFail();
         $methodNote = $disposal->method !== null ? " วิธีกำจัด: {$disposal->method}" : '';
+
+        // `base_unit_id` is nullable on Item (a brand-new item added via stock-in may not
+        // have one yet), but a container that physically exists to be disposed of must
+        // have been received against an item that already had one assigned.
+        if ($item->base_unit_id === null) {
+            throw new RuntimeException("Item #{$item->id} has no base_unit_id but has a real container to dispose of.");
+        }
 
         $this->ledgerService->dispose($container->id, $disposal->qty_base, new LedgerEntryData(
             displayUnitId: $item->base_unit_id,

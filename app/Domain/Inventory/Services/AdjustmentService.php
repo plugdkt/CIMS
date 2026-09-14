@@ -9,6 +9,7 @@ use App\Domain\Inventory\Exceptions\InvalidAdjustmentException;
 use App\Models\Container;
 use App\Models\StockLedger;
 use App\Models\User;
+use RuntimeException;
 
 /**
  * FR-LG-07 / BR-06: a direct, single-step ledger adjustment. Spec's schema has no
@@ -37,6 +38,13 @@ final class AdjustmentService
         }
 
         $item = $container->item()->firstOrFail();
+
+        // `base_unit_id` is nullable on Item (a brand-new item added via stock-in may not
+        // have one yet), but a container that physically exists to be adjusted must have
+        // been received against an item that already had one assigned.
+        if ($item->base_unit_id === null) {
+            throw new RuntimeException("Item #{$item->id} has no base_unit_id but has a real container to adjust.");
+        }
 
         return $this->ledgerService->adjust($container->id, $signedQtyBase, new LedgerEntryData(
             displayUnitId: $item->base_unit_id,

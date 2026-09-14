@@ -884,3 +884,27 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Resolved cURL error 60 (SSL certificate problem) on Windows by bundling CA certificate (`storage/certs/cacert.pem`) and wiring `ca_bundle` option into `SsoClient` and `config/services.php`.
   - Fixed item creation when `reorder_point_base` is omitted, adding default fallback in `ItemRequest` and `Item` model, and set IIS `httpErrors` to `PassThrough` to prevent IIS from turning 500 errors into 404s.
   - Streamlined item creation/edit form: removed unused density (`density_g_per_ml`), reorder point (`reorder_point_base`), and sub-unit fields; unified unit selection into a single "หน่วยนับ" field; added `expiry_date` column to `items` table with date picker support in the form.
+- Reconciliation after pulling 13 commits from the server-side branch (working-stock replenishment +
+  single-step requisition + IIS docroot fix + item form rework) — 5 fixes needed to get back to fully
+  green: (1) the new stock-in item-search dropdown (`stock-in/create.blade.php`) was a scrollable
+  `overflow-y-auto` region missing `tabindex="0"`, caught by the existing `AccessibilityStructureTest`
+  regression guard (T-051) — added it, matching every other scrollable region in the app. (2)
+  `ItemGhsTest`'s create-flow test still expected the old post-save redirect target (`items.edit`); the
+  new `ItemController::store()` redirects to `items.index` instead — updated the assertion to match.
+  (3) `ScientistDecisionTest`'s BR-02 test still expected the old rule (scientist blocked from approving
+  a STUDENT requisition with no advisor sign-off) — that rule was intentionally removed by the
+  single-step-requisition change (the server side's own `ApprovalServiceTest`/`RequisitionStateTest`
+  were already updated to match; this HTTP-layer test wasn't) — flipped it to assert the new, intended
+  behavior (scientist approves directly), same pattern the server side used. (4) Making
+  `items.base_unit_id`/`package_unit_id` nullable (to support stock-in quick-adding a brand-new item)
+  surfaced 3 PHPStan errors in `AdjustmentService`/`DisposalService`/`StockTakeService`, all the same
+  shape: each passes `$item->base_unit_id` straight into `LedgerEntryData::$displayUnitId` (a plain
+  `int`), which no longer typechecks now that the property is `int|null`. A container that physically
+  exists to be adjusted/disposed/counted must have been received against an item that already had a
+  base unit assigned, so each site got an explicit `if ($item->base_unit_id === null) { throw new
+  RuntimeException(...); }` guard (this project's established explicit-narrowing pattern — see
+  `DeadStockExport::labNameFor()` for the precedent) rather than silently trusting a `?->`/`??`. Also
+  added the missing `@property int|null $base_unit_id`/`$package_unit_id` docblock overrides to
+  `Item.php` (the existing `@property numeric-string $reorder_point_base` docblock already established
+  this pattern for the same class). Full suite: 374/374 passing, PHPStan level 8 clean, Pint clean,
+  `composer audit` clean.

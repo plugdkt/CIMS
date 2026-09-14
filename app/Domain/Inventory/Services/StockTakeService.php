@@ -13,6 +13,7 @@ use App\Models\StockTake;
 use App\Models\StockTakeLine;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 /**
  * FR-ST-02..04: a stock take round — generate lines from a lab's active containers,
@@ -131,6 +132,13 @@ final class StockTakeService
             $diffBase = $line->diff_base;
             /** @var int $countedBy */
             $countedBy = $line->counted_by;
+
+            // `base_unit_id` is nullable on Item (a brand-new item added via stock-in may
+            // not have one yet), but a container that physically exists to be counted must
+            // have been received against an item that already had one assigned.
+            if ($item->base_unit_id === null) {
+                throw new RuntimeException("Item #{$item->id} has no base_unit_id but has a real container to count.");
+            }
 
             $this->ledgerService->adjust($container->id, $diffBase, new LedgerEntryData(
                 displayUnitId: $item->base_unit_id,

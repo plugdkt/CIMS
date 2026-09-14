@@ -45,16 +45,18 @@ test('FR-RQ-08: "ไม่เห็นควรให้เบิก" with a rea
     expect($fresh->reject_reason)->toBe('ของหมดชั่วคราว');
 });
 
-test('BR-02: a scientist gets a friendly error trying to approve a STUDENT requisition with no advisor sign-off', function () {
+test('in working stock, a scientist can approve a STUDENT requisition straight from SUBMITTED via the HTTP layer', function () {
     $student = studentUser();
     $requisition = submittedRequisition($student);
     $scientist = scientistUser();
 
     $this->actingAs($scientist)->post(route('requisitions.scientist-decide', $requisition), [
         'decision' => 'APPROVE',
-    ])->assertSessionHasErrors('decision');
+    ])->assertRedirect(route('requisitions.show', $requisition));
 
-    expect($requisition->fresh()->status)->toBe('SUBMITTED');
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('APPROVED');
+    expect($fresh->scientist_id)->toBe($scientist->id);
 });
 
 test('a user without requisition.approve_scientist gets 403', function () {

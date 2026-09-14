@@ -21,7 +21,7 @@ test('LAB_MANAGER can save GHS pictograms and H/P statements on an item', functi
     ]);
 
     $item = Item::where('item_code', 'CHM-GHS01')->firstOrFail();
-    $response->assertRedirect(route('items.edit', $item));
+    $response->assertRedirect(route('items.index'));
     expect($item->ghs_codes)->toBe(['GHS02', 'GHS07']);
     expect($item->h_statements)->toBe(['H225', 'H319']);
     expect($item->p_statements)->toBe(['P210', 'P305']);

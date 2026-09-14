@@ -150,6 +150,7 @@
                          x-transition:leave="transition ease-in duration-75"
                          x-transition:leave-start="opacity-100 scale-100"
                          x-transition:leave-end="opacity-0 scale-98"
+                         tabindex="0"
                          class="absolute z-30 left-0 right-0 mt-1.5 max-h-72 overflow-y-auto rounded-xl border border-border bg-surface shadow-xl divide-y divide-border/60"
                          style="display: none;">
                         <template x-for="item in filteredItems" :key="item.id">
