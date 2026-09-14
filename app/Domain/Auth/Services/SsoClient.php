@@ -22,6 +22,7 @@ final class SsoClient
         private readonly string $verifyUrl,
         private readonly string $logoutUrl,
         private readonly string $callbackUrl,
+        private readonly string|bool|null $caBundle = null,
     ) {
     }
 
@@ -51,13 +52,17 @@ final class SsoClient
             throw new SsoVerificationException('Invalid SSO state (possible Login CSRF)');
         }
 
-        $response = Http::asForm()
-            ->timeout(self::TOKEN_TTL_SECONDS)
-            ->post($this->verifyUrl, [
-                'token' => $token,
-                'client_id' => $this->clientId,
-                'client_secret' => $this->clientSecret,
-            ]);
+        $request = Http::asForm()->timeout(self::TOKEN_TTL_SECONDS);
+
+        if ($this->caBundle !== null) {
+            $request = $request->withOptions(['verify' => $this->caBundle]);
+        }
+
+        $response = $request->post($this->verifyUrl, [
+            'token' => $token,
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+        ]);
 
         $result = $response->json();
 

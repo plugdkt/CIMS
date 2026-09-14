@@ -877,3 +877,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   compose exec app ...` write will reintroduce it. Full suite: 367/367 passing, PHPStan level 8 clean,
   Pint clean, `composer audit` clean — this task added no application code, only docs and a ZAP
   waiver-config entry.
+- Windows Server IIS Deployment & SSO CA Bundle Fix:
+  - Deployed CMIS on Windows Server IIS at `C:\inetpub\wwwroot\CMIS` running under PHP 8.3.6 FastCGI.
+  - Configured IIS root entry point (`index.php`) and URL rewrite rules (`web.config`) with request filtering protecting `.env`, `storage`, and `vendor`.
+  - Configured Livewire 3 subpath routing (`AppServiceProvider.php` + `config/livewire.php`) to dynamically handle subfolder deployments (`/CMIS/livewire/livewire.js` and `/CMIS/livewire/update`).
+  - Resolved cURL error 60 (SSL certificate problem) on Windows by bundling CA certificate (`storage/certs/cacert.pem`) and wiring `ca_bundle` option into `SsoClient` and `config/services.php`.

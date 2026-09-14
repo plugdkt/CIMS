@@ -24,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
             verifyUrl: (string) config('services.sso.verify_url'),
             logoutUrl: (string) config('services.sso.logout_url'),
             callbackUrl: (string) config('services.sso.callback_url'),
+            caBundle: config('services.sso.ca_bundle'),
         ));
 
         $this->app->singleton(VirusScanner::class, fn () => new ClamAvScanner(
@@ -53,5 +54,16 @@ class AppServiceProvider extends ServiceProvider
 
             return $hasPermission ? true : null;
         });
+
+        $basePath = trim((string) parse_url((string) config('app.url'), PHP_URL_PATH), '/');
+        if ($basePath !== '') {
+            \Livewire\Livewire::setScriptRoute(function ($handle) use ($basePath) {
+                return \Illuminate\Support\Facades\Route::get("{$basePath}/livewire/livewire.js", $handle);
+            });
+
+            \Livewire\Livewire::setUpdateRoute(function ($handle) use ($basePath) {
+                return \Illuminate\Support\Facades\Route::post("{$basePath}/livewire/update", $handle);
+            });
+        }
     }
 }

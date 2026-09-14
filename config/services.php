@@ -44,6 +44,9 @@ return [
         'verify_url' => env('SSO_VERIFY_URL', 'https://www.medsci.up.ac.th/msc_acc/api/verify.php'),
         'logout_url' => env('SSO_LOGOUT_URL', 'https://www.medsci.up.ac.th/msc_acc/sso/logout.php'),
         'callback_url' => env('SSO_CALLBACK_URL'),
+        'ca_bundle' => env('SSO_VERIFY_SSL') === false || env('SSO_VERIFY_SSL') === 'false'
+            ? false
+            : env('SSO_CA_BUNDLE', file_exists(storage_path('certs/cacert.pem')) ? storage_path('certs/cacert.pem') : null),
     ],
 
 ];
