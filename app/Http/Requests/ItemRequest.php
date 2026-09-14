@@ -30,6 +30,10 @@ final class ItemRequest extends FormRequest
         if (! $this->filled('reorder_point_base')) {
             $this->merge(['reorder_point_base' => '0']);
         }
+
+        if ($this->filled('base_unit_id') && ! $this->filled('package_unit_id')) {
+            $this->merge(['package_unit_id' => $this->base_unit_id]);
+        }
     }
 
     /** @return array<string, mixed> */
@@ -63,6 +67,7 @@ final class ItemRequest extends FormRequest
             'p_statements.*' => [Rule::in(array_keys(config('ghs.precautionary_statements')))],
             'storage_class' => ['nullable', 'string', 'max:64'],
             'shelf_life_days_after_open' => ['nullable', 'integer', 'min:0'],
+            'expiry_date' => ['nullable', 'date'],
             'is_active' => ['boolean'],
         ];
     }

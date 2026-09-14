@@ -38,6 +38,8 @@ return [
     'field_control_class' => 'ประเภทการควบคุม',
     'field_storage_class' => 'ประเภทการจัดเก็บ',
     'field_shelf_life' => 'อายุหลังเปิดใช้ (วัน)',
+    'field_unit' => 'หน่วยนับ',
+    'field_expiry_date' => 'วันหมดอายุ',
     'field_is_active' => 'ใช้งาน',
     'select_placeholder' => '— เลือก —',
     'save' => 'บันทึก',

@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
     'item_code', 'category_id', 'name_th', 'name_en', 'cas_no', 'formula', 'brand', 'grade',
     'package_size', 'package_unit_id', 'sub_unit_id', 'base_unit_id', 'density_g_per_ml',
     'reorder_point_base', 'is_controlled', 'control_class', 'ghs_codes', 'h_statements',
-    'p_statements', 'storage_class', 'shelf_life_days_after_open', 'is_active',
+    'p_statements', 'storage_class', 'shelf_life_days_after_open', 'expiry_date', 'is_active',
 ])]
 class Item extends Model
 {
@@ -31,6 +31,7 @@ class Item extends Model
 
         static::saving(function (self $item) {
             $item->reorder_point_base ??= '0.000000';
+            $item->package_unit_id ??= $item->base_unit_id;
             $item->is_controlled ??= false;
             $item->is_active ??= true;
         });
@@ -48,6 +49,7 @@ class Item extends Model
             'package_size' => 'decimal:6',
             'density_g_per_ml' => 'decimal:6',
             'reorder_point_base' => 'decimal:6',
+            'expiry_date' => 'date',
             'is_controlled' => 'boolean',
             'is_active' => 'boolean',
             'ghs_codes' => 'array',

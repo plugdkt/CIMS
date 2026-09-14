@@ -50,6 +50,10 @@
                     <dd>{{ $item->storage_class ?: '—' }}</dd>
                 </div>
                 <div>
+                    <dt class="text-xs text-ink-faint">{{ __('items.field_expiry_date') }}</dt>
+                    <dd>{{ $item->expiry_date ? $item->expiry_date->format('d/m/Y') : '—' }}</dd>
+                </div>
+                <div>
                     <dt class="text-xs text-ink-faint">{{ __('items.col_status') }}</dt>
                     <dd>
                         <span class="px-2.5 py-1 rounded-full text-xs font-semibold {{ $item->is_active ? 'bg-success-soft text-success-ink' : 'bg-danger-soft text-danger-ink' }}">
