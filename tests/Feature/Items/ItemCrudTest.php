@@ -75,7 +75,8 @@ test('LAB_MANAGER can create a new item', function () {
 
     $item = Item::where('item_code', 'CHM-00001')->first();
     expect($item)->not->toBeNull();
-    $response->assertRedirect(route('items.edit', $item));
+    $response->assertRedirect(route('items.index'));
+    $response->assertSessionHas('status');
 });
 
 test('item_code must be unique', function () {
@@ -99,7 +100,7 @@ test('LAB_MANAGER can update an existing item', function () {
         'category_id' => $item->category_id,
         'name_th' => 'โซเดียมไฮดรอกไซด์ (แก้ไข)',
         'base_unit_id' => $item->base_unit_id,
-    ])->assertRedirect(route('items.edit', $item));
+    ])->assertRedirect(route('items.index'));
 
     expect($item->fresh()->name_th)->toBe('โซเดียมไฮดรอกไซด์ (แก้ไข)');
 });
@@ -141,5 +142,6 @@ test('LAB_MANAGER can create an item with specification and without base_unit_id
     expect($item)->not->toBeNull();
     expect($item->specification)->toContain('Assay by GC');
     expect($item->base_unit_id)->toBeNull();
-    $response->assertRedirect(route('items.edit', $item));
+    $response->assertRedirect(route('items.index'));
+    $response->assertSessionHas('status');
 });

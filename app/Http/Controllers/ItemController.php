@@ -26,9 +26,9 @@ final class ItemController extends Controller
 
     public function store(ItemRequest $request): RedirectResponse
     {
-        $item = Item::create($request->validated());
+        Item::create($request->validated());
 
-        return redirect()->route('items.edit', $item)->with('status', __('items.saved'));
+        return redirect()->route('items.index')->with('status', __('items.saved'));
     }
 
     public function show(Item $item): View
@@ -57,6 +57,6 @@ final class ItemController extends Controller
     {
         $item->update($request->validated());
 
-        return redirect()->route('items.edit', $item)->with('status', __('items.saved'));
+        return redirect()->route('items.index')->with('status', __('items.saved'));
     }
 }

@@ -11,6 +11,13 @@
         @endif
     </div>
 
+    @if (session('status'))
+        <div class="mb-5 rounded-xl bg-success-soft text-success-ink text-sm px-4 py-3 border border-success/20 flex items-center gap-2">
+            <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span>{{ session('status') }}</span>
+        </div>
+    @endif
+
     <div class="mb-4">
         <input type="text" wire:model.live.debounce.300ms="search" placeholder="{{ __('items.search_placeholder') }}"
                class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
