@@ -82,6 +82,11 @@ class User extends Authenticatable
         return $this->roles->contains('code', $code);
     }
 
+    public function hasPermission(string $code): bool
+    {
+        return $this->roles->flatMap(fn ($role) => $role->permissions)->contains('code', $code);
+    }
+
     /** SEC-PD-02: consented, and to the currently published notice (not a stale one). */
     public function hasValidPrivacyConsent(): bool
     {
