@@ -8,6 +8,20 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Artisan::command('user:make-admin {username=wittaya.su}', function (string $username = 'wittaya.su') {
+    $user = \App\Models\User::where('username', $username)->first();
+    if (! $user) {
+        $this->error("User {$username} not found. Existing users:");
+        foreach (\App\Models\User::all() as $u) {
+            $this->line("- {$u->username} ({$u->full_name})");
+        }
+        return;
+    }
+    $roles = \App\Models\Role::whereIn('code', ['ADMIN', 'SCIENTIST', 'LAB_MANAGER'])->pluck('id');
+    $user->roles()->syncWithoutDetaching($roles);
+    $this->info("Assigned roles to {$user->username}: " . $user->fresh()->roles->pluck('code')->join(', '));
+})->purpose('Assign ADMIN, SCIENTIST, LAB_MANAGER roles to a user');
+
 // FR-NT-01/02: spec's own "Daily 07:00".
 Schedule::command('notifications:check-reorder')->dailyAt('07:00');
 Schedule::command('notifications:check-expiry')->dailyAt('07:00');
