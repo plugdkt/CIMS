@@ -68,6 +68,12 @@
                     {{ __('nav.reports') }}
                 </a>
             @endcan
+            @can('manageMembers', App\Models\Lab::class)
+                <a href="{{ route('labs.members') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('labs.members') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.lab_members') }}
+                </a>
+            @endcan
 
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
                 {{ __('nav.group_system') }}

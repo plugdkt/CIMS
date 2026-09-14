@@ -55,6 +55,32 @@ test('a LAB_MANAGER can approve, and the container is credited down through the 
     expect($disposal->fresh()->status)->toBe('APPROVED');
 });
 
+test('branch scoping: a LAB_MANAGER of a different branch gets 403 approving a disposal in another branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $location = makeLocationForLab($lab);
+    $item = makeItem();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $scientist = scientistUser();
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(LedgerService::class)->receive($container->id, '50.000000', new LedgerEntryData(displayUnitId: $g->id, createdBy: $scientist->id));
+
+    $this->actingAs($scientist)->post(route('disposals.store'), [
+        'barcode' => $container->fresh()->barcode,
+        'qty' => '20.000000',
+        'reason' => 'EXPIRED',
+        'disposal_date' => now()->toDateString(),
+    ]);
+    $disposal = \App\Models\Disposal::firstOrFail();
+
+    $otherManager = labManagerUser(['lab_id' => $otherLab->id]);
+    $this->actingAs($otherManager)->post(route('disposals.approve', $disposal))->assertStatus(403);
+
+    $ownManager = labManagerUser(['lab_id' => $lab->id]);
+    $this->actingAs($ownManager)->post(route('disposals.approve', $disposal))
+        ->assertRedirect(route('disposals.show', $disposal));
+});
+
 test('a scientist (no disposal.approve permission) cannot approve, even their own request', function () {
     $item = makeItem();
     $g = Unit::where('code', 'g')->firstOrFail();

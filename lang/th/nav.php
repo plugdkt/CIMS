@@ -12,6 +12,7 @@ return [
     'disposals' => 'ทำลาย/ตัดจำหน่าย',
     'adjustments' => 'ปรับปรุงยอด',
     'reports' => 'รายงาน',
+    'lab_members' => 'สมาชิกสาขา',
     'group_system' => 'ระบบ',
     'users_roles' => 'ผู้ใช้งานและสิทธิ์',
     'labs' => 'ห้องปฏิบัติการ',

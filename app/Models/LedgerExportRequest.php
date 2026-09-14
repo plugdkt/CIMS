@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
  * NFR-02: tracks one queued F-03 ledger PDF export (see the create-table migration's
  * own doc comment for why this table exists).
  *
- * @property array{dateFrom: ?string, dateTo: ?string, txnType: ?string, receiverName: ?string, containerBarcode: ?string} $filter
+ * @property array{dateFrom: ?string, dateTo: ?string, txnType: ?string, receiverName: ?string, containerBarcode: ?string, labId?: ?int} $filter
  */
 #[Fillable([
     'ulid', 'item_id', 'requested_by', 'display_unit_id', 'filter',

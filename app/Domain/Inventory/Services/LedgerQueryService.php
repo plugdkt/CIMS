@@ -51,6 +51,12 @@ final class LedgerQueryService
             ->when(filled($filter->containerBarcode), function (Builder $q) use ($filter) {
                 $q->whereHas('container', fn (Builder $cq) => $cq->where('barcode', 'like', "%{$filter->containerBarcode}%"));
             })
+            ->when($filter->labId !== null, function (Builder $q) use ($filter) {
+                // whereHas (not a left join) naturally excludes rows whose container has no
+                // location/lab — the "hide unlocated rows" call recorded in CLAUDE.md for
+                // a lab-scoped LAB_MANAGER view.
+                $q->whereHas('container', fn (Builder $cq) => $cq->whereHas('location', fn (Builder $lq) => $lq->where('lab_id', $filter->labId)));
+            })
             ->orderBy('id');
     }
 

@@ -33,11 +33,17 @@ final class StockInController extends Controller
         $selectedItemId = $item instanceof Item ? $item->id : $request->query('item_id');
         $selectedItem = $selectedItemId ? Item::find($selectedItemId) : null;
 
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $locations = $user->hasRole('LAB_MANAGER')
+            ? Location::where('lab_id', $user->lab_id)->orderBy('name')->get()
+            : Location::orderBy('name')->get();
+
         return view('stock-in.create', [
             'items' => Item::where('is_active', true)->orderBy('name_th')->get(),
             'selectedItem' => $selectedItem,
             'units' => Unit::orderBy('sort_order')->get(),
-            'locations' => Location::orderBy('name')->get(),
+            'locations' => $locations,
         ]);
     }
 

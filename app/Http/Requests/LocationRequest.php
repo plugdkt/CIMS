@@ -59,6 +59,14 @@ final class LocationRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
+            $user = $this->user();
+            if ($user !== null && $user->hasRole('LAB_MANAGER')) {
+                $submittedLabId = $this->input('lab_id') !== null ? (int) $this->input('lab_id') : null;
+                if ($submittedLabId !== $user->lab_id) {
+                    $validator->errors()->add('lab_id', __('locations.validation.lab_must_match_own'));
+                }
+            }
+
             $levelType = $this->input('level_type');
             $parentId = $this->input('parent_id');
             $requiredParentLevel = self::REQUIRED_PARENT_LEVEL[$levelType] ?? null;

@@ -34,6 +34,9 @@ final class UsageSummaryExport implements FromCollection, WithHeadings, WithTitl
                 if ($this->filter->faculty !== null && $this->filter->faculty !== '') {
                     $q->where('faculty', $this->filter->faculty);
                 }
+                if ($this->filter->labId !== null) {
+                    $q->where('lab_id', $this->filter->labId);
+                }
             })
             ->when($this->filter->dateFrom, fn ($q, $from) => $q->whereDate('issued_at', '>=', $from))
             ->when($this->filter->dateTo, fn ($q, $to) => $q->whereDate('issued_at', '<=', $to))

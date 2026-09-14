@@ -47,12 +47,16 @@
             <h2 class="font-semibold text-sm mb-1">{{ __('reports.below_reorder_title') }}</h2>
             <p class="text-xs text-ink-muted mb-4">{{ __('reports.below_reorder_desc') }}</p>
             <form method="GET" action="{{ route('reports.below-reorder-point.excel') }}" class="space-y-3">
-                <select name="lab_id" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <option value="">{{ __('reports.all_labs') }}</option>
-                    @foreach ($labs as $lab)
-                        <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
-                    @endforeach
-                </select>
+                @if ($restrictedLabId === null)
+                    <select name="lab_id" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <option value="">{{ __('reports.all_labs') }}</option>
+                        @foreach ($labs as $lab)
+                            <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
+                        @endforeach
+                    </select>
+                @else
+                    <p class="text-xs text-ink-faint">{{ __('reports.restricted_to_own_lab') }}</p>
+                @endif
                 <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">
                     {{ __('reports.download_excel') }}
                 </button>
@@ -64,12 +68,16 @@
             <h2 class="font-semibold text-sm mb-1">{{ __('reports.dead_stock_title') }}</h2>
             <p class="text-xs text-ink-muted mb-4">{{ __('reports.dead_stock_desc') }}</p>
             <form method="GET" action="{{ route('reports.dead-stock.excel') }}" class="space-y-3">
-                <select name="lab_id" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <option value="">{{ __('reports.all_labs') }}</option>
-                    @foreach ($labs as $lab)
-                        <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
-                    @endforeach
-                </select>
+                @if ($restrictedLabId === null)
+                    <select name="lab_id" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <option value="">{{ __('reports.all_labs') }}</option>
+                        @foreach ($labs as $lab)
+                            <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
+                        @endforeach
+                    </select>
+                @else
+                    <p class="text-xs text-ink-faint">{{ __('reports.restricted_to_own_lab') }}</p>
+                @endif
                 <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">
                     {{ __('reports.download_excel') }}
                 </button>

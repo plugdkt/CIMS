@@ -61,6 +61,7 @@ final class GenerateLedgerPdfExportJob implements ShouldQueue
             txnType: $filterData['txnType'] ?? null,
             receiverName: $filterData['receiverName'] ?? null,
             containerBarcode: $filterData['containerBarcode'] ?? null,
+            labId: $filterData['labId'] ?? null,
         );
 
         try {

@@ -11,6 +11,36 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+test('branch scoping: a LAB_MANAGER of the same branch as the container can approve', function () {
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $item = makeItem();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $creator = labManagerUser(['lab_id' => $lab->id]);
+    $approver = labManagerUser(['lab_id' => $lab->id]);
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(LedgerService::class)->receive($container->id, '50.000000', new LedgerEntryData(displayUnitId: $g->id, createdBy: $creator->id));
+
+    $row = app(AdjustmentService::class)->adjust($container->fresh(), '5.000000', 'พบของเกินจากตรวจนับ', $creator, $approver);
+
+    expect($row->approved_by)->toBe($approver->id);
+});
+
+test('branch scoping: a LAB_MANAGER of a different branch cannot approve an adjustment for this container', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $location = makeLocationForLab($lab);
+    $item = makeItem();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $creator = labManagerUser(['lab_id' => $lab->id]);
+    $approver = labManagerUser(['lab_id' => $otherLab->id]);
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(LedgerService::class)->receive($container->id, '50.000000', new LedgerEntryData(displayUnitId: $g->id, createdBy: $creator->id));
+
+    expect(fn () => app(AdjustmentService::class)->adjust($container->fresh(), '5.000000', 'พบของเกินจากตรวจนับ', $creator, $approver))
+        ->toThrow(InvalidAdjustmentException::class);
+});
+
 test('BR-06: a LAB_MANAGER can adjust up (ADJUST_IN) with a distinct, authorized approver', function () {
     $item = makeItem();
     $g = Unit::where('code', 'g')->firstOrFail();

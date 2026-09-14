@@ -877,6 +877,36 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   compose exec app ...` write will reintroduce it. Full suite: 367/367 passing, PHPStan level 8 clean,
   Pint clean, `composer audit` clean — this task added no application code, only docs and a ZAP
   waiver-config entry.
+- Multi-branch (lab-scoped) access control: split the warehouse's access model by branch
+  (`labs`, already CRUD-able), giving each branch a LAB_MANAGER whose actions and views are
+  now scoped to their own `users.lab_id` — a column that has existed since project init but
+  was completely unused by any code until now. Requisition creation now snapshots `lab_id`
+  from the requester's own profile (never user-selectable); a requester with no branch
+  assigned is redirected to a new "pending branch assignment" page instead of the create
+  form. ADMIN gained a branch (`lab_id`) selector per user in `UserRoleManager`
+  (`admin.users.index`), and LAB_MANAGER gained a new own-branch member whitelist page
+  (`/labs/members`, `lab.manage_members` permission) restricted to the STUDENT/STAFF roles
+  that actually hold `requisition.create` — a manager can add an unassigned user or remove
+  one already in their own branch, never poach a member of a different branch. Every
+  existing LAB_MANAGER action that previously worked system-wide is now scoped to the
+  approver/actor's own branch: adjustment approval (`AdjustmentService`), disposal decisions
+  (`DisposalPolicy`), location create/update (`LocationPolicy`/`LocationRequest`), and the
+  BR-04 overage-issue approver check (`IssueService`) — each throws/403s when a LAB_MANAGER
+  acts outside their own branch, but is a no-op (unchanged behavior) when the resource has
+  no resolvable lab at all (e.g. a container with no `location_id`), since there's no other
+  branch to conflict with. LAB_MANAGER's read-only views are scoped the same way: the
+  requisition list/detail (`requisition.view_all`), the per-item ledger (`ledger.view`,
+  including its PDF/Excel exports and the async export job), and all six §7.8 reports
+  (forced server-side, never trusted from the query string) — a container/ledger row with
+  no resolvable lab is hidden from a lab-scoped view rather than shown. SCIENTIST/AUDITOR,
+  who share several of these same permission codes, are entirely unaffected (scoping is
+  gated on holding the LAB_MANAGER role specifically, via `User::hasRole()`). Explicitly
+  out of scope: `item.manage` stays global — Items are a catalog with no `lab_id` column at
+  all — and the location tree's own listing page stays unscoped (a hierarchy where only
+  some levels carry a `lab_id` doesn't filter cleanly without breaking the tree). New test
+  coverage across adjustments,
+  disposals, locations, requisitions, the item ledger, and the two new Livewire components.
+  Full suite: 385/385 passing, PHPStan level 8 clean, Pint clean, `composer audit` clean.
 - Windows Server IIS Deployment & SSO CA Bundle Fix:
   - Configured IIS Application pointing to `public/` directory (`C:\inetpub\wwwroot\CMIS\public`) to ensure source code, configs, and dependency manifests outside `public` cannot be accessed directly via HTTP.
   - Removed root `index.php` and root `web.config` in favor of standard `public/web.config`.
@@ -908,3 +938,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Item.php` (the existing `@property numeric-string $reorder_point_base` docblock already established
   this pattern for the same class). Full suite: 374/374 passing, PHPStan level 8 clean, Pint clean,
   `composer audit` clean.
+- Restored the multi-branch (lab-scoped) access control feature (previously stashed) on top of the
+  merged working-stock/single-step requisition codebase — applied cleanly via `git stash pop` (auto-
+  merge, no conflicts) since nothing about the approval-flow simplification touched the lab-scoping
+  code paths. Extended it to cover the new stock-in flow, which didn't exist when the feature was
+  first built: `StockInController::create()` now only lists a LAB_MANAGER's own branch's locations,
+  and `StockInRequest` rejects a submitted `location_id` outside their own branch (`lab_id` mismatch)
+  — same pattern as `LocationRequest`'s existing create-time check. Without this, working-stock
+  replenishment (now the primary way stock enters the system, GRN having been removed) would have been
+  the one write path left completely unscoped, undermining the whole feature's point. Full suite:
+  395/395 passing, PHPStan level 8 clean, Pint clean, `composer audit` clean.

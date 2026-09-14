@@ -968,7 +968,146 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   process touching webroot files there, per `docs/iis_installation_guide.md` — this is purely a
   side effect of two containers sharing one bind mount for local dev/test convenience).
 
-## Known open items (spec §15, need a human decision before those tasks close)
+## Post-launch feature — Multi-branch (lab-scoped) access control
+
+Added after the 56-task backlog was complete, at the user's explicit request: split the
+warehouse's access model by branch, with a manager per branch who administers only that
+branch, and requisitioners restricted to their own branch. This is a real architectural
+addition, not a spec task, so its judgment calls are recorded here the same way backlog
+tasks' are.
+
+- **"Branch" is the existing `labs` entity** (already had CRUD via `LabController`/
+  `lab.manage`, since T-022) — user-confirmed, not a new table.
+- **`users.lab_id`** — a nullable FK to `labs` that has existed since the very first
+  migration (`2026_08_31_130003_create_users_and_rbac_tables.php`) but was **completely
+  unused by any application code** until this feature — is now the single column serving
+  two purposes at once, by user-confirmed design: "which branch does this person belong
+  to" for STUDENT/STAFF requisitioners, and "which branch does this LAB_MANAGER manage" for
+  managers (1 person = 1 lab, so a manager's own branch and the branch they administer are
+  the same value). No second column or table was added for either purpose.
+- **The branch "whitelist" is `users.lab_id` itself, not a separate table** — user-confirmed:
+  a LAB_MANAGER whitelisting a member is literally an ADMIN-equivalent, scoped `setLab()`
+  call (`App\Livewire\Labs\LabMemberManager`, new `lab.manage_members` permission, LAB_MANAGER
+  only). Candidates are restricted to users holding **STUDENT or STAFF** — the two roles that
+  actually hold `requisition.create` per `PermissionSeeder` — not "นิสิตอาจารย์บุคลากร" read
+  literally; ADVISOR/SCIENTIST/etc. never requisition, so they're not part of this whitelist.
+  A manager can add an unassigned user (`lab_id === null`) or remove one already in their own
+  branch, but can never reassign a user already belonging to a *different* branch — that still
+  requires ADMIN, via a new `UserRoleManager::setLab()` method (same admin-only
+  `manageRoles` ability already used for role/active toggling).
+- **Requisition creation now snapshots `lab_id` from the requester's own profile**, exactly
+  like the other requester-identity fields BR-11/T-031 already established (`student_code`/
+  `program`/`faculty`/`advisor_id`) — the create form's old free-choice lab `<select>` is
+  gone; `RequisitionRequest` no longer accepts `lab_id` as input at all. A requester with
+  `lab_id === null` is redirected to a new `account.pending-lab` page (mirroring
+  `PendingRoleController`'s shape) instead of the create form — checked at both `create()`
+  (the page gate) and `store()` (`abort_if($user->lab_id === null, 403)`, defense in depth,
+  since `requisitions.lab_id` is `NOT NULL` and a direct POST could otherwise hit a DB
+  constraint violation instead of a clean redirect).
+- **Every existing LAB_MANAGER action that was system-wide is now scoped to the actor's own
+  branch**, gated on `$user->hasRole('LAB_MANAGER')` specifically (via the existing
+  `User::hasRole()`) so SCIENTIST/AUDITOR — who hold several of the same permission codes
+  (`requisition.view_all`, `ledger.view`, `report.view`) — are entirely unaffected:
+  `AdjustmentService::adjust()` (approver's lab vs. the container's lab), `DisposalPolicy::
+  decide()` (same, via the disposal's container), `LocationPolicy::view()`/`update()` (the
+  location's own `lab_id`) plus `LocationRequest`'s create-time validation (submitted
+  `lab_id` must equal the manager's own), and `IssueService::assertWithinTolerance()`'s BR-04
+  overage approver (approver's lab vs. the requisition's lab).
+- **User-confirmed asymmetric rule for "no resolvable lab"**: a container with no
+  `location_id`, or a location with no `lab_id`, has no branch to conflict with — so every
+  **write** check above *allows* the action when the lab can't be determined (same
+  reasoning already used for the pre-existing report filters treating this as "no lab
+  attached"). Every **read/list** view, by contrast, *hides* such a row from a lab-scoped
+  LAB_MANAGER (confirmed via AskUserQuestion) — see the next point. This is deliberately
+  not the same rule in both directions; don't try to unify them.
+- **LAB_MANAGER's read-only views are scoped too, user-confirmed** — not just their
+  approval/edit actions: `RequisitionPolicy::view()` + `RequisitionTable`'s list query
+  (`requisition.view_all`), the per-item ledger (`ItemLedger`/`LedgerQueryService`/
+  `LedgerFilter`'s new `labId`, including its PDF/Excel export in `LedgerExportController`
+  and the async `GenerateLedgerPdfExportJob` — the job's stored `filter` JSON needed a new
+  `labId` key, and `LedgerExportRequest`'s `@property` array-shape docblock needed updating
+  to match or PHPStan flags the `?? null` read as accessing a nonexistent offset), and all
+  six §7.8 reports in `ReportController` (a new `labIdFor()` helper **forces** the
+  LAB_MANAGER's own `lab_id`, ignoring/overriding whatever `lab_id` the query string
+  carries — a LAB_MANAGER can't widen their own view by hand-editing the URL). Two reports
+  (`ExpiringStockExport`, `ControlledSubstancesExport`/`ControlledSubstancesPdfService`) had
+  no lab filter at all before this and gained one, matching the existing optional-filter
+  pattern `BelowReorderPointExport`/`DeadStockExport` already used; `UsageSummaryExport`
+  filters directly on `requisitions.lab_id` (already a real column). The two stock-take
+  reports take a specific `StockTake` (which already carries its own `lab_id`) so scoping
+  there is a 403 check (`ReportController::authorizeStockTakeOwnLab()`), not a query filter.
+- **`item.manage` stays entirely unscoped, user-confirmed** — Items are a global catalog
+  with no `lab_id` column at all (same fact already noted elsewhere in this file), so there
+  is nothing to scope by. A LAB_MANAGER's item-management reach is unchanged.
+- **The location tree's own listing page (`LocationTree`, `viewAny`) stays unscoped even
+  though `update`/`create` are now branch-restricted** — deliberately, not an oversight.
+  Locations are a 4-level hierarchy (BUILDING > ROOM > CABINET > SHELF) where `lab_id` is
+  nullable at every level; an upper-level node (e.g. a shared BUILDING) may have no
+  `lab_id` at all while its children do. Filtering the *list* to "rows where `lab_id`
+  matches my own" would silently break the tree (a lab-scoped child rendering with its
+  shared parent missing), and spec never asked for a lab-scoped location list — only the
+  edit/create actions this feature explicitly targets. Revisit only if a real need for a
+  per-branch location list surfaces later.
+- **PHPStan gotcha found while verifying this feature (environment-specific, not caused by
+  this feature's code)**: `vendor/bin/phpstan analyse` (parallel worker mode) crashes with
+  `Undefined constant "Larastan\Larastan\LARAVEL_VERSION"` in this Docker/Windows
+  environment — `composer install`/`dump-autoload` does not fix it. Root cause not fully
+  isolated (looks like Larastan's `bootstrap.php` — which boots the real app to `define()`
+  that constant — silently fails to run to completion inside a parallel worker subprocess
+  on this setup, though a direct manual repro of that exact code path wasn't conclusive).
+  **Workaround**: run `vendor/bin/phpstan analyse --debug --memory-limit=2G` instead — the
+  `--debug` flag forces single-process mode, which sidesteps whatever breaks in the workers,
+  at the cost of also needing a higher memory limit than the default worker pool would use
+  per-process. If a future session hits the same crash, try this before assuming a real
+  config problem.
+- **Restored 2026-09-14 on top of the working-stock/single-step-requisition merge** (see that
+  section below) — applied via `git stash pop` with a clean auto-merge, no manual conflict
+  resolution needed, since none of the approval-flow simplification touched lab-scoping code.
+  Extended at the same time to cover **stock-in** (`StockInController`/`StockInRequest`), which
+  didn't exist when this feature was first built: a LAB_MANAGER's `create()` page only lists
+  their own branch's locations, and `store()` rejects a `location_id` outside their own branch
+  (same "submitted value must match the manager's own `lab_id`" check `LocationRequest` already
+  used). This closes what would otherwise have been the one completely unscoped write path into
+  inventory, now that stock-in (not GRN) is how stock actually enters the system.
+
+## Post-launch — Working-stock replenishment & single-step requisition (server-side branch, merged 2026-09-14)
+
+Pulled in from 13 commits authored on the server-side deployment branch — a real architectural
+simplification requested by the user directly ("อยากให้เป็นแค่ระบบเบิกจ่ายย่อยๆ working stock... ไม่จำเป็นจะต้องมี
+การนำเข้าจาก PO"), not a spec task. Recorded here since it changes core behavior earlier phases'
+notes assumed.
+
+- **GRN (goods receiving from a PO) is gone as the way stock enters the system.** In its place,
+  **stock-in** (`StockInController`, `/stock-in`) writes directly to `stock_ledger` via
+  `LedgerService::receive()` (`refType: 'WORKING_STOCK'`) — no purchase order, no receiving
+  document, just "how much, of what, into which location, as one container or in bulk." Gated on
+  `receiving.manage`/`item.manage`/`ledger.adjust`/ADMIN (checked in `StockInRequest::authorize()`,
+  not a dedicated Policy — same reasoning as `ReportController`'s bare permission checks: no real
+  Eloquent resource for a Policy to attach to at create time). `GoodsReceipt`/GRN code itself was
+  **not removed** — only no longer the primary path; check before assuming it's fully retired if a
+  later task touches it.
+- **BR-02 (a STUDENT requisition needs advisor sign-off before a scientist may approve) is
+  removed.** `RequisitionState::can()`/`apply()` now allow `SUBMITTED → scientistApprove/Reject`
+  for every requester status including STUDENT; `ApprovalService::scientistDecide()` no longer
+  throws for a STUDENT with `advisor_signed_at === null`. The advisor step itself still exists
+  (submitting a STUDENT requisition still emails/notifies the advisor, per T-033/T-044) but is now
+  informational, not a gate — a scientist can approve and issue immediately without waiting. This
+  is genuinely a **single-step** requisition flow now, not the multi-stage one every earlier
+  phase's notes (T-030 through T-038, BR-02's own entry near the top of this file) describe as
+  enforced. Any future work touching the approval flow should treat BR-02 as removed, not merely
+  relaxed.
+- **`items.base_unit_id`/`package_unit_id` are now nullable** — stock-in can create a brand-new
+  item on the fly without a unit chosen yet; the first stock-in against that item backfills
+  `base_unit_id` (and `package_unit_id` if still unset) from the unit used in that transaction
+  (`StockInController::store()`). Every other service that reads an item's `base_unit_id` to feed
+  `LedgerEntryData::$displayUnitId` (a non-nullable `int`) needs an explicit null guard now —
+  `AdjustmentService`, `DisposalService`, and `StockTakeService` each throw a `RuntimeException` if
+  the item somehow has no base unit despite already having a real container (an invariant that
+  should be impossible in practice: a container can't exist without having been stocked in first).
+  **Any new code path that reads `Item::$base_unit_id` for a ledger write needs the same guard.**
+- **`items.expiry_date`** is a new column (a fallback default when a specific container's own
+  expiry isn't given at stock-in time) — separate from `containers.expiry_date`, which is the
+  authoritative per-container value everywhere else in the app.
 
 - ~~CMIS not registered as an SSO client~~ — **registered 2026-08-31**: `client_id=CMIS`,
   `redirect_uri=http://localhost:8090/sso/callback`. Real credentials are in `.env` (`SSO_CLIENT_ID`/
@@ -977,12 +1116,9 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
 - Unclear whether MEDSCI ACC enforces 2FA for high-privilege roles (SEC-AU-12) — needs confirmation before
   closing T-010/T-011.
 - ~~`wittaya.su` is the current (only) real logged-in user, manually granted `ADMIN` via tinker~~ —
-  **no longer true as of 2026-09-09**: `cmis`'s data was lost (see T-054's notes above — one
-  confirmed same-day accidental `migrate:fresh`, plus a separate still-unidentified earlier loss),
-  and this grant did not survive. **No admin user currently exists.** Needs the exact same
-  bootstrapping done again: a real SSO login, then `php artisan tinker` to attach the `ADMIN` role —
-  normal, since no admin exists yet to use the admin UI (`/admin/users`) to do it themselves. Once
-  redone, future role grants for other real users should go through that UI instead.
+  **re-bootstrapped 2026-09-14** after the 2026-09-09 data loss noted above: `wittaya.su` logged in
+  again via real SSO and was re-granted `ADMIN` via `php artisan tinker`. Future role grants for other
+  real users should go through the admin UI (`/admin/users`) instead of tinker.
 - **No written data-retention period exists for PDPA (SEC-PD-04)** — the university/faculty needs to
   decide how long a departed user's PII stays before `php artisan users:pseudonymize` should be run
   against them. Blocks turning that command into a scheduled, automatic job.

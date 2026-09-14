@@ -13,6 +13,7 @@ final readonly class LedgerFilter
         public ?string $txnType = null,
         public ?string $receiverName = null,
         public ?string $containerBarcode = null,
+        public ?int $labId = null,
     ) {
     }
 }

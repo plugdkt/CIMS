@@ -48,12 +48,22 @@ final class ItemLedger extends Component
     #[Url(as: 'unit')]
     public ?int $displayUnitId = null;
 
+    /** Never a `#[Url]`/user-bound property — set only from `auth()->user()->lab_id` in
+     *  `mount()` for a LAB_MANAGER, so it can't be widened via the query string. */
+    public ?int $labId = null;
+
     public function mount(Item $item): void
     {
         $this->authorize('viewAny', StockLedger::class);
 
         $this->item = $item;
         $this->displayUnitId ??= $item->base_unit_id;
+
+        /** @var \App\Models\User $user */
+        $user = auth()->user();
+        if ($user->hasRole('LAB_MANAGER')) {
+            $this->labId = $user->lab_id;
+        }
     }
 
     public function updatingDateFrom(): void
@@ -117,6 +127,7 @@ final class ItemLedger extends Component
             txnType: $this->txnType !== '' ? $this->txnType : null,
             receiverName: $this->receiverName !== '' ? $this->receiverName : null,
             containerBarcode: $this->containerBarcode !== '' ? $this->containerBarcode : null,
+            labId: $this->labId,
         );
     }
 }

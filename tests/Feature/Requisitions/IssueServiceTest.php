@@ -120,11 +120,25 @@ test('BR-04: issuing more than 10% over requires an approver holding requisition
     expect(fn () => app(IssueService::class)->issue($line, $container, '115.000000', $g, $scientist, $staff, TEST_SIGNATURE_HASH, null, 'ของเหลือน้อยจึงจ่ายทั้งขวด', $notLabManager->id))
         ->toThrow(ExcessiveIssueQuantityException::class);
 
-    $labManager = labManagerUser();
+    $labManager = labManagerUser(['lab_id' => $requisition->lab_id]);
     $issue = app(IssueService::class)->issue($line, $container, '115.000000', $g, $scientist, $staff, TEST_SIGNATURE_HASH, null, 'ของเหลือน้อยจึงจ่ายทั้งขวด', $labManager->id);
 
     expect($issue->qty_issued_base)->toBe('115.000000');
     expect($line->fresh()->overage_approved_by)->toBe($labManager->id);
+});
+
+test('BR-04 + branch scoping: a LAB_MANAGER of a different branch cannot approve an overage issue', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '100.000000');
+    $line = $requisition->items->first();
+    $container = stockedContainer($line->item_id, '200.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $otherLab = makeLab();
+    $labManager = labManagerUser(['lab_id' => $otherLab->id]);
+
+    expect(fn () => app(IssueService::class)->issue($line, $container, '115.000000', $g, $scientist, $staff, TEST_SIGNATURE_HASH, null, 'ของเหลือน้อยจึงจ่ายทั้งขวด', $labManager->id))
+        ->toThrow(ExcessiveIssueQuantityException::class);
 });
 
 test('a container belonging to a different item is rejected', function () {

@@ -67,7 +67,7 @@ final class IssueService
 
         $qtyIssuedBase = $this->converter->toItemBase($line->item()->firstOrFail(), $unit, $qtyIssued);
         $newCumulative = bcadd($line->qty_issued_base, $qtyIssuedBase, self::SCALE);
-        $this->assertWithinTolerance($line, $newCumulative, $remark, $overageApprovedBy);
+        $this->assertWithinTolerance($requisition, $line, $newCumulative, $remark, $overageApprovedBy);
 
         $this->ledgerService->issue($container->id, $qtyIssuedBase, new LedgerEntryData(
             displayUnitId: $unit->id,
@@ -113,6 +113,7 @@ final class IssueService
      * @param  numeric-string  $newCumulative
      */
     private function assertWithinTolerance(
+        Requisition $requisition,
         RequisitionItem $line,
         string $newCumulative,
         ?string $remark,
@@ -138,9 +139,17 @@ final class IssueService
         }
 
         $approver = User::find($overageApprovedBy);
-        $isLabManager = $approver?->roles->flatMap(fn ($role) => $role->permissions)->contains('code', 'requisition.issue_override') ?? false;
+        if ($approver === null) {
+            throw new ExcessiveIssueQuantityException('ผู้อนุมัติการจ่ายเกิน 10% ต้องเป็นหัวหน้าห้องปฏิบัติการ (BR-04)');
+        }
+
+        $isLabManager = $approver->roles->flatMap(fn ($role) => $role->permissions)->contains('code', 'requisition.issue_override');
         if (! $isLabManager) {
             throw new ExcessiveIssueQuantityException('ผู้อนุมัติการจ่ายเกิน 10% ต้องเป็นหัวหน้าห้องปฏิบัติการ (BR-04)');
+        }
+
+        if ($approver->hasRole('LAB_MANAGER') && $approver->lab_id !== $requisition->lab_id) {
+            throw new ExcessiveIssueQuantityException('ผู้อนุมัติต้องเป็นหัวหน้าห้องปฏิบัติการของสาขาที่ยื่นใบเบิกนี้ (BR-04)');
         }
     }
 

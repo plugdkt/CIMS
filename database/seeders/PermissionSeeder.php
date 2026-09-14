@@ -41,6 +41,7 @@ final class PermissionSeeder extends Seeder
             'item.manage' => 'จัดการทะเบียนสารเคมี/วัสดุ',
             'location.manage' => 'จัดการผังจัดเก็บ',
             'lab.manage' => 'จัดการห้องปฏิบัติการ',
+            'lab.manage_members' => 'จัดการสมาชิกที่เบิกได้ในสาขา',
             'unit.manage' => 'จัดการหน่วยนับ',
             'user.manage' => 'จัดการผู้ใช้และสิทธิ์',
             'audit.view' => 'เข้าถึง Audit Log',
@@ -63,6 +64,7 @@ final class PermissionSeeder extends Seeder
             'LAB_MANAGER' => [
                 'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
+                'lab.manage_members',
             ],
             'ADMIN' => ['user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view'],
             'AUDITOR' => [

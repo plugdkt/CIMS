@@ -11,9 +11,9 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-function labManagerUser(): User
+function labManagerUser(array $overrides = []): User
 {
-    $user = User::factory()->create();
+    $user = User::factory()->create($overrides);
     $user->roles()->attach(Role::where('code', 'LAB_MANAGER')->firstOrFail());
 
     return $user;

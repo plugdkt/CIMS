@@ -159,3 +159,49 @@ test('stock-in automatically sets base_unit_id on item if it was not specified',
     $response->assertRedirect(route('items.show', $itemWithoutUnit));
     expect($itemWithoutUnit->fresh()->base_unit_id)->toBe($this->unitG->id);
 });
+
+test('branch scoping: a LAB_MANAGER only sees their own branch\'s locations on the stock-in page', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $ownLocation = makeLocationForLab($lab);
+    $otherLocation = makeLocationForLab($otherLab);
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+
+    $this->actingAs($manager)->get(route('stock-in.create'))
+        ->assertOk()
+        ->assertSee($ownLocation->code)
+        ->assertDontSee($otherLocation->code);
+});
+
+test('branch scoping: a LAB_MANAGER cannot stock-in into a location outside their own branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $otherLocation = makeLocationForLab($otherLab);
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+
+    $this->actingAs($manager)->post(route('stock-in.store'), [
+        'item_id' => $this->item->id,
+        'tracking_type' => 'BULK',
+        'qty' => '500',
+        'unit_id' => $this->unitG->id,
+        'location_id' => $otherLocation->id,
+    ])->assertSessionHasErrors('location_id');
+
+    expect(Container::where('item_id', $this->item->id)->count())->toBe(0);
+});
+
+test('branch scoping: a LAB_MANAGER can stock-in into their own branch\'s location', function () {
+    $lab = makeLab();
+    $ownLocation = makeLocationForLab($lab);
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+
+    $this->actingAs($manager)->post(route('stock-in.store'), [
+        'item_id' => $this->item->id,
+        'tracking_type' => 'BULK',
+        'qty' => '500',
+        'unit_id' => $this->unitG->id,
+        'location_id' => $ownLocation->id,
+    ])->assertRedirect(route('items.show', $this->item));
+
+    expect(Container::where('item_id', $this->item->id)->where('location_id', $ownLocation->id)->exists())->toBeTrue();
+});

@@ -15,7 +15,7 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 /** §7.8 "สารใกล้หมดอายุ": active containers whose expiry_date falls within the given range. */
 final class ExpiringStockExport implements FromCollection, WithHeadings, WithTitle
 {
-    public function __construct(private readonly DateRangeFilter $filter)
+    public function __construct(private readonly DateRangeFilter $filter, private readonly ?int $labId = null)
     {
     }
 
@@ -27,6 +27,7 @@ final class ExpiringStockExport implements FromCollection, WithHeadings, WithTit
             ->whereNotNull('expiry_date')
             ->when($this->filter->dateFrom, fn ($q, $from) => $q->whereDate('expiry_date', '>=', $from))
             ->when($this->filter->dateTo, fn ($q, $to) => $q->whereDate('expiry_date', '<=', $to))
+            ->when($this->labId !== null, fn ($q) => $q->whereHas('location', fn ($l) => $l->where('lab_id', $this->labId)))
             ->with(['item', 'location.lab'])
             ->orderBy('expiry_date')
             ->get();

@@ -16,22 +16,35 @@ use App\Domain\Reporting\Services\ControlledSubstancesPdfService;
 use App\Domain\Reporting\Services\StockTakeVariancePdfService;
 use App\Models\Lab;
 use App\Models\StockTake;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-/** FR-8 / §7.8: every report not already served by an existing feature (F-01, F-03). */
+/**
+ * FR-8 / §7.8: every report not already served by an existing feature (F-01, F-03).
+ * A LAB_MANAGER's own branch (`users.lab_id`) always wins over whatever `lab_id` the
+ * request carries — {@see labIdFor()} — so their view can't be widened via the query
+ * string, matching the read-scoping decision recorded in CLAUDE.md for this feature.
+ */
 final class ReportController extends Controller
 {
     public function index(): View
     {
         $this->authorize('report.view');
 
+        /** @var User $user */
+        $user = auth()->user();
+        $restrictedLabId = $user->hasRole('LAB_MANAGER') ? $user->lab_id : null;
+
         return view('reports.index', [
             'labs' => Lab::where('is_active', true)->orderBy('name_th')->get(),
-            'stockTakes' => StockTake::orderByDesc('id')->limit(50)->get(),
+            'stockTakes' => $restrictedLabId !== null
+                ? StockTake::where('lab_id', $restrictedLabId)->orderByDesc('id')->limit(50)->get()
+                : StockTake::orderByDesc('id')->limit(50)->get(),
+            'restrictedLabId' => $restrictedLabId,
         ]);
     }
 
@@ -45,6 +58,7 @@ final class ReportController extends Controller
             faculty: $request->string('faculty')->value() ?: null,
             dateFrom: $request->string('from')->value() ?: null,
             dateTo: $request->string('to')->value() ?: null,
+            labId: $this->labIdFor($request),
         );
 
         return Excel::download(new UsageSummaryExport($filter), 'usage-summary.xlsx');
@@ -54,39 +68,41 @@ final class ReportController extends Controller
     {
         $this->authorize('report.view');
 
-        return Excel::download(new ExpiringStockExport($this->dateRangeFrom($request)), 'expiring-stock.xlsx');
+        return Excel::download(
+            new ExpiringStockExport($this->dateRangeFrom($request), $this->labIdFor($request)),
+            'expiring-stock.xlsx',
+        );
     }
 
     public function belowReorderPointExcel(Request $request): BinaryFileResponse
     {
         $this->authorize('report.view');
 
-        $labId = $request->integer('lab_id') ?: null;
-
-        return Excel::download(new BelowReorderPointExport($labId), 'below-reorder-point.xlsx');
+        return Excel::download(new BelowReorderPointExport($this->labIdFor($request)), 'below-reorder-point.xlsx');
     }
 
     public function deadStockExcel(Request $request): BinaryFileResponse
     {
         $this->authorize('report.view');
 
-        $labId = $request->integer('lab_id') ?: null;
-
-        return Excel::download(new DeadStockExport($labId), 'dead-stock.xlsx');
+        return Excel::download(new DeadStockExport($this->labIdFor($request)), 'dead-stock.xlsx');
     }
 
     public function controlledSubstancesExcel(Request $request): BinaryFileResponse
     {
         $this->authorize('report.view');
 
-        return Excel::download(new ControlledSubstancesExport($this->dateRangeFrom($request)), 'controlled-substances.xlsx');
+        return Excel::download(
+            new ControlledSubstancesExport($this->dateRangeFrom($request), $this->labIdFor($request)),
+            'controlled-substances.xlsx',
+        );
     }
 
     public function controlledSubstancesPdf(Request $request, ControlledSubstancesPdfService $service): Response
     {
         $this->authorize('report.view');
 
-        $pdf = $service->render($this->dateRangeFrom($request));
+        $pdf = $service->render($this->dateRangeFrom($request), $this->labIdFor($request));
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
@@ -97,6 +113,7 @@ final class ReportController extends Controller
     public function stockTakeVarianceExcel(StockTake $stockTake): BinaryFileResponse
     {
         $this->authorize('report.view');
+        $this->authorizeStockTakeOwnLab($stockTake);
 
         return Excel::download(new StockTakeVarianceExport($stockTake), "stock-take-{$stockTake->doc_no}.xlsx");
     }
@@ -104,6 +121,7 @@ final class ReportController extends Controller
     public function stockTakeVariancePdf(StockTake $stockTake, StockTakeVariancePdfService $service): Response
     {
         $this->authorize('report.view');
+        $this->authorizeStockTakeOwnLab($stockTake);
 
         $pdf = $service->render($stockTake);
 
@@ -119,5 +137,27 @@ final class ReportController extends Controller
             dateFrom: $request->string('from')->value() ?: null,
             dateTo: $request->string('to')->value() ?: null,
         );
+    }
+
+    /** A LAB_MANAGER's own `lab_id` always overrides the request's — never widened via the query string. */
+    private function labIdFor(Request $request): ?int
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->hasRole('LAB_MANAGER')) {
+            return $user->lab_id;
+        }
+
+        return $request->integer('lab_id') ?: null;
+    }
+
+    /** A LAB_MANAGER may only view a stock take taken in their own branch. */
+    private function authorizeStockTakeOwnLab(StockTake $stockTake): void
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        abort_if($user->hasRole('LAB_MANAGER') && $stockTake->lab_id !== $user->lab_id, 403);
     }
 }

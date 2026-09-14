@@ -12,12 +12,16 @@ use Mpdf\Output\Destination;
 /** §7.8 "สารควบคุม": the PDF twin of {@see \App\Domain\Reporting\Exports\ControlledSubstancesExport}. */
 final class ControlledSubstancesPdfService
 {
-    public function render(DateRangeFilter $filter): string
+    public function render(DateRangeFilter $filter, ?int $labId = null): string
     {
         $rows = StockLedger::query()
             ->whereHas('item', fn ($q) => $q->where('is_controlled', true))
             ->when($filter->dateFrom, fn ($q, $from) => $q->whereDate('txn_date', '>=', $from))
             ->when($filter->dateTo, fn ($q, $to) => $q->whereDate('txn_date', '<=', $to))
+            ->when(
+                $labId !== null,
+                fn ($q) => $q->whereHas('container', fn ($c) => $c->whereHas('location', fn ($l) => $l->where('lab_id', $labId))),
+            )
             ->with(['item', 'creator'])
             ->orderBy('txn_date')
             ->get();

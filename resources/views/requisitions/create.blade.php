@@ -45,21 +45,15 @@
                     <dt class="text-xs text-ink-faint">{{ __('requisitions.field_faculty') }}</dt>
                     <dd>{{ auth()->user()->faculty ?: '—' }}</dd>
                 </div>
+                <div>
+                    <dt class="text-xs text-ink-faint">{{ __('requisitions.field_lab') }}</dt>
+                    <dd>{{ auth()->user()->lab?->name_th ?: '—' }}</dd>
+                </div>
             </dl>
         </div>
 
         <form method="POST" action="{{ route('requisitions.store') }}" class="bg-surface border border-border rounded-xl p-6 space-y-4">
             @csrf
-
-            <div>
-                <label class="block text-sm font-medium mb-1" for="lab_id">{{ __('requisitions.field_lab') }}</label>
-                <select name="lab_id" id="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                    <option value="">{{ __('items.select_placeholder') }}</option>
-                    @foreach ($labs as $lab)
-                        <option value="{{ $lab->id }}" @selected((int) old('lab_id') === $lab->id)>{{ $lab->name_th }}</option>
-                    @endforeach
-                </select>
-            </div>
 
             <div>
                 <label class="block text-sm font-medium mb-1">{{ __('requisitions.field_request_type') }}</label>

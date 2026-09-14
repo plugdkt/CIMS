@@ -37,6 +37,13 @@ final class AdjustmentService
             throw new InvalidAdjustmentException('ผู้อนุมัติต้องเป็นหัวหน้าห้องปฏิบัติการ (BR-06)');
         }
 
+        if ($approver->hasRole('LAB_MANAGER')) {
+            $containerLabId = $this->labIdFor($container);
+            if ($containerLabId !== null && $containerLabId !== $approver->lab_id) {
+                throw new InvalidAdjustmentException('ผู้อนุมัติต้องเป็นหัวหน้าห้องปฏิบัติการของสาขาที่ภาชนะนี้ตั้งอยู่');
+            }
+        }
+
         $item = $container->item()->firstOrFail();
 
         // `base_unit_id` is nullable on Item (a brand-new item added via stock-in may not
@@ -53,5 +60,22 @@ final class AdjustmentService
             remark: $remark,
             approvedBy: $approver->id,
         ));
+    }
+
+    /**
+     * `location_id`/`locations.lab_id` are both nullable, so this genuinely can be empty
+     * — written as an explicit `if` (not `?->`/`??`) since PHPStan's nullsafe inference
+     * for chained relation access is unreliable in either direction (see CLAUDE.md).
+     */
+    private function labIdFor(Container $container): ?int
+    {
+        $location = $container->location()->first();
+        if ($location === null) {
+            return null;
+        }
+
+        $lab = $location->lab()->first();
+
+        return $lab?->id;
     }
 }

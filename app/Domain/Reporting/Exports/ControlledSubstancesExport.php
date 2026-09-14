@@ -15,7 +15,7 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 /** §7.8 "สารควบคุม": every ledger movement of a controlled item (`items.is_controlled`) in the given range. */
 final class ControlledSubstancesExport implements FromCollection, WithHeadings, WithTitle
 {
-    public function __construct(private readonly DateRangeFilter $filter)
+    public function __construct(private readonly DateRangeFilter $filter, private readonly ?int $labId = null)
     {
     }
 
@@ -33,7 +33,11 @@ final class ControlledSubstancesExport implements FromCollection, WithHeadings, 
         return StockLedger::query()
             ->whereHas('item', fn ($q) => $q->where('is_controlled', true))
             ->when($this->filter->dateFrom, fn ($q, $from) => $q->whereDate('txn_date', '>=', $from))
-            ->when($this->filter->dateTo, fn ($q, $to) => $q->whereDate('txn_date', '<=', $to));
+            ->when($this->filter->dateTo, fn ($q, $to) => $q->whereDate('txn_date', '<=', $to))
+            ->when(
+                $this->labId !== null,
+                fn ($q) => $q->whereHas('container', fn ($c) => $c->whereHas('location', fn ($l) => $l->where('lab_id', $this->labId))),
+            );
     }
 
     /** @return array<int, string> */

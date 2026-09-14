@@ -28,4 +28,15 @@ return [
         'code_unique' => 'รหัสนี้มีอยู่แล้ว',
         'name_th_required' => 'กรุณากรอกชื่อห้องปฏิบัติการ',
     ],
+
+    // Branch-manager member whitelist (lab.manage_members)
+    'members_title' => 'จัดการสมาชิกสาขา',
+    'members_subtitle' => 'กำหนดว่านิสิต/บุคลากรคนใดสามารถเบิกของจากสาขา :lab ได้',
+    'members_no_own_lab' => 'บัญชีของคุณยังไม่ได้ถูกกำหนดสาขา จึงยังไม่มีสาขาให้จัดการสมาชิก',
+    'members_search_placeholder' => 'ค้นหาชื่อ / username / อีเมล',
+    'col_member' => 'ผู้ใช้งาน',
+    'col_membership' => 'สถานะสมาชิก',
+    'members_member_badge' => 'เป็นสมาชิก (กดเพื่อลบ)',
+    'members_add_badge' => 'เพิ่มเป็นสมาชิก',
+    'members_no_results' => 'ไม่พบผู้ใช้งานที่ค้นหา',
 ];

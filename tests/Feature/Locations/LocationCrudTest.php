@@ -94,6 +94,37 @@ test('saving a location with a storage_class that conflicts with a sibling flash
     $response->assertSessionHas('conflicts', ['ACID']);
 });
 
+test('branch scoping: a LAB_MANAGER can only create a location in their own branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+
+    $this->actingAs($manager)->post(route('locations.store'), [
+        'code' => 'BLD-OWN',
+        'name' => 'อาคารของสาขาตนเอง',
+        'level_type' => 'BUILDING',
+        'lab_id' => $lab->id,
+    ])->assertSessionDoesntHaveErrors('lab_id');
+    expect(Location::where('code', 'BLD-OWN')->exists())->toBeTrue();
+
+    $this->actingAs($manager)->post(route('locations.store'), [
+        'code' => 'BLD-OTHER',
+        'name' => 'อาคารของสาขาอื่น',
+        'level_type' => 'BUILDING',
+        'lab_id' => $otherLab->id,
+    ])->assertSessionHasErrors('lab_id');
+    expect(Location::where('code', 'BLD-OTHER')->exists())->toBeFalse();
+});
+
+test('branch scoping: a LAB_MANAGER gets 403 editing a location in a different branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $otherBuilding = Location::create(['code' => 'BLD-X', 'name' => 'อาคาร X', 'level_type' => 'BUILDING', 'lab_id' => $otherLab->id]);
+
+    $this->actingAs($manager)->get(route('locations.edit', $otherBuilding))->assertStatus(403);
+});
+
 test('LAB_MANAGER can view the location tree', function () {
     $manager = labManagerUser();
     $building = Location::create(['code' => 'BLD-H', 'name' => 'อาคาร H', 'level_type' => 'BUILDING']);

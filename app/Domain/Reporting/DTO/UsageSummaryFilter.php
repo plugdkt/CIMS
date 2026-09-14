@@ -13,6 +13,7 @@ final readonly class UsageSummaryFilter
         public ?string $faculty = null,
         public ?string $dateFrom = null,
         public ?string $dateTo = null,
+        public ?int $labId = null,
     ) {
     }
 }

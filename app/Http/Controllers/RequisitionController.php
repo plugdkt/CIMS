@@ -10,7 +10,6 @@ use App\Domain\Requisition\Services\RequisitionService;
 use App\Domain\Shared\DocumentNumberGenerator;
 use App\Http\Requests\RequisitionRequest;
 use App\Models\Item;
-use App\Models\Lab;
 use App\Models\Requisition;
 use App\Models\StockLedger;
 use App\Models\Unit;
@@ -25,7 +24,10 @@ final class RequisitionController extends Controller
     /**
      * BR-11 point 4: STUDENT/STAFF must complete their profile before their first
      * requisition — the only enforcement point for this gate (see CLAUDE.md; it's
-     * deliberately not a global post-login middleware).
+     * deliberately not a global post-login middleware). The branch-assignment gate below
+     * follows the same shape: a requester with no `lab_id` yet has nothing to snapshot
+     * onto the requisition, so they're redirected to wait for an ADMIN to assign one
+     * (see `UserRoleManager::setLab()`), same as waiting for a role.
      */
     public function create(): View|RedirectResponse
     {
@@ -38,9 +40,11 @@ final class RequisitionController extends Controller
                 ->with('status', __('requisitions.complete_profile_first'));
         }
 
-        return view('requisitions.create', [
-            'labs' => Lab::where('is_active', true)->orderBy('name_th')->get(),
-        ]);
+        if ($user->lab_id === null) {
+            return redirect()->route('account.pending-lab');
+        }
+
+        return view('requisitions.create');
     }
 
     public function store(RequisitionRequest $request, DocumentNumberGenerator $generator): RedirectResponse
@@ -48,9 +52,16 @@ final class RequisitionController extends Controller
         /** @var User $user */
         $user = $request->user();
 
+        // Defense in depth: `create()` above already redirects a requester with no
+        // branch to account.pending-lab before they ever see the form, but `lab_id` is
+        // NOT NULL on requisitions — refuse here too rather than letting a direct POST
+        // (bypassing the GET page) hit a DB constraint violation.
+        abort_if($user->lab_id === null, 403);
+
         $requisition = Requisition::create(array_merge($request->validated(), [
             'doc_no' => $generator->next('REQ'),
             'doc_date' => now()->toDateString(),
+            'lab_id' => $user->lab_id,
             'requester_id' => $user->id,
             'requester_status' => $user->person_type,
             'requester_phone' => $user->phone_encrypted,

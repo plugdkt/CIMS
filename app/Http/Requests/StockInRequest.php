@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Location;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 final class StockInRequest extends FormRequest
 {
@@ -40,6 +42,22 @@ final class StockInRequest extends FormRequest
             'expiry_date' => ['nullable', 'date'],
             'remark' => ['nullable', 'string', 'max:500'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            /** @var User $user */
+            $user = $this->user();
+            if (! $user->hasRole('LAB_MANAGER')) {
+                return;
+            }
+
+            $location = Location::find((int) $this->input('location_id'));
+            if ($location !== null && $location->lab_id !== $user->lab_id) {
+                $validator->errors()->add('location_id', __('stock.validation.location_must_match_own_lab'));
+            }
+        });
     }
 
     /** @return array<string, string> */

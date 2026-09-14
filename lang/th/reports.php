@@ -15,6 +15,7 @@ return [
     'field_purpose_detail' => 'โครงการ/รายวิชา',
     'field_stock_take' => 'รอบตรวจนับ',
     'all_labs' => 'ทุกห้องปฏิบัติการ',
+    'restricted_to_own_lab' => 'จำกัดเฉพาะสาขาของคุณ',
 
     'usage_summary_title' => 'สรุปการใช้',
     'usage_summary_desc' => 'รายการเบิกจ่าย กรองตามผู้เบิก/โครงการ/รายวิชา/คณะ/ช่วงเวลา',

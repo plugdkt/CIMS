@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Admin;
 
 use App\Models\AuditLog;
+use App\Models\Lab;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
@@ -36,6 +37,35 @@ final class UserRoleManager extends Component
     public function roles(): Collection
     {
         return Role::orderBy('id')->get();
+    }
+
+    /** @return Collection<int, Lab> */
+    #[Computed]
+    public function labs(): Collection
+    {
+        return Lab::orderBy('name_th')->get();
+    }
+
+    /** Branch assignment (`users.lab_id`) — who belongs to which lab, per the multi-branch
+     *  access-control feature. `$labId` of `null` clears the assignment. */
+    public function setLab(int $userId, ?int $labId): void
+    {
+        /** @var User $target */
+        $target = User::findOrFail($userId);
+        $this->authorize('manageRoles', $target);
+
+        $before = $target->lab_id;
+        $target->update(['lab_id' => $labId]);
+
+        AuditLog::record(
+            action: 'LAB_ASSIGN',
+            userId: $this->authId(),
+            username: auth()->user()?->username,
+            entityType: User::class,
+            entityId: $target->id,
+            oldValue: ['lab_id' => $before],
+            newValue: ['lab_id' => $labId],
+        );
     }
 
     public function toggleRole(int $userId, int $roleId): void

@@ -24,7 +24,13 @@ final class RequisitionPolicy extends Policy
     public function view(User $user, Requisition $requisition): bool
     {
         if ($this->hasPermission($user, 'requisition.view_all')) {
-            return true;
+            if (! $user->hasRole('LAB_MANAGER')) {
+                return true;
+            }
+
+            if ($requisition->lab_id === $user->lab_id) {
+                return true;
+            }
         }
 
         return $this->hasPermission($user, 'requisition.view_own')

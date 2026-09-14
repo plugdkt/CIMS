@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\CompleteProfileController;
+use App\Http\Controllers\Auth\PendingLabController;
 use App\Http\Controllers\Auth\PendingRoleController;
 use App\Http\Controllers\Auth\PrivacyNoticeController;
 use App\Http\Controllers\Auth\SsoCallbackController;
@@ -61,6 +62,7 @@ Route::middleware('auth')->prefix('privacy-notice')->name('privacy-notice.')->gr
 
 Route::middleware('auth')->prefix('account')->name('account.')->group(function () {
     Route::get('/pending-role', PendingRoleController::class)->name('pending-role');
+    Route::get('/pending-lab', PendingLabController::class)->name('pending-lab');
     Route::get('/complete-profile', [CompleteProfileController::class, 'show'])->name('complete-profile');
     Route::post('/complete-profile', [CompleteProfileController::class, 'update'])->name('complete-profile.update');
     Route::get('/my-data', [AccountDataController::class, 'show'])->name('my-data');
@@ -81,6 +83,10 @@ Route::middleware('auth')->prefix('admin/labs')->name('admin.labs.')->group(func
     Route::get('/{lab}/edit', [LabController::class, 'edit'])->name('edit');
     Route::put('/{lab}', [LabController::class, 'update'])->name('update');
 });
+
+// Branch-manager (LAB_MANAGER) own-branch member whitelist — gated on lab.manage_members,
+// scoped to the manager's own lab_id inside LabMemberManager itself.
+Route::middleware('auth')->get('/labs/members', \App\Livewire\Labs\LabMemberManager::class)->name('labs.members');
 
 // FR-MD-01/07 — authorization also enforced per-action inside ItemController/ItemTable.
 Route::middleware('auth')->prefix('items')->name('items.')->group(function () {

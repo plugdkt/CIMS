@@ -16,6 +16,7 @@
                     <tr>
                         <th class="px-4 py-3 font-semibold">{{ __('admin.col_user') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('nav.users_roles') }}</th>
+                        <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('admin.col_lab') }}</th>
                         <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('admin.col_status') }}</th>
                     </tr>
                 </thead>
@@ -51,6 +52,15 @@
                                 </div>
                             </td>
                             <td class="px-4 py-3 align-top whitespace-nowrap">
+                                <select wire:change="setLab({{ $user->id }}, $event.target.value || null)"
+                                        class="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-accent">
+                                    <option value="" @selected($user->lab_id === null)>{{ __('admin.no_lab') }}</option>
+                                    @foreach ($this->labs as $lab)
+                                        <option value="{{ $lab->id }}" @selected($user->lab_id === $lab->id)>{{ $lab->name_th }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
+                            <td class="px-4 py-3 align-top whitespace-nowrap">
                                 <button
                                     type="button"
                                     wire:click="toggleActive({{ $user->id }})"
@@ -66,7 +76,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="3" class="px-4 py-8 text-center text-ink-muted text-sm">
+                            <td colspan="4" class="px-4 py-8 text-center text-ink-muted text-sm">
                                 {{ __('admin.no_results') }}
                             </td>
                         </tr>

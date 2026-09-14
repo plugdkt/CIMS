@@ -56,11 +56,10 @@ test('a STUDENT with an incomplete profile is redirected to complete-profile ins
 });
 
 test('a STUDENT can create a DRAFT requisition with requester fields snapshotted from their profile (FR-RQ-01)', function () {
-    $student = studentUser();
     $lab = makeLab();
+    $student = studentUser(['lab_id' => $lab->id]);
 
     $response = $this->actingAs($student)->post(route('requisitions.store'), [
-        'lab_id' => $lab->id,
         'request_type' => ['CHEMICAL'],
         'purpose_type' => 'TEACHING',
         'purpose_detail' => 'วิชาเคมีทั่วไป',
@@ -71,6 +70,7 @@ test('a STUDENT can create a DRAFT requisition with requester fields snapshotted
 
     expect($requisition->doc_no)->toStartWith('REQ-');
     expect($requisition->status)->toBe('DRAFT');
+    expect($requisition->lab_id)->toBe($lab->id);
     expect($requisition->requester_status)->toBe('STUDENT');
     expect($requisition->requester_phone)->toBe('0812345678');
     expect($requisition->student_code)->toBe('6512345');
@@ -81,11 +81,10 @@ test('a STUDENT can create a DRAFT requisition with requester fields snapshotted
 });
 
 test('a STAFF requester has no student_code snapshotted', function () {
-    $staff = staffUser();
     $lab = makeLab();
+    $staff = staffUser(['lab_id' => $lab->id]);
 
     $this->actingAs($staff)->post(route('requisitions.store'), [
-        'lab_id' => $lab->id,
         'request_type' => ['CONSUMABLE'],
         'purpose_type' => 'RESEARCH',
     ]);
@@ -93,6 +92,36 @@ test('a STAFF requester has no student_code snapshotted', function () {
     $requisition = Requisition::where('requester_id', $staff->id)->firstOrFail();
     expect($requisition->student_code)->toBeNull();
     expect($requisition->requester_status)->toBe('STAFF');
+    expect($requisition->lab_id)->toBe($lab->id);
+});
+
+test('a requisition\'s lab_id is always the requester\'s own branch, never a posted value (branch-scoped access control)', function () {
+    $ownLab = makeLab();
+    $otherLab = makeLab();
+    $student = studentUser(['lab_id' => $ownLab->id]);
+
+    $this->actingAs($student)->post(route('requisitions.store'), [
+        'lab_id' => $otherLab->id, // must be ignored — snapshotted server-side
+        'request_type' => ['CHEMICAL'],
+        'purpose_type' => 'TEACHING',
+    ]);
+
+    $requisition = Requisition::where('requester_id', $student->id)->firstOrFail();
+    expect($requisition->lab_id)->toBe($ownLab->id);
+});
+
+test('a requester with no branch assigned is redirected to the pending-lab page instead of the create form', function () {
+    $student = studentUser(['lab_id' => null]);
+
+    $this->actingAs($student)->get(route('requisitions.create'))
+        ->assertRedirect(route('account.pending-lab'));
+
+    $this->actingAs($student)->post(route('requisitions.store'), [
+        'request_type' => ['CHEMICAL'],
+        'purpose_type' => 'TEACHING',
+    ])->assertStatus(403);
+
+    expect(Requisition::where('requester_id', $student->id)->count())->toBe(0);
 });
 
 test('adding a line item computes qty_requested_base in the item base unit (FR-RQ-04)', function () {

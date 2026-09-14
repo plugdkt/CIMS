@@ -75,6 +75,27 @@ test('ADMIN can deactivate a user account (CMIS-side only)', function () {
     expect($log)->not->toBeNull();
 });
 
+test('ADMIN can assign and clear a user\'s branch (lab_id) and it is audited', function () {
+    $admin = userWithRole('ADMIN');
+    $target = User::factory()->create();
+    $lab = makeLab();
+
+    Livewire::actingAs($admin)
+        ->test(UserRoleManager::class)
+        ->call('setLab', $target->id, $lab->id);
+
+    expect($target->fresh()->lab_id)->toBe($lab->id);
+    $log = AuditLog::where('action', 'LAB_ASSIGN')->where('entity_id', $target->id)->first();
+    expect($log)->not->toBeNull();
+    expect($log->new_value['lab_id'])->toBe($lab->id);
+
+    Livewire::actingAs($admin)
+        ->test(UserRoleManager::class)
+        ->call('setLab', $target->id, null);
+
+    expect($target->fresh()->lab_id)->toBeNull();
+});
+
 test('a non-admin is forbidden from mounting the admin component at all', function () {
     $scientist = userWithRole('SCIENTIST');
 

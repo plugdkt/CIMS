@@ -13,6 +13,7 @@ use App\Models\Item;
 use App\Models\LedgerExportRequest;
 use App\Models\StockLedger;
 use App\Models\Unit;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -57,6 +58,7 @@ final class LedgerExportController extends Controller
                     'txnType' => $filter->txnType,
                     'receiverName' => $filter->receiverName,
                     'containerBarcode' => $filter->containerBarcode,
+                    'labId' => $filter->labId,
                 ],
             ]);
 
@@ -103,12 +105,16 @@ final class LedgerExportController extends Controller
 
     private function filterFrom(Request $request): LedgerFilter
     {
+        /** @var User $user */
+        $user = $request->user();
+
         return new LedgerFilter(
             dateFrom: $request->string('from')->value() ?: null,
             dateTo: $request->string('to')->value() ?: null,
             txnType: $request->string('type')->value() ?: null,
             receiverName: $request->string('receiver')->value() ?: null,
             containerBarcode: $request->string('container')->value() ?: null,
+            labId: $user->hasRole('LAB_MANAGER') ? $user->lab_id : null,
         );
     }
 

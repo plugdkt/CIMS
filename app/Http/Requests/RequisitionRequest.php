@@ -12,6 +12,9 @@ use Illuminate\Validation\Rule;
  * FR-RQ-02/03: the requester's own identity fields (name, phone, status, student code,
  * program, faculty) are never taken from this request — they're snapshotted server-side
  * from the authenticated user's profile (BR-11 is the only place those get edited).
+ * `lab_id` joined this list once branch-scoped access control shipped: a requester's
+ * branch is their own `users.lab_id`, never a value they submit (see
+ * `RequisitionController::store()`).
  */
 final class RequisitionRequest extends FormRequest
 {
@@ -33,7 +36,6 @@ final class RequisitionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'lab_id' => ['required', 'integer', Rule::exists('labs', 'id')],
             'request_type' => ['required', 'array', 'min:1'],
             'request_type.*' => [Rule::in(['CHEMICAL', 'CONSUMABLE'])],
             'purpose_type' => ['required', Rule::in(['TEACHING', 'RESEARCH', 'OTHER'])],
@@ -45,7 +47,6 @@ final class RequisitionRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'lab_id.required' => __('requisitions.validation.lab_required'),
             'request_type.required' => __('requisitions.validation.request_type_required'),
             'request_type.min' => __('requisitions.validation.request_type_required'),
             'purpose_type.required' => __('requisitions.validation.purpose_type_required'),

@@ -109,6 +109,48 @@ test('filtering by transaction type only shows matching rows', function () {
         ->assertDontSee('50.000000');
 });
 
+test('branch scoping: a LAB_MANAGER only sees ledger rows for containers located in their own branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $ownLocation = makeLocationForLab($lab);
+    $otherLocation = makeLocationForLab($otherLab);
+    $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $creator = User::factory()->create();
+    $ledgerService = app(LedgerService::class);
+
+    $ownContainer = Container::create([
+        'item_id' => $item->id, 'barcode' => 'BC-OWN-LAB', 'location_id' => $ownLocation->id,
+        'received_at' => now()->toDateString(), 'initial_qty_base' => '0', 'remaining_qty_base' => '0', 'status' => 'SEALED',
+    ]);
+    $otherContainer = Container::create([
+        'item_id' => $item->id, 'barcode' => 'BC-OTHER-LAB', 'location_id' => $otherLocation->id,
+        'received_at' => now()->toDateString(), 'initial_qty_base' => '0', 'remaining_qty_base' => '0', 'status' => 'SEALED',
+    ]);
+    $unlocatedContainer = Container::create([
+        'item_id' => $item->id, 'barcode' => 'BC-NO-LOCATION',
+        'received_at' => now()->toDateString(), 'initial_qty_base' => '0', 'remaining_qty_base' => '0', 'status' => 'SEALED',
+    ]);
+    $ctx = new LedgerEntryData(displayUnitId: $g->id, createdBy: $creator->id);
+    $ledgerService->receive($ownContainer->id, '11.000000', $ctx);
+    $ledgerService->receive($otherContainer->id, '22.000000', $ctx);
+    $ledgerService->receive($unlocatedContainer->id, '33.000000', $ctx);
+
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+
+    Livewire::actingAs($manager)
+        ->test(ItemLedger::class, ['item' => $item])
+        ->assertSee('11.000000')
+        ->assertDontSee('22.000000')
+        ->assertDontSee('33.000000');
+
+    Livewire::actingAs(scientistUser())
+        ->test(ItemLedger::class, ['item' => $item])
+        ->assertSee('11.000000')
+        ->assertSee('22.000000')
+        ->assertSee('33.000000');
+});
+
 test('filtering by container barcode only shows that container\'s rows', function () {
     $scientist = scientistUser();
     $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);

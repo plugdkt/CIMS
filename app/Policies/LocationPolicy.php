@@ -17,7 +17,7 @@ final class LocationPolicy extends Policy
 
     public function view(User $user, Location $location): bool
     {
-        return $this->hasPermission($user, 'location.manage');
+        return $this->hasPermission($user, 'location.manage') && $this->inOwnLab($user, $location);
     }
 
     public function create(User $user): bool
@@ -27,6 +27,13 @@ final class LocationPolicy extends Policy
 
     public function update(User $user, Location $location): bool
     {
-        return $this->hasPermission($user, 'location.manage');
+        return $this->hasPermission($user, 'location.manage') && $this->inOwnLab($user, $location);
+    }
+
+    /** A LAB_MANAGER only manages locations in their own branch; other `location.manage`
+     *  holders (none scoped by lab today) see/edit every location, same as before. */
+    private function inOwnLab(User $user, Location $location): bool
+    {
+        return ! $user->hasRole('LAB_MANAGER') || $location->lab_id === $user->lab_id;
     }
 }
