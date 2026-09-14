@@ -125,3 +125,21 @@ test('search also matches by item_code and CAS number', function () {
         ->set('search', 'CHM-UNIQUE9')
         ->assertSee('CHM-UNIQUE9');
 });
+
+test('LAB_MANAGER can create an item with specification and without base_unit_id', function () {
+    $manager = labManagerUser();
+    $category = ItemCategory::where('code', 'CHEMICAL')->firstOrFail();
+
+    $response = $this->actingAs($manager)->post(route('items.store'), [
+        'item_code' => 'CHM-SPEC-001',
+        'category_id' => $category->id,
+        'name_th' => 'เอทานอลสำหรับสเปกกลาง',
+        'specification' => "ความบริสุทธิ์ไม่ต่ำกว่า 99.8% (Assay by GC)\nบรรจุขวดแก้วสีชาขนาด 2.5 ลิตร สำหรับงาน HPLC",
+    ]);
+
+    $item = Item::where('item_code', 'CHM-SPEC-001')->first();
+    expect($item)->not->toBeNull();
+    expect($item->specification)->toContain('Assay by GC');
+    expect($item->base_unit_id)->toBeNull();
+    $response->assertRedirect(route('items.edit', $item));
+});

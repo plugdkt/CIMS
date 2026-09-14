@@ -84,26 +84,30 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="package_size">{{ __('items.field_package_size') }}</label>
-                    <input type="text" name="package_size" id="package_size" value="{{ old('package_size', $item->package_size) }}"
-                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="base_unit_id">{{ __('items.field_unit') }}</label>
-                    <select name="base_unit_id" id="base_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                        <option value="">{{ __('items.select_placeholder') }}</option>
-                        @foreach ($units as $unit)
-                            <option value="{{ $unit->id }}" @selected((int) old('base_unit_id', $item->base_unit_id) === $unit->id)>{{ $unit->code }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1" for="expiry_date">{{ __('items.field_expiry_date') }}</label>
-                    <input type="date" name="expiry_date" id="expiry_date" value="{{ old('expiry_date', $item->expiry_date?->format('Y-m-d')) }}"
-                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                </div>
+            <div>
+                <label class="block text-sm font-medium mb-1" for="specification">
+                    {{ __('items.field_specification') }}
+                </label>
+                <textarea name="specification" id="specification" rows="4"
+                          class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                          placeholder="{{ __('items.specification_placeholder') }}">{{ old('specification', $item->specification) }}</textarea>
+            </div>
+
+            <div class="max-w-md">
+                <label class="block text-sm font-medium mb-1" for="base_unit_id">
+                    {{ __('items.field_base_unit_optional') }}
+                </label>
+                <select name="base_unit_id" id="base_unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <option value="">{{ __('items.select_placeholder') }}</option>
+                    @foreach ($units as $unit)
+                        <option value="{{ $unit->id }}" @selected((int) old('base_unit_id', $item->base_unit_id) === $unit->id)>
+                            {{ $unit->name_th }} ({{ $unit->code }})
+                        </option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-ink-muted mt-1">
+                    {{ __('items.field_base_unit_hint') }}
+                </p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">

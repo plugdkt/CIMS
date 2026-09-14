@@ -76,8 +76,8 @@
                     <dd>{{ $item->storage_class ?: '—' }}</dd>
                 </div>
                 <div>
-                    <dt class="text-xs text-ink-faint">{{ __('items.field_expiry_date') }}</dt>
-                    <dd>{{ $item->expiry_date ? $item->expiry_date->format('d/m/Y') : '—' }}</dd>
+                    <dt class="text-xs text-ink-faint">{{ __('items.col_unit') }}</dt>
+                    <dd>{{ $item->baseUnit ? $item->baseUnit->name_th . ' ('.$item->baseUnit->code.')' : '—' }}</dd>
                 </div>
                 <div>
                     <dt class="text-xs text-ink-faint">{{ __('items.col_status') }}</dt>
@@ -88,6 +88,13 @@
                     </dd>
                 </div>
             </dl>
+
+            @if ($item->specification)
+                <div class="mt-5 pt-5 border-t border-border">
+                    <h3 class="text-xs font-bold text-ink-muted uppercase tracking-wider mb-1.5">{{ __('items.field_specification') }}</h3>
+                    <div class="text-sm text-ink whitespace-pre-line bg-surface-alt/60 p-3.5 rounded-xl border border-border/80">{{ $item->specification }}</div>
+                </div>
+            @endif
         </div>
 
         <div class="bg-surface border border-border rounded-xl p-6 mt-6">

@@ -131,3 +131,31 @@ test('can render PDF barcode labels for created containers', function () {
     $response->assertOk();
     $response->assertHeader('Content-Type', 'application/pdf');
 });
+
+test('stock-in automatically sets base_unit_id on item if it was not specified', function () {
+    $itemWithoutUnit = Item::create([
+        'item_code' => 'CHM-NO-UNIT',
+        'name_th' => 'สารเคมีใหม่ยังไม่มีหน่วยฐาน',
+        'category_id' => \App\Models\ItemCategory::first()->id ?? 1,
+        'base_unit_id' => null,
+        'package_size' => null,
+        'storage_class' => 'OTHER',
+        'reorder_point_base' => '0.000000',
+        'is_active' => true,
+    ]);
+
+    expect($itemWithoutUnit->base_unit_id)->toBeNull();
+
+    $response = $this->actingAs($this->scientist)
+        ->post(route('stock-in.store'), [
+            'item_id' => $itemWithoutUnit->id,
+            'tracking_type' => 'BULK',
+            'qty' => '100',
+            'unit_id' => $this->unitG->id,
+            'location_id' => $this->location->id,
+            'remark' => 'รับเข้าสารใหม่',
+        ]);
+
+    $response->assertRedirect(route('items.show', $itemWithoutUnit));
+    expect($itemWithoutUnit->fresh()->base_unit_id)->toBe($this->unitG->id);
+});

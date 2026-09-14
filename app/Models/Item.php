@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
  */
 #[Fillable([
     'item_code', 'category_id', 'name_th', 'name_en', 'cas_no', 'formula', 'brand', 'grade',
-    'package_size', 'package_unit_id', 'sub_unit_id', 'base_unit_id', 'density_g_per_ml',
+    'specification', 'package_size', 'package_unit_id', 'sub_unit_id', 'base_unit_id', 'density_g_per_ml',
     'reorder_point_base', 'is_controlled', 'control_class', 'ghs_codes', 'h_statements',
     'p_statements', 'storage_class', 'shelf_life_days_after_open', 'expiry_date', 'is_active',
 ])]

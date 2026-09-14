@@ -55,6 +55,13 @@ final class StockInController extends Controller
         abort_if($user === null, 401);
         $userId = (int) $user->id;
 
+        if ($item->base_unit_id === null) {
+            $item->base_unit_id = $unit->id;
+            $item->package_unit_id ??= $unit->id;
+            $item->save();
+            $item->refresh();
+        }
+
         /** @var list<int> $createdContainerIds */
         $createdContainerIds = [];
 
