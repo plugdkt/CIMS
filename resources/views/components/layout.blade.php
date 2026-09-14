@@ -30,22 +30,6 @@
 
         <nav class="flex flex-col gap-1">
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1">
-                {{ __('nav.group_data') }}
-            </div>
-            @can('viewAny', App\Models\Item::class)
-                <a href="{{ route('items.index') }}"
-                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('items.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
-                    {{ __('nav.items') }}
-                </a>
-            @endcan
-            @can('viewAny', App\Models\Location::class)
-                <a href="{{ route('locations.index') }}"
-                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('locations.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
-                    {{ __('nav.locations') }}
-                </a>
-            @endcan
-
-            <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
                 {{ __('nav.group_inventory') }}
             </div>
             @if(auth()->user()?->can('receiving.manage') || auth()->user()?->can('item.manage') || auth()->user()?->can('ledger.adjust') || auth()->user()?->hasRole('ADMIN'))
@@ -88,16 +72,28 @@
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
                 {{ __('nav.group_system') }}
             </div>
-            @can('viewAny', App\Models\User::class)
-                <a href="{{ route('admin.users.index') }}"
-                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('admin.users.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
-                    {{ __('nav.users_roles') }}
+            @can('viewAny', App\Models\Item::class)
+                <a href="{{ route('items.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('items.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.items') }}
+                </a>
+            @endcan
+            @can('viewAny', App\Models\Location::class)
+                <a href="{{ route('locations.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('locations.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.locations') }}
                 </a>
             @endcan
             @can('viewAny', App\Models\Lab::class)
                 <a href="{{ route('admin.labs.index') }}"
                    class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('admin.labs.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
                     {{ __('nav.labs') }}
+                </a>
+            @endcan
+            @can('viewAny', App\Models\User::class)
+                <a href="{{ route('admin.users.index') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('admin.users.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.users_roles') }}
                 </a>
             @endcan
         </nav>
