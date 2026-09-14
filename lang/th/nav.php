@@ -5,6 +5,7 @@ return [
     'items' => 'ทะเบียนสารเคมี/วัสดุ',
     'locations' => 'ผังจัดเก็บ',
     'group_inventory' => 'คลังสินค้า',
+    'stock_in' => 'รับเข้าคลังย่อย (เติมสต็อก)',
     'goods_receipts' => 'ใบรับของ (GRN)',
     'requisitions' => 'ใบขอเบิก',
     'stock_takes' => 'ตรวจนับสต๊อก',

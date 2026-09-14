@@ -25,6 +25,7 @@ use App\Http\Controllers\RequisitionController;
 use App\Http\Controllers\RequisitionIssueController;
 use App\Http\Controllers\RequisitionItemController;
 use App\Http\Controllers\RequisitionReturnController;
+use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTakeController;
 use App\Livewire\Admin\UserRoleManager;
 use Illuminate\Support\Facades\Route;
@@ -126,6 +127,13 @@ Route::middleware('auth')->prefix('goods-receipts')->name('goods-receipts.')->gr
     Route::post('/{goods_receipt}/confirm', [GoodsReceiptController::class, 'confirm'])->name('confirm');
     Route::post('/{goods_receipt}/cancel', [GoodsReceiptController::class, 'cancel'])->name('cancel');
     Route::get('/{goods_receipt}/labels/{size}', [GoodsReceiptController::class, 'labels'])->name('labels');
+});
+
+// Working Stock: เติมสต็อก/รับเข้าคลังย่อย และพิมพ์สติกเกอร์บาร์โค้ด
+Route::middleware('auth')->prefix('stock-in')->name('stock-in.')->group(function () {
+    Route::get('/', [StockInController::class, 'create'])->name('create');
+    Route::post('/', [StockInController::class, 'store'])->name('store');
+    Route::get('/labels/{size}', [StockInController::class, 'labels'])->name('labels');
 });
 
 // FR-RQ-01..05 — authorization enforced per-action inside the controllers/RequisitionPolicy.

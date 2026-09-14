@@ -45,15 +45,15 @@
                 </a>
             @endcan
 
-            @can('viewAny', App\Models\GoodsReceipt::class)
-                <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
-                    {{ __('nav.group_inventory') }}
-                </div>
-                <a href="{{ route('goods-receipts.index') }}"
-                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('goods-receipts.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
-                    {{ __('nav.goods_receipts') }}
+            <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
+                {{ __('nav.group_inventory') }}
+            </div>
+            @if(auth()->user()?->hasPermission('receiving.manage') || auth()->user()?->hasPermission('item.manage') || auth()->user()?->hasPermission('ledger.adjust') || auth()->user()?->hasRole('ADMIN'))
+                <a href="{{ route('stock-in.create') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('stock-in.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.stock_in') }}
                 </a>
-            @endcan
+            @endif
             @can('viewAny', App\Models\Requisition::class)
                 <a href="{{ route('requisitions.index') }}"
                    class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('requisitions.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">

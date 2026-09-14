@@ -26,15 +26,13 @@ test('a non-student requester can go straight from SUBMITTED to a scientist deci
     expect($state->apply('SUBMITTED', 'scientistReject', 'STAFF'))->toBe('REJECTED');
 });
 
-test('a STUDENT requester cannot skip the advisor step for a scientist decision', function () {
+test('in working stock, any requester (including STUDENT) can go straight from SUBMITTED to a scientist decision', function () {
     $state = new RequisitionState();
 
-    expect($state->can('SUBMITTED', 'scientistApprove', 'STUDENT'))->toBeFalse();
-    expect($state->can('SUBMITTED', 'scientistReject', 'STUDENT'))->toBeFalse();
-    expect($state->can('SUBMITTED', 'scientistApprove', null))->toBeFalse();
-
-    expect(fn () => $state->apply('SUBMITTED', 'scientistApprove', 'STUDENT'))
-        ->toThrow(InvalidRequisitionTransitionException::class);
+    expect($state->can('SUBMITTED', 'scientistApprove', 'STUDENT'))->toBeTrue();
+    expect($state->can('SUBMITTED', 'scientistReject', 'STUDENT'))->toBeTrue();
+    expect($state->apply('SUBMITTED', 'scientistApprove', 'STUDENT'))->toBe('APPROVED');
+    expect($state->apply('SUBMITTED', 'scientistReject', 'STUDENT'))->toBe('REJECTED');
 });
 
 test('ADVISOR_APPROVED moves to a scientist decision regardless of requester status', function () {

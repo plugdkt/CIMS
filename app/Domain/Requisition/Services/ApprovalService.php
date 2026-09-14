@@ -84,12 +84,6 @@ final class ApprovalService
         ?string $reason = null,
         ?string $ipAddress = null,
     ): Requisition {
-        if ($decision === 'APPROVE' && $requisition->requester_status === 'STUDENT' && $requisition->advisor_signed_at === null) {
-            throw new InvalidApprovalDecisionException(
-                'ไม่สามารถอนุมัติได้ (BR-02): ใบเบิกของนิสิตต้องผ่านการอนุมัติจากอาจารย์ที่ปรึกษาก่อน'
-            );
-        }
-
         if ($decision === 'REJECT' && trim((string) $reason) === '') {
             throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลที่ไม่เห็นควรให้เบิก');
         }

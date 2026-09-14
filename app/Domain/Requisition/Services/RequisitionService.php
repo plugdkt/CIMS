@@ -77,9 +77,6 @@ final class RequisitionService
         $advisor = $requisition->advisor;
         if ($requisition->requester_status === 'STUDENT' && $advisor !== null) {
             $this->mailAdvisor($requisition, $advisor);
-            // FR-NT-03's "Email" channel for this step is already the richer signed-URL
-            // email above (T-033) — sending a second, generic notification email would
-            // just duplicate it. Only the in-app half is new here.
             $this->notifications->notifyInApp(
                 $advisor,
                 'requisition.pending_advisor',
@@ -90,9 +87,10 @@ final class RequisitionService
                 ]),
                 route('requisitions.show', $requisition),
             );
-        } elseif ($requisition->requester_status !== 'STUDENT') {
-            $this->notifyScientistsPending($requisition);
         }
+
+        // Always notify scientists so they can review and issue immediately
+        $this->notifyScientistsPending($requisition);
 
         return $requisition;
     }

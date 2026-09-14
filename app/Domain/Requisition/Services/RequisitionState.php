@@ -56,7 +56,7 @@ final class RequisitionState
     public function can(string $from, string $event, ?string $requesterStatus = null): bool
     {
         if ($from === 'SUBMITTED' && in_array($event, self::SUBMITTED_SCIENTIST_EVENTS, true)) {
-            return $requesterStatus !== null && $requesterStatus !== 'STUDENT';
+            return true;
         }
 
         return isset(self::TRANSITIONS[$from][$event]);
@@ -68,12 +68,6 @@ final class RequisitionState
     public function apply(string $from, string $event, ?string $requesterStatus = null): string
     {
         if ($from === 'SUBMITTED' && in_array($event, self::SUBMITTED_SCIENTIST_EVENTS, true)) {
-            if ($requesterStatus === null || $requesterStatus === 'STUDENT') {
-                throw new InvalidRequisitionTransitionException(
-                    "ไม่สามารถเปลี่ยนสถานะจาก {$from} ด้วยเหตุการณ์ {$event} ได้"
-                );
-            }
-
             return $event === 'scientistApprove' ? 'APPROVED' : 'REJECTED';
         }
 

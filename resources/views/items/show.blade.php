@@ -5,6 +5,10 @@
             <div class="flex items-center justify-between mt-1">
                 <h1 class="font-display text-lg font-bold">{{ $item->name_th }}</h1>
                 <div class="flex items-center gap-3">
+                    <a href="{{ route('stock-in.create', ['item_id' => $item->id]) }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-strong transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                        {{ __('stock.btn_stock_in') }}
+                    </a>
                     @can('viewAny', App\Models\StockLedger::class)
                         <a href="{{ route('items.ledger', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
                             {{ __('ledger.view_ledger') }}
@@ -18,6 +22,28 @@
                 </div>
             </div>
         </div>
+
+        @if (session('label_container_ids'))
+            <div class="mb-5 rounded-xl border border-accent/40 bg-accent-soft/30 p-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <h4 class="text-sm font-bold text-accent-strong">{{ __('stock.print_labels_title') }}</h4>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{{ route('stock-in.labels', ['size' => '40x25', 'ids' => session('label_container_ids')]) }}" target="_blank"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-semibold text-ink hover:bg-surface-alt shadow-sm">
+                            <svg class="w-3.5 h-3.5 text-ink-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                            {{ __('stock.print_label_size', ['size' => '40×25 mm']) }}
+                        </a>
+                        <a href="{{ route('stock-in.labels', ['size' => '50x30', 'ids' => session('label_container_ids')]) }}" target="_blank"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs font-semibold text-ink hover:bg-surface-alt shadow-sm">
+                            <svg class="w-3.5 h-3.5 text-ink-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                            {{ __('stock.print_label_size', ['size' => '50×30 mm']) }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <div class="bg-surface border border-border rounded-xl p-6">
             <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
