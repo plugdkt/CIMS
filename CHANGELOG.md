@@ -882,3 +882,4 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Removed root `index.php` and root `web.config` in favor of standard `public/web.config`.
   - Configured Livewire 3 subpath routing (`AppServiceProvider.php` + `config/livewire.php`) to dynamically handle subfolder deployments (`/CMIS/livewire/livewire.js` and `/CMIS/livewire/update`).
   - Resolved cURL error 60 (SSL certificate problem) on Windows by bundling CA certificate (`storage/certs/cacert.pem`) and wiring `ca_bundle` option into `SsoClient` and `config/services.php`.
+  - Fixed item creation when `reorder_point_base` is omitted, adding default fallback in `ItemRequest` and `Item` model, and set IIS `httpErrors` to `PassThrough` to prevent IIS from turning 500 errors into 404s.

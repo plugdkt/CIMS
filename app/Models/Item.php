@@ -28,6 +28,12 @@ class Item extends Model
         static::creating(function (self $item) {
             $item->ulid ??= (string) Str::ulid();
         });
+
+        static::saving(function (self $item) {
+            $item->reorder_point_base ??= '0.000000';
+            $item->is_controlled ??= false;
+            $item->is_active ??= true;
+        });
     }
 
     /** AGENT RULE #9: public URL identifiers are ULIDs, never auto-increment IDs. */

@@ -25,6 +25,13 @@ final class ItemRequest extends FormRequest
             : $user->can('create', Item::class);
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('reorder_point_base')) {
+            $this->merge(['reorder_point_base' => '0']);
+        }
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
