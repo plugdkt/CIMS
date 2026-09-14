@@ -6,7 +6,7 @@
     class. User-approved 2026-09-01: own SVG rather than sourcing official pictogram
     image files.
 --}}
-<svg viewBox="0 0 100 100" width="{{ $size }}" height="{{ $size }}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="{{ config("ghs.pictograms.$code", $code) }}">
+<svg viewBox="0 0 100 100" width="{{ $size }}" height="{{ $size }}" style="width: {{ $size }}px; height: {{ $size }}px; max-width: 100%; flex-shrink: 0;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="{{ config("ghs.pictograms.$code", $code) }}">
     <rect x="50" y="4" width="65" height="65" rx="6" fill="white" stroke="#d90429" stroke-width="7"
           transform="rotate(45 50 50)" />
 

@@ -3,8 +3,7 @@
         <div class="mb-6 flex items-center justify-between">
             <div>
                 <a href="{{ route('items.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink flex items-center gap-1">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                    {{ __('items.back_to_list') }}
+                    &larr; {{ __('items.back_to_list') }}
                 </a>
                 <h1 class="font-display text-xl font-bold text-ink mt-1">
                     {{ $item->exists ? __('items.edit_title') : __('items.create_title') }}
@@ -37,8 +36,7 @@
                 {{-- กล่องที่ 1: ข้อมูลทั่วไปและคุณลักษณะเฉพาะ --}}
                 <div class="bg-surface border border-border rounded-xl p-6 space-y-5 shadow-2xs">
                     <div class="border-b border-border pb-3">
-                        <h2 class="font-display text-base font-bold text-ink flex items-center gap-2">
-                            <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <h2 class="font-display text-base font-bold text-ink">
                             {{ __('items.section_general') }}
                         </h2>
                     </div>
@@ -139,8 +137,7 @@
                 {{-- กล่องที่ 2: การจัดเก็บและการควบคุม --}}
                 <div class="bg-surface border border-border rounded-xl p-6 space-y-4 shadow-2xs">
                     <div class="border-b border-border pb-3">
-                        <h2 class="font-display text-base font-bold text-ink flex items-center gap-2">
-                            <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        <h2 class="font-display text-base font-bold text-ink">
                             {{ __('items.section_storage_control') }}
                         </h2>
                     </div>
@@ -201,8 +198,7 @@
                 {{-- กล่อง GHS Pictograms --}}
                 <div class="bg-surface border border-border rounded-xl p-6 shadow-2xs">
                     <div class="border-b border-border pb-3 mb-4">
-                        <h2 class="font-display text-base font-bold text-ink flex items-center gap-2">
-                            <svg class="w-4 h-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        <h2 class="font-display text-base font-bold text-ink">
                             {{ __('items.ghs_section_title') }}
                         </h2>
                     </div>
