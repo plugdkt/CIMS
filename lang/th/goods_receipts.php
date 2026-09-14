@@ -10,7 +10,7 @@ return [
     'col_doc_no' => 'เลขที่เอกสาร',
     'col_receipt_date' => 'วันที่รับ',
     'col_supplier' => 'ผู้จำหน่าย',
-    'col_lab' => 'ห้องปฏิบัติการ',
+    'col_lab' => 'สาขาวิชา',
     'col_status' => 'สถานะ',
     'col_received_by' => 'ผู้บันทึกรับของ',
 
@@ -27,7 +27,7 @@ return [
     'line_removed' => 'ลบรายการเรียบร้อยแล้ว',
 
     'field_receipt_date' => 'วันที่รับ',
-    'field_lab' => 'ห้องปฏิบัติการ',
+    'field_lab' => 'สาขาวิชา',
     'field_po_no' => 'เลขที่ใบสั่งซื้อ (PO)',
     'field_invoice_no' => 'เลขที่ใบกำกับภาษี',
     'field_supplier' => 'ผู้จำหน่าย',
@@ -56,7 +56,7 @@ return [
 
     'validation' => [
         'receipt_date_required' => 'กรุณาระบุวันที่รับ',
-        'lab_required' => 'กรุณาเลือกห้องปฏิบัติการ',
+        'lab_required' => 'กรุณาเลือกสาขาวิชา',
         'item_required' => 'กรุณาเลือกรายการสาร/วัสดุ',
         'container_count_required' => 'กรุณาระบุจำนวนภาชนะ',
         'container_count_min' => 'จำนวนภาชนะต้องอย่างน้อย 1',

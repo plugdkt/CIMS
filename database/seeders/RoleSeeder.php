@@ -17,7 +17,7 @@ final class RoleSeeder extends Seeder
             ['code' => 'ADVISOR', 'name_th' => 'อาจารย์ที่ปรึกษา'],
             ['code' => 'STAFF', 'name_th' => 'อาจารย์/เจ้าหน้าที่'],
             ['code' => 'SCIENTIST', 'name_th' => 'นักวิทยาศาสตร์'],
-            ['code' => 'LAB_MANAGER', 'name_th' => 'หัวหน้าห้องปฏิบัติการ'],
+            ['code' => 'LAB_MANAGER', 'name_th' => 'หัวหน้าสาขาวิชา'],
             ['code' => 'ADMIN', 'name_th' => 'ผู้ดูแลระบบ'],
             ['code' => 'AUDITOR', 'name_th' => 'ผู้ตรวจสอบ'],
         ];

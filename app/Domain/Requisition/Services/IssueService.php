@@ -135,21 +135,21 @@ final class IssueService
         }
 
         if ($overageApprovedBy === null) {
-            throw new ExcessiveIssueQuantityException('จ่ายเกิน 10% ต้องได้รับอนุมัติจากหัวหน้าห้องปฏิบัติการ (BR-04)');
+            throw new ExcessiveIssueQuantityException('จ่ายเกิน 10% ต้องได้รับอนุมัติจากหัวหน้าสาขาวิชา (BR-04)');
         }
 
         $approver = User::find($overageApprovedBy);
         if ($approver === null) {
-            throw new ExcessiveIssueQuantityException('ผู้อนุมัติการจ่ายเกิน 10% ต้องเป็นหัวหน้าห้องปฏิบัติการ (BR-04)');
+            throw new ExcessiveIssueQuantityException('ผู้อนุมัติการจ่ายเกิน 10% ต้องเป็นหัวหน้าสาขาวิชา (BR-04)');
         }
 
         $isLabManager = $approver->roles->flatMap(fn ($role) => $role->permissions)->contains('code', 'requisition.issue_override');
         if (! $isLabManager) {
-            throw new ExcessiveIssueQuantityException('ผู้อนุมัติการจ่ายเกิน 10% ต้องเป็นหัวหน้าห้องปฏิบัติการ (BR-04)');
+            throw new ExcessiveIssueQuantityException('ผู้อนุมัติการจ่ายเกิน 10% ต้องเป็นหัวหน้าสาขาวิชา (BR-04)');
         }
 
         if ($approver->hasRole('LAB_MANAGER') && $approver->lab_id !== $requisition->lab_id) {
-            throw new ExcessiveIssueQuantityException('ผู้อนุมัติต้องเป็นหัวหน้าห้องปฏิบัติการของสาขาที่ยื่นใบเบิกนี้ (BR-04)');
+            throw new ExcessiveIssueQuantityException('ผู้อนุมัติต้องเป็นหัวหน้าสาขาวิชาที่ยื่นใบเบิกนี้ (BR-04)');
         }
     }
 
