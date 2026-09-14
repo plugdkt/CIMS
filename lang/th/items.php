@@ -39,6 +39,7 @@ return [
     'field_density' => 'ความหนาแน่น (g/mL)',
     'field_reorder_point' => 'จุดสั่งซื้อ (หน่วยฐาน)',
     'field_is_controlled' => 'เป็นวัตถุควบคุม',
+    'field_is_active' => 'เปิดใช้งานในระบบ',
     'field_control_class' => 'ประเภทการควบคุม',
     'field_storage_class' => 'ประเภทการจัดเก็บ',
     'field_shelf_life' => 'อายุหลังเปิดใช้ (วัน)',
