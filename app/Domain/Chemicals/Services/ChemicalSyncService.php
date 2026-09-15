@@ -97,14 +97,8 @@ final class ChemicalSyncService
             $item->h_statements = $compound->hStatements;
             $item->p_statements = $compound->pStatements;
 
-            if ($compound->molecularWeight !== null) {
-                $mwLine = "MW: {$compound->molecularWeight} g/mol (PubChem CID: {$compound->cid})";
-                if ($item->specification === null || $item->specification === '') {
-                    $item->specification = $mwLine;
-                } elseif (! str_contains($item->specification, 'PubChem CID')) {
-                    $item->specification .= "\n{$mwLine}";
-                }
-            }
+            $specParagraph = $this->buildSpecificationParagraph($compound, $item->cas_no, $item->grade);
+            $item->specification = $this->mergeSpecification($item->specification, $specParagraph);
 
             $item->save();
 
@@ -153,32 +147,85 @@ final class ChemicalSyncService
                 ?? ItemCategory::firstOrFail()->id;
 
             $itemCode = $this->generateNextItemCode();
-
-            $specLines = ["นำเข้าอัตโนมัติจาก PubChem (CID: {$compound->cid})"];
-            if ($compound->molecularWeight !== null) {
-                $specLines[] = "น้ำหนักโมเลกุล (MW): {$compound->molecularWeight} g/mol";
-            }
-            if ($compound->iupacName !== null) {
-                $specLines[] = "IUPAC Name: {$compound->iupacName}";
-            }
+            $casForSpec = $cas !== null && trim($cas) !== '' ? trim($cas) : null;
 
             return Item::create([
                 'item_code' => $itemCode,
                 'category_id' => $categoryId,
                 'name_th' => mb_substr($compound->title, 0, 255),
                 'name_en' => mb_substr($compound->title, 0, 255),
-                'cas_no' => $cas !== null && trim($cas) !== '' ? mb_substr(trim($cas), 0, 20) : null,
+                'cas_no' => $casForSpec !== null ? mb_substr($casForSpec, 0, 20) : null,
                 'formula' => $compound->molecularFormula !== null ? mb_substr($compound->molecularFormula, 0, 128) : null,
                 'ghs_codes' => $compound->ghsCodes,
                 'h_statements' => $compound->hStatements,
                 'p_statements' => $compound->pStatements,
-                'specification' => implode("\n", $specLines),
+                'specification' => 'นำเข้าอัตโนมัติจาก PubChem — '.$this->buildSpecificationParagraph($compound, $casForSpec, null),
                 // ponytail: base_unit_id is intentionally left null per the working-stock convention;
                 // it is set/backfilled upon initial goods receipt (GRN) when packaging and unit are physically received.
                 'base_unit_id' => null,
                 'is_active' => true,
             ]);
         });
+    }
+
+    /**
+     * One flowing procurement-usable line combining what's actually available — never
+     * invents a grade/purity PubChem doesn't provide; only echoes it back when the item
+     * (or import parsing) already recorded one.
+     */
+    private function buildSpecificationParagraph(PubChemCompoundData $compound, ?string $cas, ?string $grade): string
+    {
+        $parts = [];
+
+        if ($compound->molecularFormula !== null && $compound->molecularFormula !== '') {
+            $parts[] = "สูตรโมเลกุล {$compound->molecularFormula}";
+        }
+
+        if ($compound->molecularWeight !== null) {
+            $parts[] = "น้ำหนักโมเลกุล (MW) {$compound->molecularWeight} g/mol";
+        }
+
+        if ($cas !== null && trim($cas) !== '') {
+            $parts[] = 'CAS No. '.trim($cas);
+        }
+
+        if ($compound->physicalDescription !== null) {
+            $parts[] = "ลักษณะทางกายภาพ: {$compound->physicalDescription}";
+        }
+
+        if ($grade !== null && trim($grade) !== '') {
+            $parts[] = 'เกรด '.trim($grade);
+        }
+
+        $summary = implode(', ', $parts);
+
+        return ($summary !== '' ? "{$summary} " : '')."(PubChem CID: {$compound->cid})";
+    }
+
+    /**
+     * Replaces a previously-written PubChem line in place (identified by its own CID
+     * marker) so repeated syncs refresh the data instead of endlessly appending
+     * duplicate lines — any other free text already in the field (e.g. from the
+     * original catalog import) is left untouched.
+     */
+    private function mergeSpecification(?string $existing, string $pubChemParagraph): string
+    {
+        if ($existing === null || trim($existing) === '') {
+            return $pubChemParagraph;
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $existing);
+        $lines = $lines !== false ? $lines : [$existing];
+
+        foreach ($lines as $i => $line) {
+            if (str_contains($line, '(PubChem CID:')) {
+                $lines[$i] = $pubChemParagraph;
+
+                return implode("\n", $lines);
+            }
+        }
+
+        return $existing."\n".$pubChemParagraph;
     }
 
     /**

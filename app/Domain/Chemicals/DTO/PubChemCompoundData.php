@@ -12,6 +12,11 @@ final readonly class PubChemCompoundData
      *                                  filtered to ones this app's config/ghs.php knows
      * @param  list<string>  $hStatements  hazard statement codes (e.g. "H314"), same filtering
      * @param  list<string>  $pStatements  precautionary statement codes (e.g. "P280"), same filtering
+     * @param  ?string  $physicalDescription  a short, literature-sourced physical-state
+     *                                         sentence (e.g. "Clear, colorless liquid with a weak,
+     *                                         ethereal, vinous odor"), already filtered down from
+     *                                         PubChem's often noisy "Physical Description" entries —
+     *                                         null when nothing clean enough was found
      */
     public function __construct(
         public int $cid,
@@ -23,6 +28,7 @@ final readonly class PubChemCompoundData
         public array $ghsCodes,
         public array $hStatements,
         public array $pStatements,
+        public ?string $physicalDescription = null,
     ) {
     }
 }

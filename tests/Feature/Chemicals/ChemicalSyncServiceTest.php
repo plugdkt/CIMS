@@ -103,6 +103,10 @@ test('ChemicalSyncService::createFromPubChem creates a new item with generated i
     expect($item->p_statements)->toBe(['P210']);
     expect($item->base_unit_id)->toBeNull();
     expect($item->is_active)->toBeTrue();
+    expect($item->specification)->toContain('นำเข้าอัตโนมัติจาก PubChem');
+    expect($item->specification)->toContain('สูตรโมเลกุล C2H6O');
+    expect($item->specification)->toContain('CAS No. 64-17-5');
+    expect($item->specification)->toContain('(PubChem CID: 702)');
 });
 
 test('ChemicalSyncService::createFromPubChem returns existing item when CAS matches to prevent TOCTOU duplicate', function () {
@@ -168,4 +172,79 @@ test('ChemicalSyncService::syncItem resolves chemical with percentage and commer
     expect($result)->toBeTrue();
     expect($item->fresh()->formula)->toBe('C2H6O');
     expect($item->fresh()->name_en)->toBe('Ethanol');
+});
+
+test('ChemicalSyncService::syncItem writes one procurement-usable paragraph combining formula, MW, CAS, physical state, and existing grade', function () {
+    $item = makeItem([
+        'cas_no' => '64-17-5',
+        'name_en' => 'Ethanol',
+        'grade' => 'AR',
+        'formula' => null,
+        'ghs_codes' => null,
+        'specification' => null,
+    ]);
+
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O', 'MolecularWeight' => '46.07',
+            ]]],
+        ], 200),
+        '*rest/pug_view/*heading=GHS*' => Http::response(['Record' => ['Section' => []]], 200),
+        '*rest/pug_view/*heading=Physical*' => Http::response([
+            'Record' => ['Section' => [[
+                'TOCHeading' => 'Chemical and Physical Properties',
+                'Section' => [[
+                    'TOCHeading' => 'Experimental Properties',
+                    'Section' => [[
+                        'TOCHeading' => 'Physical Description',
+                        'Information' => [
+                            ['Value' => ['StringWithMarkup' => [
+                                ['String' => 'Clear, colorless liquid with a weak, ethereal, vinous odor; [NIOSH]'],
+                            ]]],
+                        ],
+                    ]],
+                ]],
+            ]]],
+        ], 200),
+    ]);
+
+    app(ChemicalSyncService::class)->syncItem($item);
+
+    $spec = $item->fresh()->specification;
+    expect($spec)->toContain('สูตรโมเลกุล C2H6O');
+    expect($spec)->toContain('น้ำหนักโมเลกุล (MW) 46.07 g/mol');
+    expect($spec)->toContain('CAS No. 64-17-5');
+    expect($spec)->toContain('ลักษณะทางกายภาพ: Clear, colorless liquid with a weak, ethereal, vinous odor');
+    expect($spec)->toContain('เกรด AR');
+    expect($spec)->toContain('(PubChem CID: 702)');
+});
+
+test('ChemicalSyncService::syncItem replaces its own previous PubChem line in place instead of duplicating it', function () {
+    $item = makeItem([
+        'cas_no' => '64-17-5',
+        'name_en' => 'Ethanol',
+        'formula' => null,
+        'ghs_codes' => null,
+        'specification' => "นำเข้าจากใบเสนอราคาเดิม ขวดแก้วสีชา 2.5 ลิตร\nสูตรโมเลกุล C2H6O, น้ำหนักโมเลกุล (MW) 46.00 g/mol (PubChem CID: 702)",
+    ]);
+
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O', 'MolecularWeight' => '46.07',
+            ]]],
+        ], 200),
+        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+
+    app(ChemicalSyncService::class)->syncItem($item);
+
+    $spec = $item->fresh()->specification;
+    // The original procurement note (unrelated to PubChem) survives untouched...
+    expect($spec)->toContain('นำเข้าจากใบเสนอราคาเดิม ขวดแก้วสีชา 2.5 ลิตร');
+    // ...while the PubChem-derived line is refreshed in place, not duplicated.
+    expect(substr_count($spec, 'PubChem CID: 702'))->toBe(1);
+    expect($spec)->toContain('น้ำหนักโมเลกุล (MW) 46.07 g/mol');
+    expect($spec)->not->toContain('46.00');
 });

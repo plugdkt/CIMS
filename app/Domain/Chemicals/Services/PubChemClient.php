@@ -108,6 +108,7 @@ final class PubChemClient
                 ghsCodes: $ghs['ghsCodes'],
                 hStatements: $ghs['hStatements'],
                 pStatements: $ghs['pStatements'],
+                physicalDescription: $this->fetchPhysicalDescription($cid),
             );
         } catch (Throwable $e) {
             Log::warning('PubChemClient lookup failed', ['domain' => $domain, 'value' => $value, 'error' => $e->getMessage()]);
@@ -206,6 +207,102 @@ final class PubChemClient
             }
             if (isset($section['Section'])) {
                 $found = $this->findGhsInformation($section['Section']);
+                if ($found !== null) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * "Physical Description" (under Chemical and Physical Properties > Experimental
+     * Properties) is literature-mined from several source agencies per compound and is
+     * often noisy: raw categorical dumps ("Liquid; Wet Solid; CBI; ..."), citations
+     * ("...; [NIOSH]"), or descriptions of an unrelated formulation ("... adulterant
+     * added so as to be unfit for use as a beverage"). Rather than surface any of that
+     * into a procurement specification unfiltered, this picks the first entry that
+     * reads like a clean, short physical-state sentence and discards the rest —
+     * returning null (never a guess) when nothing qualifies.
+     */
+    private function fetchPhysicalDescription(int $cid): ?string
+    {
+        try {
+            $request = Http::timeout($this->timeoutSeconds);
+            if ($this->caBundle !== null) {
+                $request = $request->withOptions(['verify' => $this->caBundle]);
+            }
+
+            $response = $request->get("{$this->pugViewBaseUrl}/data/compound/{$cid}/JSON/", ['heading' => 'Physical Description']);
+
+            if (! $response->successful()) {
+                return null;
+            }
+
+            $information = $this->findSectionInformation($response->json('Record.Section', []), 'Physical Description');
+            if ($information === null) {
+                return null;
+            }
+
+            foreach ($information as $entry) {
+                foreach (array_column($entry['Value']['StringWithMarkup'] ?? [], 'String') as $candidate) {
+                    $cleaned = $this->cleanPhysicalDescription((string) $candidate);
+                    if ($cleaned !== null) {
+                        return $cleaned;
+                    }
+                }
+            }
+
+            return null;
+        } catch (Throwable $e) {
+            Log::warning('PubChemClient physical description lookup failed', ['cid' => $cid, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Strips a trailing source citation (e.g. "; [NIOSH]", "; [CAMEO]") and rejects
+     * anything that still doesn't read like one clean sentence: a raw semicolon-joined
+     * category dump, a description of a different/adulterated formulation, or one that's
+     * too terse ("Liquid") or too long (a full multi-sentence literature paragraph).
+     */
+    private function cleanPhysicalDescription(string $candidate): ?string
+    {
+        $cleaned = trim((string) preg_replace('/\s*;?\s*\[[^\]]*\]\s*$/', '', $candidate));
+
+        if (substr_count($cleaned, ';') >= 2) {
+            return null;
+        }
+
+        $length = mb_strlen($cleaned);
+        if ($length < 10 || $length > 160) {
+            return null;
+        }
+
+        if (preg_match('/\b(adulterant|denatured|unfit for|CBI)\b/i', $cleaned) === 1) {
+            return null;
+        }
+
+        return $cleaned;
+    }
+
+    /**
+     * Generic version of {@see findGhsInformation()} for any other PUG View heading —
+     * walks the section tree by name since PubChem doesn't guarantee a fixed depth.
+     *
+     * @param  array<int, array<string, mixed>>  $sections
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function findSectionInformation(array $sections, string $heading): ?array
+    {
+        foreach ($sections as $section) {
+            if (($section['TOCHeading'] ?? null) === $heading) {
+                return $section['Information'] ?? null;
+            }
+            if (isset($section['Section'])) {
+                $found = $this->findSectionInformation($section['Section'], $heading);
                 if ($found !== null) {
                     return $found;
                 }

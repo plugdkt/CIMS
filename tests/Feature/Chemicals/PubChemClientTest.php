@@ -98,5 +98,75 @@ test('lookupByCas caches the result so a second call makes no new HTTP request',
     $client->lookupByCas('7647-14-5');
     $client->lookupByCas('7647-14-5');
 
-    Http::assertSentCount(2); // one property call + one GHS call — not 4
+    // one property call + one GHS call + one physical-description call — not 6
+    Http::assertSentCount(3);
+});
+
+test('lookupByCas returns a clean physical description and discards noisy entries', function () {
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [['CID' => 702, 'Title' => 'Ethanol']]],
+        ], 200),
+        '*rest/pug_view/data/compound/702/*heading=GHS*' => Http::response(['Record' => ['Section' => []]], 200),
+        '*rest/pug_view/data/compound/702/*heading=Physical*' => Http::response([
+            'Record' => ['Section' => [[
+                'TOCHeading' => 'Chemical and Physical Properties',
+                'Section' => [[
+                    'TOCHeading' => 'Experimental Properties',
+                    'Section' => [[
+                        'TOCHeading' => 'Physical Description',
+                        'Information' => [
+                            ['Value' => ['StringWithMarkup' => [
+                                ['String' => 'Ethanol with a small amount of an adulterant added so as to be unfit for use as a beverage.'],
+                            ]]],
+                            ['Value' => ['StringWithMarkup' => [
+                                ['String' => 'Liquid; Wet Solid; CBI; Gas Vapor; Gas Vapor; Liquid; Wet Solid; Liquid'],
+                            ]]],
+                            ['Value' => ['StringWithMarkup' => [
+                                ['String' => 'Clear, colorless liquid with a weak, ethereal, vinous odor; [NIOSH]'],
+                            ]]],
+                        ],
+                    ]],
+                ]],
+            ]]],
+        ], 200),
+    ]);
+
+    $result = app(PubChemClient::class)->lookupByCas('64-17-5');
+
+    expect($result)->not->toBeNull();
+    // The adulterant note and the raw semicolon-joined category dump are both
+    // discarded — only the clean sentence (citation tag stripped) survives.
+    expect($result->physicalDescription)->toBe('Clear, colorless liquid with a weak, ethereal, vinous odor');
+});
+
+test('lookupByCas leaves physicalDescription null when nothing clean qualifies', function () {
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [['CID' => 5234, 'Title' => 'Sodium Chloride']]],
+        ], 200),
+        '*rest/pug_view/data/compound/5234/*heading=GHS*' => Http::response(['Record' => ['Section' => []]], 200),
+        '*rest/pug_view/data/compound/5234/*heading=Physical*' => Http::response([
+            'Record' => ['Section' => [[
+                'TOCHeading' => 'Chemical and Physical Properties',
+                'Section' => [[
+                    'TOCHeading' => 'Experimental Properties',
+                    'Section' => [[
+                        'TOCHeading' => 'Physical Description',
+                        'Information' => [
+                            ['Value' => ['StringWithMarkup' => [
+                                ['String' => 'Liquid; Large Crystals; Liquid; Other Solid; Dry Powder; CBI; Wet Solid'],
+                            ]]],
+                            ['Value' => ['StringWithMarkup' => [['String' => 'Liquid']]]],
+                        ],
+                    ]],
+                ]],
+            ]]],
+        ], 200),
+    ]);
+
+    $result = app(PubChemClient::class)->lookupByCas('7647-14-5');
+
+    expect($result)->not->toBeNull();
+    expect($result->physicalDescription)->toBeNull();
 });

@@ -1024,6 +1024,41 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`--delay=250` ms to strictly respect NIH PubChem's 5 req/s policy), optional `--limit=`, `--force`, and `--all` flags,
   streaming via Eloquent cursor, CLI progress bar, comprehensive summary table, and entity-level `AuditLog` records.
   Includes full feature tests (3/3 passing), PHPStan level 8 clean, Pint clean.
+- Chemical name sanitization for PubChem synchronization (`ChemicalNameSanitizer`):
+  Added `ChemicalNameSanitizer` service that extracts embedded CAS numbers and cleans chemical names by
+  stripping concentration percentages (e.g. `95%`, `99.9%`, `70% v/v`), parenthesized notes/formulas,
+  Thai script, and commercial/grade keywords (`grade`, `liquid`, `solid`, `com`, `hdpe`, `emsure`, etc.)
+  before querying PubChem. Integrated into `ChemicalSyncService` as a multi-tier fallback (CAS -> extracted CAS ->
+  exact name -> sanitized name) and into `PubchemLookup` Livewire component with automated query adjustment and UI hint.
+  Includes unit and feature tests (5 new tests), PHPStan level 8 clean, Pint clean.
+- Procurement-usable specification text (user-requested, 2026-09-15): `items.specification` was only ever
+  getting a thin "MW: X g/mol (PubChem CID: Y)" line from a sync; user asked for something a procurement
+  officer could actually use. `PubChemClient` now also fetches PUG View's "Physical Description" section
+  (Chemical and Physical Properties > Experimental Properties) — this field is literature-mined from
+  several source agencies per compound and is often noisy (raw semicolon-joined category dumps like
+  "Liquid; Wet Solid; CBI; ...", trailing citation tags like "; [NIOSH]", or descriptions of an unrelated
+  formulation like "...adulterant added so as to be unfit for use as a beverage" for ethanol) — confirmed
+  empirically against real compounds (ethanol CID 702, sodium chloride CID 5234) before writing the
+  filter, not guessed. `cleanPhysicalDescription()` strips the trailing citation and discards anything
+  with 2+ semicolons, outside a 10-160 char range, or matching a small blocklist (`adulterant`,
+  `denatured`, `unfit for`, `CBI`) — first candidate to survive wins, `null` (never a guess) when nothing
+  does. Costs one extra PUG View request per lookup (PUG View's `heading` filter only honors a single
+  value — confirmed empirically that passing two `heading` params returns just the first — so this
+  couldn't be combined with the existing GHS request without pulling the *full* compound record, which
+  measured ~30x larger for ethanol (3.4 MB vs 115 KB) and was rejected on that basis); still well within
+  NIH's 5 req/s policy given the existing 30-day cache means most compounds only ever pay this once.
+  `ChemicalSyncService::buildSpecificationParagraph()` assembles one flowing line — molecular formula, MW,
+  CAS No., physical description (English, left untranslated — same T-015 precedent for not inventing a
+  Thai translation of literature text), and `grade` **only when the item already has one** (from manual
+  entry or the original catalog import's parsing) — PubChem has no concept of commercial grade/purity at
+  the compound level, so none is fabricated. `mergeSpecification()` replaces this PubChem-derived line in
+  place on every re-sync (matched by its own `(PubChem CID: N)` marker) rather than appending a duplicate
+  each time, leaving any other free text already in the field (e.g. imported raw name/packaging notes)
+  untouched above or below it. Verified: 2 new `PubChemClientTest` cases (the exact noisy-vs-clean ethanol/
+  NaCl fixtures above), 3 new `ChemicalSyncServiceTest` cases (full paragraph assembly including grade,
+  idempotent in-place replacement across two syncs, `createFromPubChem`'s new-item wording), PHPStan level
+  8 clean, Pint clean. Running the actual backfill (`chemicals:sync-pubchem --force --all`) against the
+  full imported catalog is a separate, deliberate step — not run automatically as part of this change.
 - AI-assisted chemical specification generator (`ChemicalSpecificationAiService`):
   Integrated KKU GenAI Gateway (OpenAI-compatible) with `gemini-2.5-flash-lite` to automatically draft
   laboratory procurement specifications (appearance/physical state, standard grades like AR/ACS/Technical,
@@ -1041,6 +1076,14 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (5) Production resiliency: 30-day success-only caching (`Cache::remember`), SSL CA bundle verification via
   `services.ai_gateway.ca_bundle`, and graceful degradation returning null on network or API failures.
   Includes 12 new feature tests (all passing), PHPStan level 8 clean (0 errors), Pint PSR-12 clean.
-
+- AI specification prompt refined to differentiate raw chemical reagents from finished medical/pharmaceutical
+  solutions (e.g. NSS 0.9%) via few-shot examples — the reagent-grade template (AR/ACS/Technical) was being
+  applied even to formulated products where it doesn't apply; the corrected prompt now asks for pharmacopoeia
+  standards (USP/BP) and sterile/pyrogen-free wording for that class instead. Cache key bumped to `v3` to
+  invalidate specs generated under the old, undifferentiated prompt.
+- `chemicals:ai-generate-specs`'s default (non-`--force`) scope widened to also include items whose
+  `specification` already has non-AI content (e.g. from the PubChem sync above, or the original catalog
+  import) but has never received an AI draft — previously only `NULL`/empty rows were picked up, silently
+  skipping every already-populated item forever.
 
 
