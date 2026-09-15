@@ -7,6 +7,7 @@ namespace App\Livewire\Items;
 use App\Models\Item;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -23,6 +24,7 @@ final class ItemTable extends Component
 {
     use WithPagination;
 
+    #[Url]
     public string $search = '';
 
     public function mount(): void
@@ -30,12 +32,17 @@ final class ItemTable extends Component
         $this->authorize('viewAny', Item::class);
     }
 
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
     public function render(): View
     {
         $items = Item::query()
             ->with(['category', 'baseUnit'])
-            ->when($this->search !== '', function ($query) {
-                $term = $this->search;
+            ->when(trim($this->search) !== '', function ($query) {
+                $term = trim($this->search);
                 $query->where(function ($q) use ($term) {
                     $q->where('name_th', 'like', "%{$term}%")
                         ->orWhere('name_en', 'like', "%{$term}%")

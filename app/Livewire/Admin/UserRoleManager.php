@@ -27,6 +27,11 @@ final class UserRoleManager extends Component
 
     public string $search = '';
 
+    public function updatedSearch(): void
+    {
+        $this->resetPage();
+    }
+
     public function mount(): void
     {
         $this->authorize('viewAny', User::class);

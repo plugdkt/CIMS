@@ -1013,3 +1013,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (6) Refined duplicate matching: prioritized exact CAS No. matching with case-insensitive exact name fallback
   to avoid false positive/negative matches. Added comprehensive unit and feature test coverage; PHPStan level 8
   and Pint clean.
+- Fixed pagination reset when searching in Livewire tables (`ItemTable`, `UserRoleManager`, `LabMemberManager`):
+  Added `updatedSearch(): void { $this->resetPage(); }` and trimmed search input. Previously, if a user
+  browsed to a later page (e.g. page 7+) of the registry and then searched for a term like "Alcohol" (which has
+  108 results across 6 pages), Livewire stayed on page 7+, causing it to display 0 results and show the empty
+  state ("ไม่พบรายการที่ค้นหา"). Also added `#[Url]` sync on `$search` in `ItemTable` and regression test.
