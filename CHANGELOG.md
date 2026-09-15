@@ -981,3 +981,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   than failing `ItemRequest`'s validation. Full suite: 410/410 passing (11 new tests, `Http::fake()`
   throughout — no real network calls in the test suite), PHPStan level 8 clean, Pint clean, `composer
   audit` clean.
+- Purged cancelled chemical entries (`*ยกเลิก*` / `*ยกเลิกไปใช้ AS...*`): identified and removed 12
+  cancelled items (e.g. `*ยกเลิก*Methanol HDPE`, `*ยกเลิกไปใช้ AS194688* Myo-Inositol`) from both the
+  active `items` database table and `database/data/chemicals_import.csv` (total count reduced from 5,261
+  to 5,249 entries). Confirmed all 12 items had 0 containers, 0 stock ledger records, and 0 requisition
+  references prior to deletion. Updated `ImportChemicalsCommand` with an explicit filter to skip rows
+  containing "ยกเลิก" in name or raw_name on future imports, and added unit test coverage for the filter.
+

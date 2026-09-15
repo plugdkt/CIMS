@@ -71,6 +71,10 @@ final class ImportChemicalsCommand extends Command
                 continue;
             }
 
+            if (str_contains((string) $name, 'ยกเลิก') || str_contains((string) $rawName, 'ยกเลิก')) {
+                continue;
+            }
+
             if (Item::where('item_code', $itemCode)->exists()) {
                 $skippedDuplicate++;
 

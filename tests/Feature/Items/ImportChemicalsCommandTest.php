@@ -73,6 +73,22 @@ test('chemicals:import skips an item_code that already exists (idempotent)', fun
     @unlink($path);
 });
 
+test('chemicals:import skips cancelled items containing ยกเลิก', function () {
+    $path = writeChemicalsFixture([
+        ['AS999004', '*ยกเลิก*Methanol HDPE', '*ยกเลิก*Methanol HDPE /ขวด', '', '', '', '1', 'L', 'ขวด', ''],
+        ['AS999005', '*ยกเลิกไปใช้ AS194688* Myo-Inositol', '*ยกเลิกไปใช้ AS194688* Myo-Inositol /solid', '', '', '', '100', 'g', 'ขวด', ''],
+    ]);
+
+    $this->artisan('chemicals:import', ['path' => $path])
+        ->assertExitCode(0)
+        ->expectsOutputToContain('นำเข้าสำเร็จ: 0 รายการ');
+
+    expect(Item::where('item_code', 'AS999004')->exists())->toBeFalse();
+    expect(Item::where('item_code', 'AS999005')->exists())->toBeFalse();
+
+    @unlink($path);
+});
+
 test('chemicals:import fails cleanly when the file does not exist', function () {
     $this->artisan('chemicals:import', ['path' => '/nonexistent/file.csv'])
         ->assertExitCode(1);

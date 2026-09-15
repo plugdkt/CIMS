@@ -473,7 +473,6 @@ AS197207,"Bovine serum albumin solid","Bovine serum albumin AR solid 25 กร�
 AS197206,"BRADFORD kit for protein estimation liquid","BRADFORD kit for protein estimation liquid 500 มิลลิลิตร /ขวด",,,,500,mL,ขวด,
 AS197205,"qPCRBIO SyGreen Mix Lo-ROX, ขนาด 100 rxns liquid 100 ตัวอย่าง","qPCRBIO SyGreen Mix Lo-ROX, ขนาด 100 rxns liquid 100 ตัวอย่าง /ชุด",,,,,,ชุด,YES
 AS197204,"Comassie nano protein staining solution liquid","Comassie nano protein staining solution liquid 500 มิลลิลิตร /ขวด",,,,500,mL,ขวด,
-AS194545,"*ยกเลิกไปใช้ AS194688* Myo-Inositol /solid","*ยกเลิกไปใช้ AS194688* Myo-Inositol [C6H12O6] cas no.87-89-8 /solid 25 g /bot",87-89-8,C6H12O6,,25,g,bot,
 AS197201,"Tri-sodium citrate dihydrate","Tri-sodium citrate dihydrate 500 กรัม /ขวด",,,,500,g,ขวด,
 AS197200,"Sodium chloride ขนาด 500 กรัม","Sodium chloride ขนาด 500 กรัม 500 กรัม /ขวด",,,,500,g,ขวด,
 AS197199,Resorcinol,"Resorcinol 100 กรัม /ขวด",,,,100,g,ขวด,
@@ -1615,9 +1614,6 @@ AS195130,"RIPA Lysis Buffer (10000X in water","RIPA Lysis Buffer (10000X in wate
 AS195127,"Pcr master mix 100 RXN","Pcr master mix 100 RXN /แพ็ค",,,,,,แพ็ค,YES
 AS195126,"Real-time PCR (HRM) master mix 100 RXN","Real-time PCR (HRM) master mix 100 RXN /แพ็ค",,,,,,แพ็ค,YES
 AS193852,"Boric acid , Grade","Boric acid [H3BO3]cas no.10043-35-3 ,AR Grade 500 g /ขวด",10043-35-3,H3BO3,AR,500,g,ขวด,
-AS194228,"*ยกเลิก*Methanol HDPE","*ยกเลิก*Methanol HDPE 2.5 L /bot",,,,2.5,L,bot,
-AS193313,"*ยกเลิก*Clindamycin 10 เม็ด","*ยกเลิก*Clindamycin 150 mg 10 เม็ด /แผง",,,,150,mg,แผง,
-AS193171,"*ยกเลิก*Clindamycin 100 เม็ด","*ยกเลิก*Clindamycin 300mg 100 เม็ด/กล่อง",,,,300,mg,กล่อง,
 AS195125,"Ethyl Alcohol 99.9 % cas.64-17-5 , Grade liquid","Ethyl Alcohol 99.9 % cas.64-17-5 ,AR Grade liquid 2.5 L /bot",,,AR,2.5,L,bot,
 AS195124,"Sorbic acid cas.110-44-1 , Grade solid","Sorbic acid cas.110-44-1 ,AR Grade solid 500 g /bot",,,AR,500,g,bot,
 AS195123,"DL-Malic acid cas.6915-15-7 , Grade solid","DL-Malic acid cas.6915-15-7 ,AR Grade solid 500 g /bot",,,AR,500,g,bot,
@@ -1706,12 +1702,8 @@ AS194903,CR2;TTCGCCCCTATACTCACGTTAT,"CR2;TTCGCCCCTATACTCACGTTAT /Primer",,,,,,Pr
 AS194902,CF1;GAGTTGAACTGCAAGCTCTGG,"CF1;GAGTTGAACTGCAAGCTCTGG /Primer",,,,,,Primer,YES
 AS194901,"Pikovskaya's Broth (Medium","Pikovskaya's Broth (Medium) 500 g /ขวด",,,,500,g,ขวด,
 AS194900,"Go Taq green master mix","Go Taq green master mix 1 ml /ชุด",,,,1,mL,ชุด,
-AS193289,"*ยกเลิกไปใช้ AS194898* Amitriptyline hydrochloride 500 เม็ด","*ยกเลิกไปใช้ AS194898* Amitriptyline hydrochloride 10mg 500 เม็ด/กล่อง",,,,10,mg,กล่อง,
 AS194896,"Acetylcysteine powder 200mg /ซอง 30 ซอง","Acetylcysteine powder 200mg 3g/ซอง 30 ซอง/กล่อง",,,,3,g,กล่อง,
-AS193268,"*ยกเลิกไปใช้ AS194896* Acetylcysteine powder 200mg /ซอง 30 ซอง","*ยกเลิกไปใช้ AS194896* Acetylcysteine powder 200mg 3g/ซอง 30 ซอง/กล่อง",,,,3,g,กล่อง,
 AS194885,"Orphenadrine Paracetamol (Paracetamol 450 mg + Orphenadrine citrate ) 1000 เม็ด","Orphenadrine Paracetamol  (Paracetamol 450 mg + Orphenadrine citrate 35 mg) 1000 เม็ด/กล่อง",,,,35,mg,กล่อง,
-AS193224,"*ยกเลิกไปใช้ AS194885* Orphenadrine Paracetamol (Paracetamol 450 mg + Orphenadrine citrate ) 1000 เม็ด","*ยกเลิกไปใช้ AS194885* Orphenadrine Paracetamol  (Paracetamol 450 mg + Orphenadrine citrate 35 mg) 1000 เม็ด/กล่อง",,,,35,mg,กล่อง,
-AS193144,"*ยกเลิกไปใช้ AS194879* Amoxicillin trihydrate + Potassium clavulanate (Amoxicillin trihydrate 875 mg + Potassium clavulanate ) 50 เม็ด","*ยกเลิกไปใช้ AS194879* Amoxicillin trihydrate + Potassium clavulanate (Amoxicillin trihydrate 875 mg + Potassium clavulanate 125 mg) 50 เม็ด/กล่อง",,,,125,mg,กล่อง,
 AS194879,"Amoxicillin and Potassium clavulanate (875 mg+) 50 เม็ด","Amoxicillin and Potassium clavulanate (875 mg+125 mg) 50 เม็ด/กล่อง",,,,125,mg,กล่อง,
 AS193281,"salicylic acid+phenol (25g+1.5ml/100ml","salicylic acid+phenol (25g+1.5ml/100ml) 15 ml/ขวด",,,,15,mL,ขวด,
 AS194809,"Gibberellic acid / Molecular grade ,Solid","Gibberellic acid [C19H22O6] cas no.77065 / Molecular grade ,Solid 1 g /ขวด",77-06-5,C19H22O6,,1,g,ขวด,
@@ -1725,9 +1717,6 @@ AS194864,"Silane Coupling Agent","Silane Coupling Agent 8 ml /ขวด",,,,8,mL
 AS191773,"Hicrome UTI agar","Hicrome UTI agar 500 g /ขวด",,,,500,g,ขวด,
 AS191654,"ชุดสีย้อมแกรม (Gram Stain Set","ชุดสีย้อมแกรม (Gram Stain Set)",,,,,,,YES
 AS190987,"Manganese (II) sulfate monohydrate (MnSO4.H2O) /Cosmetic grade /powder","Manganese (II) sulfate monohydrate (MnSO4.H2O) cas no.10034-96-5/Cosmetic grade /powder 500 g /ขวด",10034-96-5,,,500,g,ขวด,
-AS193158,"*ยกเลิกไปใช้ AS194842* Cetirizine dihydrochloride 500 เม็ด","*ยกเลิกไปใช้ AS194842* Cetirizine dihydrochloride 10mg 500 เม็ด/กล่อง",,,,10,mg,กล่อง,
-AS191567,"*ยกเลิกไปใช้ AS071955* Sterile water for injection /Liquid 5 ml100 ขวด","*ยกเลิกไปใช้ AS071955* Sterile water for injection /LR /Liquid 5 ml100 ขวด /กล่อง",,,LR,,,กล่อง,YES
-AS191568,"*ยกเลิกไปใช้ AS071956* Sterile water for injection /Liquid 10 ml50 ขวด","*ยกเลิกไปใช้ AS071956* Sterile water for injection /LR /Liquid 10 ml50 ขวด /กล่อง",,,LR,,,กล่อง,YES
 AS194863,"Sodium hypochlorite 10% (โซเดียมไฮโปคลอไรท์) ,Liquid .","Sodium hypochlorite 10% (โซเดียมไฮโปคลอไรท์) [NaOCl]cas no.7681-52-9 ,Liquid 20 กก. /ถัง",7681-52-9,NaOCl,,20,kg,ถัง,
 AS194862,"Sodium chloride 7.5% (โซเดียมคลอไรด์) ,Liquid .","Sodium chloride 7.5% (โซเดียมคลอไรด์) [NaCl]cas no.7647-14-5 ,Liquid 20 กก. /ถัง",7647-14-5,NaCl,,20,kg,ถัง,
 AS194861,"Hydrochloric acid 9% (กรดไฮโดรคลอริก) ,Liquid .","Hydrochloric acid 9% (กรดไฮโดรคลอริก) [HCl]cas no.7647-01-0 ,Liquid 20 กก. /ถัง",7647-01-0,HCl,,20,kg,ถัง,
@@ -1736,7 +1725,6 @@ AS194859,"Aluminium sulfate 16% (สารส้มขุ่นผง) [Al2(SO4)
 AS194858,"Tocopheryl Acetate ,Cosmetic grade ,Liquid","Tocopheryl Acetate [C31H52O3]cas no.58-95-7 ,Cosmetic grade ,Liquid 500 g /ขวด",58-95-7,C31H52O3,,500,g,ขวด,
 AS194856,"Potassium permanganate , grade ,Solid","Potassium permanganate [KMnO4] cas no.7722-64-7 ,AR grade ,Solid 500 g /ขวด",7722-64-7,KMnO4,AR,500,g,ขวด,
 AS194853,"Glycerol 99.5% , grade ,Liquid","Glycerol 99.5% [C3H8O3] cas no.6-81-5 ,AR grade ,Liquid 1 L /ขวด",6-81-5,C3H8O3,AR,1,L,ขวด,
-AS193314,"*ยกเลิกไปใช้ AS194848* Clindamycin 10 เม็ด","*ยกเลิกไปใช้ AS194848* Clindamycin 300 mg 10 เม็ด /แผง",,,,300,mg,แผง,
 AS194847,"Clindamycin 10 เม็ด","Clindamycin 150 mg 10 เม็ด /แผง",,,,150,mg,แผง,
 AS194842,"Cetirizine dihydrochloride 500 เม็ด","Cetirizine dihydrochloride 10mg 500 เม็ด/กล่อง",,,,10,mg,กล่อง,
 AS194840,"Methanol ( grade) /Liquids","Methanol (HPLC grade) /Liquids 2.5 L/ขวด",,,HPLC,2.5,L,ขวด,

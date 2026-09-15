@@ -27,20 +27,22 @@ function scientistUser(): User
     return $user;
 }
 
-function makeItem(array $overrides = []): Item
-{
-    $category = ItemCategory::where('code', 'CHEMICAL')->firstOrFail();
-    $baseUnit = Unit::where('code', 'g')->firstOrFail();
+if (! function_exists('makeItem')) {
+    function makeItem(array $overrides = []): Item
+    {
+        $category = ItemCategory::where('code', 'CHEMICAL')->firstOrFail();
+        $baseUnit = Unit::where('code', 'g')->firstOrFail();
 
-    return Item::create(array_merge([
-        'item_code' => 'CHM-'.fake()->unique()->numerify('#####'),
-        'category_id' => $category->id,
-        'name_th' => 'โซเดียมไฮดรอกไซด์',
-        'name_en' => 'Sodium Hydroxide',
-        'cas_no' => '1310-73-2',
-        'base_unit_id' => $baseUnit->id,
-        'is_active' => true,
-    ], $overrides));
+        return Item::create(array_merge([
+            'item_code' => 'CHM-'.fake()->unique()->numerify('#####'),
+            'category_id' => $category->id,
+            'name_th' => 'โซเดียมไฮดรอกไซด์',
+            'name_en' => 'Sodium Hydroxide',
+            'cas_no' => '1310-73-2',
+            'base_unit_id' => $baseUnit->id,
+            'is_active' => true,
+        ], $overrides));
+    }
 }
 
 test('a user without item.view gets 403 on the item index', function () {
