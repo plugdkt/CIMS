@@ -964,3 +964,20 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   overwrites) so it's safe to re-run after manually fixing any of the rows the parser couldn't confidently
   handle. Full suite: 399/399 passing (4 new tests for the command), PHPStan level 8 clean, Pint clean,
   `composer audit` clean.
+- PubChem (NIH) chemical lookup — two features on top of the same read-only `PubChemClient`
+  (`app/Domain/Chemicals/Services/PubChemClient.php`, no API key required): (1) an "auto-fill from
+  PubChem" button on the item create/edit form (`resources/views/items/form.blade.php`) that fetches
+  molecular formula and GHS pictogram/H-statement/P-statement checkboxes by CAS no. or name and fills
+  the form fields for the user to review — never auto-saves, per the user's explicit direction; and
+  (2) a standalone `/chemicals/lookup` page (gated on a bare `item.view` permission, same as
+  `ReportController`'s convention — no dedicated Policy) for procurement research that doesn't touch
+  the `items` table at all. Both go through `ChemicalLookupController::lookup()`, a single JSON
+  endpoint. Every PubChem lookup is cached 30 days (`Cache::remember`) since a compound's data is
+  effectively static; a network failure or "not found" returns `null` rather than throwing, so a
+  PubChem outage degrades to "fill it in yourself," never a broken page. GHS codes/H-statements/
+  P-statements returned by PubChem are filtered against this app's own `config/ghs.php` reference
+  table before being handed back — a code PubChem knows that our own T-015 reference data doesn't
+  (confirmed empirically: PubChem's own official P265 wasn't in our table) is silently dropped rather
+  than failing `ItemRequest`'s validation. Full suite: 410/410 passing (11 new tests, `Http::fake()`
+  throughout — no real network calls in the test suite), PHPStan level 8 clean, Pint clean, `composer
+  audit` clean.

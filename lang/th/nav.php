@@ -3,6 +3,7 @@
 return [
     'group_data' => 'ข้อมูลหลัก',
     'items' => 'ทะเบียนสารเคมี/วัสดุ',
+    'chemical_lookup' => 'ค้นข้อมูลสารเคมี (PubChem)',
     'locations' => 'ผังจัดเก็บ',
     'group_inventory' => 'คลังสินค้า',
     'stock_in' => 'รับเข้าคลังย่อย (เติมสต็อก)',

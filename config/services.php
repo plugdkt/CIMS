@@ -49,4 +49,12 @@ return [
             : env('SSO_CA_BUNDLE', file_exists(storage_path('certs/cacert.pem')) ? storage_path('certs/cacert.pem') : null),
     ],
 
+    // PubChem (NIH) public compound lookup — no API key. Used for chemical auto-fill
+    // (item create form) and the standalone procurement lookup page.
+    'pubchem' => [
+        'pug_base_url' => env('PUBCHEM_PUG_BASE_URL', 'https://pubchem.ncbi.nlm.nih.gov/rest/pug'),
+        'pug_view_base_url' => env('PUBCHEM_PUG_VIEW_BASE_URL', 'https://pubchem.ncbi.nlm.nih.gov/rest/pug_view'),
+        'timeout_seconds' => (int) env('PUBCHEM_TIMEOUT_SECONDS', 10),
+    ],
+
 ];

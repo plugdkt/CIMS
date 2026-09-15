@@ -84,6 +84,12 @@
                     {{ __('nav.items') }}
                 </a>
             @endcan
+            @can('item.view')
+                <a href="{{ route('chemicals.lookup') }}"
+                   class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('chemicals.lookup') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                    {{ __('nav.chemical_lookup') }}
+                </a>
+            @endcan
             @can('viewAny', App\Models\Location::class)
                 <a href="{{ route('locations.index') }}"
                    class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('locations.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">

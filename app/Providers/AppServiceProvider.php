@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Domain\Attachments\Contracts\VirusScanner;
 use App\Domain\Attachments\Services\ClamAvScanner;
 use App\Domain\Auth\Services\SsoClient;
+use App\Domain\Chemicals\Services\PubChemClient;
 use App\Models\Item;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -30,6 +31,12 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(VirusScanner::class, fn () => new ClamAvScanner(
             host: (string) config('attachments.virus_scan.host'),
             port: (int) config('attachments.virus_scan.port'),
+        ));
+
+        $this->app->singleton(PubChemClient::class, fn () => new PubChemClient(
+            pugBaseUrl: (string) config('services.pubchem.pug_base_url'),
+            pugViewBaseUrl: (string) config('services.pubchem.pug_view_base_url'),
+            timeoutSeconds: (int) config('services.pubchem.timeout_seconds'),
         ));
     }
 

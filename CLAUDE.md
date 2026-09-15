@@ -1178,3 +1178,45 @@ chemicals:import`) to load it. Every judgment call below was made with the user,
   never overwritten, so it's safe to re-run after hand-fixing a handful of rows in the CSV
   (e.g. filling in a `package_size`/`base_unit` the parser couldn't confidently extract) —
   only the newly-fixed rows will actually insert on a re-run.
+
+## Post-launch — PubChem (NIH) chemical lookup (2026-09-15)
+
+Followed directly from the chemical-import work above: the user asked whether PubChem
+could be mapped against our catalog, then asked for two real features once feasibility was
+confirmed (empirically, with live `curl` calls against the real API before writing any
+code — see the conversation, not repeated here). Both share one `PubChemClient`
+(`app/Domain/Chemicals/Services/PubChemClient.php`):
+
+- **Auto-fill on the item create/edit form fills the form, never auto-saves** —
+  user-confirmed explicitly: a "ค้นข้อมูลจาก PubChem" button (vanilla JS + `fetch()` to
+  `ChemicalLookupController::lookup()`, matching the project's established "simplest tool"
+  convention for one small JSON endpoint — same shape as T-031's real-time balance) fills
+  `formula`/`name_en` and checks `ghs_codes[]`/`h_statements[]`/`p_statements[]` boxes, but
+  the user still has to review and click Save themselves like any other edit.
+- **The standalone `/chemicals/lookup` page never touches the `items` table at all** —
+  it's a pure research tool for procurement ("is this the right compound, what hazard class
+  does it carry, before we buy it"), gated on a bare `item.view` permission with no
+  dedicated Policy (same reasoning as `ReportController`: no real Eloquent resource for a
+  Policy to attach to).
+- **PubChem needs no API key/auth** — confirmed live against the real
+  `pubchem.ncbi.nlm.nih.gov/rest/pug` (compound properties) and `.../rest/pug_view`
+  (GHS Classification) endpoints. `PubChemClient` never throws on a network failure, a
+  timeout, or "not found" — every failure path returns `null`, so a PubChem outage
+  degrades to "the user fills the field in by hand," never a broken create-item page.
+- **Every lookup is cached 30 days** (`Cache::remember`, keyed by CAS or lowercased name)
+  — a compound's PubChem data is effectively static, and caching keeps the same common
+  reagent being looked up by several people over time from ever re-hitting the network.
+- **GHS codes/H-statements/P-statements PubChem returns are filtered against this app's
+  own `config/ghs.php` before being handed back** — confirmed empirically that PubChem
+  knows at least one real official P-code (P265) that T-015's own reference table doesn't
+  have, so a naive pass-through would let `ItemRequest`'s `Rule::in(...)` validation reject
+  an auto-filled value the user never even chose. Silently dropping the unknown code (not
+  erroring, not blocking the rest of the auto-fill) was the judgment call — the same
+  "config/ghs.php isn't necessarily exhaustive of every official code" gap T-015 already
+  flagged, just hit for the first time by a second real data source instead of guessed at.
+- **PUG View's exact section nesting for "GHS Classification" isn't hardcoded** —
+  `PubChemClient::findGhsInformation()` walks the `Section` tree looking for the heading by
+  name, since PubChem has restructured this nesting before and a depth-hardcoded path would
+  silently break (return no GHS data at all, not an error) the next time they do.
+- **All 11 new tests use `Http::fake()` — none make a real network call**, matching
+  `SsoLoginTest`'s existing precedent for faking an external HTTP dependency in this app.

@@ -10,6 +10,7 @@ use App\Http\Controllers\Auth\SsoLogoutController;
 use App\Http\Controllers\AccountDataController;
 use App\Http\Controllers\AdjustmentController;
 use App\Http\Controllers\AttachmentController;
+use App\Http\Controllers\ChemicalLookupController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DisposalController;
 use App\Http\Controllers\DocumentVerifyController;
@@ -93,6 +94,7 @@ Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
     Route::get('/', \App\Livewire\Items\ItemTable::class)->name('index');
     Route::get('/create', [ItemController::class, 'create'])->name('create');
     Route::post('/', [ItemController::class, 'store'])->name('store');
+    Route::get('/lookup-pubchem', [ChemicalLookupController::class, 'lookup'])->name('lookup-pubchem');
     Route::get('/{item}', [ItemController::class, 'show'])->name('show');
     Route::get('/{item}/edit', [ItemController::class, 'edit'])->name('edit');
     Route::put('/{item}', [ItemController::class, 'update'])->name('update');
@@ -101,6 +103,10 @@ Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
     Route::get('/{item}/ledger/export/pdf', [LedgerExportController::class, 'pdf'])->name('ledger.export.pdf');
     Route::get('/{item}/ledger/export/excel', [LedgerExportController::class, 'excel'])->name('ledger.export.excel');
 });
+
+// Standalone PubChem lookup for procurement research — no item created/saved here,
+// gated on the same bare item.view permission as ChemicalLookupController::lookup().
+Route::middleware('auth')->get('/chemicals/lookup', \App\Livewire\Chemicals\PubchemLookup::class)->name('chemicals.lookup');
 
 // SEC-AZ-06: no direct/public file URL — every download is authorized per-request.
 Route::middleware('auth')->get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])

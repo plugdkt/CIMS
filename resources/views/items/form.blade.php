@@ -92,6 +92,15 @@
                         </div>
                     </div>
 
+                    <div>
+                        <button type="button" id="pubchem-autofill-btn"
+                                class="rounded-lg border border-border hover:bg-surface-alt text-xs font-semibold px-3 py-1.5">
+                            {{ __('chemicals.autofill_btn') }}
+                        </button>
+                        <p class="text-xs text-ink-muted mt-1.5">{{ __('chemicals.autofill_hint') }}</p>
+                        <p id="pubchem-autofill-status" class="text-xs mt-1.5" hidden></p>
+                    </div>
+
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium mb-1" for="brand">{{ __('items.field_brand') }}</label>
@@ -308,4 +317,61 @@
             </div>
         @endif
     </div>
+
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
+        (function () {
+            var btn = document.getElementById('pubchem-autofill-btn');
+            if (!btn) return;
+
+            var status = document.getElementById('pubchem-autofill-status');
+
+            function setStatus(text, isError) {
+                status.textContent = text;
+                status.hidden = false;
+                status.className = 'text-xs mt-1.5 ' + (isError ? 'text-danger' : 'text-success-ink');
+            }
+
+            function checkCodes(fieldName, codes) {
+                document.querySelectorAll('input[name="' + fieldName + '[]"]').forEach(function (box) {
+                    if (codes.indexOf(box.value) !== -1) box.checked = true;
+                });
+            }
+
+            btn.addEventListener('click', function () {
+                var casNo = document.getElementById('cas_no').value.trim();
+                var nameEn = document.getElementById('name_en').value.trim();
+                var query = casNo !== '' ? casNo : nameEn;
+                var by = casNo !== '' ? 'cas' : 'name';
+
+                if (query === '') {
+                    setStatus('{{ __('chemicals.autofill_not_found') }}', true);
+                    return;
+                }
+
+                setStatus('{{ __('chemicals.autofill_searching') }}', false);
+
+                fetch('{{ route('items.lookup-pubchem') }}?' + new URLSearchParams({ query: query, by: by }), {
+                    headers: { 'Accept': 'application/json' },
+                })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (!data.found) {
+                            setStatus('{{ __('chemicals.autofill_not_found') }}', true);
+                            return;
+                        }
+
+                        if (data.molecular_formula) document.getElementById('formula').value = data.molecular_formula;
+                        if (nameEn === '' && data.title) document.getElementById('name_en').value = data.title;
+                        checkCodes('ghs_codes', data.ghs_codes || []);
+                        checkCodes('h_statements', data.h_statements || []);
+                        checkCodes('p_statements', data.p_statements || []);
+
+                        setStatus('{{ __('chemicals.autofill_filled') }}', false);
+                    })
+                    .catch(function () {
+                        setStatus('{{ __('chemicals.autofill_not_found') }}', true);
+                    });
+            });
+        })();
+    </script>
 </x-layout>
