@@ -61,7 +61,7 @@ final class PubchemLookup extends Component
 
     public function mount(PubChemClient $client): void
     {
-        $this->authorize('item.view');
+        $this->authorize('viewAny', Item::class);
 
         if (trim($this->query) !== '') {
             $this->search($client);
@@ -70,7 +70,7 @@ final class PubchemLookup extends Component
 
     public function search(PubChemClient $client): void
     {
-        $this->authorize('item.view');
+        $this->authorize('viewAny', Item::class);
         $this->validate(['query' => ['required', 'string', 'max:255']]);
 
         $this->searched = true;
@@ -106,17 +106,18 @@ final class PubchemLookup extends Component
         $this->hStatements = $result->hStatements;
         $this->pStatements = $result->pStatements;
 
-        $matched = Item::query()
-            ->where(function ($q) {
-                if ($this->by === 'cas' && $this->query !== '') {
-                    $q->where('cas_no', trim($this->query));
-                }
-                if ($this->title !== null && $this->title !== '') {
-                    $q->orWhere('name_en', $this->title)
-                        ->orWhere('name_th', $this->title);
-                }
-            })
-            ->first();
+        // Primary matching: CAS No. (exact). Secondary fallback: exact case-insensitive name match.
+        $matched = null;
+        $casQuery = trim($this->query);
+        if ($this->by === 'cas' && $casQuery !== '') {
+            $matched = Item::where('cas_no', $casQuery)->first();
+        }
+        if ($matched === null && trim($this->title) !== '') {
+            $titleLower = mb_strtolower(trim($this->title));
+            $matched = Item::whereRaw('LOWER(name_en) = ?', [$titleLower])
+                ->orWhereRaw('LOWER(name_th) = ?', [$titleLower])
+                ->first();
+        }
 
         if ($matched !== null) {
             $this->matchedItemId = $matched->id;
@@ -180,6 +181,10 @@ final class PubchemLookup extends Component
 
     public function render(): View
     {
-        return view('livewire.chemicals.pubchem-lookup');
+        $matchedItem = $this->matchedItemId !== null ? Item::find($this->matchedItemId) : null;
+
+        return view('livewire.chemicals.pubchem-lookup', [
+            'matchedItem' => $matchedItem,
+        ]);
     }
 }

@@ -997,7 +997,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   allowing lab managers to refresh/enrich an existing chemical's GHS codes, H-statements, P-statements,
   and formula straight from PubChem.
   (4) Registry search fallback on `ItemTable` (`/items`) displaying a direct search link to PubChem
-  whenever a search returns 0 results. Full suite: 5 new tests covering service, controller, and livewire
-  sync workflows, PHPStan level 8 clean, Pint clean.
-
-
+- Hardened PubChem registry synchronization & concurrency safety:
+  (1) Replaced naive regex item code generation with `DocumentNumberGenerator` (`CHM-{YYYY}-{NNNNN}`)
+  backed by atomic `lockForUpdate()` on `document_counters` and collision-detection fallback loop,
+  ensuring BR-09 fiscal-year format consistency and race-free concurrent generation.
+  (2) TOCTOU duplicate prevention: `createFromPubChem()` checks existing `cas_no` inside the DB
+  transaction with `lockForUpdate()` before inserting, preventing duplicate rows when multiple users click sync.
+  (3) Safety & GHS traceability: `syncItem()` captures before/after states and writes an entity-level
+  `AuditLog::record()` with action `PUBCHEM_SYNC`, tracking changes to formula, GHS pictograms, H/P statements,
+  and specifications.
+  (4) Policy authorization enforcement: replaced loose string permission gates in `PubchemLookup`
+  and its Blade view with strict `ItemPolicy` methods (`viewAny`, `create`, `update` with target `$item`),
+  satisfying AGENT RULE #7 and preventing privilege escalation.
+  (5) Explicit `base_unit_id` handling: left as `null` per CMIS working-stock convention, backfilled on initial GRN.
+  (6) Refined duplicate matching: prioritized exact CAS No. matching with case-insensitive exact name fallback
+  to avoid false positive/negative matches. Added comprehensive unit and feature test coverage; PHPStan level 8
+  and Pint clean.

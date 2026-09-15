@@ -111,14 +111,16 @@
                                 <a href="{{ route('items.show', $matchedItemUlid) }}" class="rounded-lg bg-surface border border-border text-ink hover:bg-surface-alt text-xs font-semibold px-3 py-1.5 shadow-2xs whitespace-nowrap">
                                     {{ __('chemicals.item_exists_view') }}
                                 </a>
-                                @can('item.manage')
-                                    <button type="button" wire:click="syncExistingItem" wire:loading.attr="disabled"
-                                            wire:confirm="{{ __('chemicals.sync_btn_confirm') }}"
-                                            class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5 shadow-2xs whitespace-nowrap flex items-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                                        {{ __('chemicals.item_exists_sync') }}
-                                    </button>
-                                @endcan
+                                @if ($matchedItem)
+                                    @can('update', $matchedItem)
+                                        <button type="button" wire:click="syncExistingItem" wire:loading.attr="disabled"
+                                                wire:confirm="{{ __('chemicals.sync_btn_confirm') }}"
+                                                class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5 shadow-2xs whitespace-nowrap flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                            {{ __('chemicals.item_exists_sync') }}
+                                        </button>
+                                    @endcan
+                                @endif
                             </div>
                         </div>
                     </div>

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Chemicals\Services;
 
 use App\Domain\Chemicals\DTO\PubChemCompoundData;
+use App\Domain\Shared\DocumentNumberGenerator;
+use App\Models\AuditLog;
 use App\Models\Item;
 use App\Models\ItemCategory;
 use Illuminate\Support\Facades\DB;
@@ -13,12 +15,14 @@ final class ChemicalSyncService
 {
     public function __construct(
         private readonly PubChemClient $client,
+        private readonly DocumentNumberGenerator $documentNumberGenerator,
     ) {
     }
 
     /**
      * Synchronize an existing item with PubChem data.
      * Looks up by CAS first, then by name_en, then by name_th.
+     * Records an entity-level AuditLog for any modified safety and chemical data.
      */
     public function syncItem(Item $item): bool
     {
@@ -41,6 +45,15 @@ final class ChemicalSyncService
         }
 
         DB::transaction(function () use ($item, $compound) {
+            $before = [
+                'formula' => $item->formula,
+                'name_en' => $item->name_en,
+                'ghs_codes' => $item->ghs_codes,
+                'h_statements' => $item->h_statements,
+                'p_statements' => $item->p_statements,
+                'specification' => $item->specification,
+            ];
+
             if ($compound->molecularFormula !== null && $compound->molecularFormula !== '') {
                 $item->formula = mb_substr($compound->molecularFormula, 0, 128);
             }
@@ -63,6 +76,28 @@ final class ChemicalSyncService
             }
 
             $item->save();
+
+            $after = [
+                'formula' => $item->formula,
+                'name_en' => $item->name_en,
+                'ghs_codes' => $item->ghs_codes,
+                'h_statements' => $item->h_statements,
+                'p_statements' => $item->p_statements,
+                'specification' => $item->specification,
+            ];
+
+            $authId = auth()->id();
+            AuditLog::record(
+                action: 'PUBCHEM_SYNC',
+                result: 'SUCCESS',
+                userId: $authId !== null ? (int) $authId : null,
+                username: auth()->user()?->username,
+                entityType: Item::class,
+                entityId: $item->id,
+                oldValue: $before,
+                newValue: $after,
+                message: "PubChem CID: {$compound->cid}",
+            );
         });
 
         return true;
@@ -70,10 +105,18 @@ final class ChemicalSyncService
 
     /**
      * Create a new Item directly from PubChem compound data.
+     * Prevents TOCTOU duplicates inside transaction by checking CAS with row lock.
      */
     public function createFromPubChem(PubChemCompoundData $compound, ?string $cas = null): Item
     {
         return DB::transaction(function () use ($compound, $cas) {
+            if ($cas !== null && trim($cas) !== '') {
+                $existing = Item::where('cas_no', trim($cas))->lockForUpdate()->first();
+                if ($existing !== null) {
+                    return $existing;
+                }
+            }
+
             $categoryId = ItemCategory::where('code', 'CHEMICAL')->value('id')
                 ?? ItemCategory::firstOrFail()->id;
 
@@ -98,31 +141,23 @@ final class ChemicalSyncService
                 'h_statements' => $compound->hStatements,
                 'p_statements' => $compound->pStatements,
                 'specification' => implode("\n", $specLines),
+                // ponytail: base_unit_id is intentionally left null per the working-stock convention;
+                // it is set/backfilled upon initial goods receipt (GRN) when packaging and unit are physically received.
+                'base_unit_id' => null,
                 'is_active' => true,
             ]);
         });
     }
 
     /**
-     * Generate the next available sequential item code with prefix CHM-.
+     * Generate the next available sequential item code with prefix CHM- via DocumentNumberGenerator.
+     * Guarantees atomic generation with row lock and skips any colliding manual codes.
      */
     public function generateNextItemCode(): string
     {
-        $lastCode = Item::where('item_code', 'REGEXP', '^CHM-[0-9]+$')
-            ->orderByRaw('LENGTH(item_code) DESC, item_code DESC')
-            ->value('item_code');
-
-        if ($lastCode !== null && preg_match('/^CHM-(\d+)$/', $lastCode, $matches)) {
-            $next = ((int) $matches[1]) + 1;
-        } else {
-            $next = 1;
-        }
-
-        $candidate = sprintf('CHM-%05d', $next);
-        while (Item::where('item_code', $candidate)->exists()) {
-            $next++;
-            $candidate = sprintf('CHM-%05d', $next);
-        }
+        do {
+            $candidate = $this->documentNumberGenerator->next('CHM');
+        } while (Item::where('item_code', $candidate)->exists());
 
         return $candidate;
     }

@@ -68,9 +68,15 @@ test('ChemicalSyncService::syncItem updates formula and GHS data on existing ite
     expect($fresh->h_statements)->toBe(['H225']);
     expect($fresh->p_statements)->toBe(['P210', 'P233']);
     expect($fresh->specification)->toContain('PubChem CID: 702');
+
+    $audit = \App\Models\AuditLog::where('action', 'PUBCHEM_SYNC')->where('entity_id', $item->id)->first();
+    expect($audit)->not->toBeNull();
+    expect($audit->old_value['formula'])->toBeNull();
+    expect($audit->new_value['formula'])->toBe('C2H6O');
+    expect($audit->new_value['ghs_codes'])->toBe(['GHS02']);
 });
 
-test('ChemicalSyncService::createFromPubChem creates a new item with generated item_code', function () {
+test('ChemicalSyncService::createFromPubChem creates a new item with generated item_code and null base_unit_id', function () {
     $compound = new PubChemCompoundData(
         cid: 702,
         title: 'Ethanol',
@@ -87,7 +93,7 @@ test('ChemicalSyncService::createFromPubChem creates a new item with generated i
     $item = $service->createFromPubChem($compound, '64-17-5');
 
     expect($item->id)->toBeGreaterThan(0);
-    expect($item->item_code)->toMatch('/^CHM-\d{5}$/');
+    expect($item->item_code)->toMatch('/^CHM-\d{4}-\d{5}$/');
     expect($item->name_th)->toBe('Ethanol');
     expect($item->name_en)->toBe('Ethanol');
     expect($item->cas_no)->toBe('64-17-5');
@@ -95,10 +101,32 @@ test('ChemicalSyncService::createFromPubChem creates a new item with generated i
     expect($item->ghs_codes)->toBe(['GHS02']);
     expect($item->h_statements)->toBe(['H225']);
     expect($item->p_statements)->toBe(['P210']);
+    expect($item->base_unit_id)->toBeNull();
     expect($item->is_active)->toBeTrue();
 });
 
-test('ChemicalSyncService::generateNextItemCode increments sequentially', function () {
+test('ChemicalSyncService::createFromPubChem returns existing item when CAS matches to prevent TOCTOU duplicate', function () {
+    $compound = new PubChemCompoundData(
+        cid: 702,
+        title: 'Ethanol',
+        molecularFormula: 'C2H6O',
+        molecularWeight: '46.07',
+        iupacName: 'ethanol',
+        signalWord: 'Danger',
+        ghsCodes: ['GHS02'],
+        hStatements: ['H225'],
+        pStatements: ['P210'],
+    );
+
+    $service = app(ChemicalSyncService::class);
+    $item1 = $service->createFromPubChem($compound, '64-17-5');
+    $item2 = $service->createFromPubChem($compound, '64-17-5');
+
+    expect($item2->id)->toBe($item1->id);
+    expect(\App\Models\Item::where('cas_no', '64-17-5')->count())->toBe(1);
+});
+
+test('ChemicalSyncService::generateNextItemCode increments sequentially and avoids collisions', function () {
     $service = app(ChemicalSyncService::class);
     $code1 = $service->generateNextItemCode();
 
@@ -106,7 +134,7 @@ test('ChemicalSyncService::generateNextItemCode increments sequentially', functi
 
     $code2 = $service->generateNextItemCode();
 
-    expect($code1)->toMatch('/^CHM-\d{5}$/');
-    expect($code2)->toMatch('/^CHM-\d{5}$/');
+    expect($code1)->toMatch('/^CHM-\d{4}-\d{5}$/');
+    expect($code2)->toMatch('/^CHM-\d{4}-\d{5}$/');
     expect($code2)->not->toBe($code1);
 });

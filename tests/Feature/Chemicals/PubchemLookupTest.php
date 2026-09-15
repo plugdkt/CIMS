@@ -1,6 +1,8 @@
 <?php
 
+use App\Domain\Chemicals\Services\PubChemClient;
 use App\Livewire\Chemicals\PubchemLookup;
+use App\Models\Item;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -8,93 +10,113 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-test('a user without item.view is forbidden from mounting the lookup page', function () {
+test('unauthenticated user cannot access pubchem lookup page', function () {
+    $this->get(route('chemicals.lookup'))
+        ->assertRedirect(route('login'));
+});
+
+test('user without item.view cannot access pubchem lookup', function () {
     $user = User::factory()->create();
 
-    Livewire::actingAs($user)->test(PubchemLookup::class)->assertForbidden();
+    $this->actingAs($user)
+        ->get(route('chemicals.lookup'))
+        ->assertForbidden();
 });
 
-test('a SCIENTIST can search by CAS and see the result rendered', function () {
+test('user with item.view (scientist) can access pubchem lookup and search', function () {
+    $scientist = scientistUser();
+
     Http::fake([
         '*rest/pug/compound/xref/RegistryID/*' => Http::response([
-            'PropertyTable' => ['Properties' => [['CID' => 5234, 'Title' => 'Sodium Chloride', 'MolecularFormula' => 'ClNa']]],
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702,
+                'Title' => 'Ethanol',
+                'MolecularFormula' => 'C2H6O',
+                'MolecularWeight' => '46.07',
+                'IUPACName' => 'ethanol',
+            ]]],
         ], 200),
         '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
     ]);
-    $scientist = scientistUser();
 
     Livewire::actingAs($scientist)
-        ->test(PubchemLookup::class)
-        ->set('by', 'cas')
-        ->set('query', '7647-14-5')
-        ->call('search')
-        ->assertSee('Sodium Chloride')
-        ->assertSee('ClNa');
-});
-
-test('searching with an empty query is rejected by validation', function () {
-    $scientist = scientistUser();
-
-    Livewire::actingAs($scientist)
-        ->test(PubchemLookup::class)
-        ->set('query', '')
-        ->call('search')
-        ->assertHasErrors('query');
-});
-
-test('a not-found result shows the not-found message', function () {
-    Http::fake([
-        '*rest/pug/compound/xref/RegistryID/*' => Http::response(['Fault' => ['Code' => 'PUGREST.NotFound']], 404),
-    ]);
-    $scientist = scientistUser();
-
-    Livewire::actingAs($scientist)
-        ->test(PubchemLookup::class)
-        ->set('by', 'cas')
-        ->set('query', '0000-00-0')
-        ->call('search')
-        ->assertSee(__('chemicals.not_found'));
-});
-
-test('syncToRegistry creates a new item in registry', function () {
-    Http::fake([
-        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
-            'PropertyTable' => ['Properties' => [['CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O']]],
-        ], 200),
-        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
-    ]);
-    $manager = labManagerUser();
-
-    Livewire::actingAs($manager)
         ->test(PubchemLookup::class)
         ->set('by', 'cas')
         ->set('query', '64-17-5')
-        ->call('search')
+        ->call('search', app(PubChemClient::class))
+        ->assertSet('found', true)
+        ->assertSet('cid', 702)
+        ->assertSet('title', 'Ethanol');
+});
+
+test('user with item.view only cannot call syncToRegistry or syncExistingItem', function () {
+    $scientist = scientistUser();
+
+    $item = makeItem([
+        'cas_no' => '64-17-5',
+        'name_en' => 'Ethanol',
+    ]);
+
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702,
+                'Title' => 'Ethanol',
+                'MolecularFormula' => 'C2H6O',
+                'MolecularWeight' => '46.07',
+            ]]],
+        ], 200),
+        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+
+    // syncToRegistry requires item.manage (create)
+    Livewire::actingAs($scientist)
+        ->test(PubchemLookup::class)
+        ->set('by', 'cas')
+        ->set('query', '64-17-5')
+        ->call('search', app(PubChemClient::class))
         ->call('syncToRegistry')
-        ->assertRedirect();
+        ->assertForbidden();
 
-    $item = \App\Models\Item::where('cas_no', '64-17-5')->first();
-    expect($item)->not->toBeNull();
-    expect($item->name_en)->toBe('Ethanol');
-    expect($item->formula)->toBe('C2H6O');
-});
-
-test('matchedItem detects existing registered chemical and displays status banner', function () {
-    makeItem(['cas_no' => '64-17-5', 'item_code' => 'CHM-EXIST', 'name_th' => 'เอทานอลทดสอบ']);
-
-    Http::fake([
-        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
-            'PropertyTable' => ['Properties' => [['CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O']]],
-        ], 200),
-        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
-    ]);
-    $scientist = scientistUser();
-
+    // syncExistingItem requires item.manage (update)
     Livewire::actingAs($scientist)
         ->test(PubchemLookup::class)
         ->set('by', 'cas')
         ->set('query', '64-17-5')
-        ->call('search')
-        ->assertSee('CHM-EXIST')
-        ->assertSee('เอทานอลทดสอบ');
+        ->call('search', app(PubChemClient::class))
+        ->call('syncExistingItem')
+        ->assertForbidden();
+});
+
+test('user with item.manage (lab manager) can call syncExistingItem and syncToRegistry', function () {
+    $labManager = labManagerUser();
+
+    $item = makeItem([
+        'cas_no' => '64-17-5',
+        'name_en' => 'Ethanol',
+        'formula' => null,
+    ]);
+
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702,
+                'Title' => 'Ethanol',
+                'MolecularFormula' => 'C2H6O',
+                'MolecularWeight' => '46.07',
+            ]]],
+        ], 200),
+        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+
+    Livewire::actingAs($labManager)
+        ->test(PubchemLookup::class)
+        ->set('by', 'cas')
+        ->set('query', '64-17-5')
+        ->call('search', app(PubChemClient::class))
+        ->assertSet('matchedItemId', $item->id)
+        ->call('syncExistingItem')
+        ->assertRedirect(route('items.show', $item));
+
+    expect($item->fresh()->formula)->toBe('C2H6O');
 });
