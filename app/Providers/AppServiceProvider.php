@@ -37,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
             pugBaseUrl: (string) config('services.pubchem.pug_base_url'),
             pugViewBaseUrl: (string) config('services.pubchem.pug_view_base_url'),
             timeoutSeconds: (int) config('services.pubchem.timeout_seconds'),
+            caBundle: config('services.pubchem.ca_bundle'),
         ));
     }
 

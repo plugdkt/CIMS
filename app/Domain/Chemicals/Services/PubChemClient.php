@@ -29,6 +29,7 @@ final class PubChemClient
         private readonly string $pugBaseUrl,
         private readonly string $pugViewBaseUrl,
         private readonly int $timeoutSeconds,
+        private readonly string|bool|null $caBundle = null,
     ) {
     }
 
@@ -39,11 +40,18 @@ final class PubChemClient
             return null;
         }
 
-        return Cache::remember(
-            'pubchem:cas:'.$cas,
-            now()->addDays(self::CACHE_TTL_DAYS),
-            fn () => $this->resolve('xref/RegistryID', $cas),
-        );
+        $key = 'pubchem:v2:cas:'.$cas;
+        $cached = Cache::get($key);
+        if ($cached instanceof PubChemCompoundData) {
+            return $cached;
+        }
+
+        $data = $this->resolve('xref/RegistryID', $cas);
+        if ($data !== null) {
+            Cache::put($key, $data, now()->addDays(self::CACHE_TTL_DAYS));
+        }
+
+        return $data;
     }
 
     public function lookupByName(string $name): ?PubChemCompoundData
@@ -53,18 +61,29 @@ final class PubChemClient
             return null;
         }
 
-        return Cache::remember(
-            'pubchem:name:'.mb_strtolower($name),
-            now()->addDays(self::CACHE_TTL_DAYS),
-            fn () => $this->resolve('name', $name),
-        );
+        $key = 'pubchem:v2:name:'.mb_strtolower($name);
+        $cached = Cache::get($key);
+        if ($cached instanceof PubChemCompoundData) {
+            return $cached;
+        }
+
+        $data = $this->resolve('name', $name);
+        if ($data !== null) {
+            Cache::put($key, $data, now()->addDays(self::CACHE_TTL_DAYS));
+        }
+
+        return $data;
     }
 
     private function resolve(string $domain, string $value): ?PubChemCompoundData
     {
         try {
-            $response = Http::timeout($this->timeoutSeconds)
-                ->get("{$this->pugBaseUrl}/compound/{$domain}/".rawurlencode($value)
+            $request = Http::timeout($this->timeoutSeconds);
+            if ($this->caBundle !== null) {
+                $request = $request->withOptions(['verify' => $this->caBundle]);
+            }
+
+            $response = $request->get("{$this->pugBaseUrl}/compound/{$domain}/".rawurlencode($value)
                     .'/property/Title,MolecularFormula,MolecularWeight,IUPACName/JSON');
 
             if (! $response->successful()) {
@@ -105,8 +124,12 @@ final class PubChemClient
         $empty = ['signalWord' => null, 'ghsCodes' => [], 'hStatements' => [], 'pStatements' => []];
 
         try {
-            $response = Http::timeout($this->timeoutSeconds)
-                ->get("{$this->pugViewBaseUrl}/data/compound/{$cid}/JSON/", ['heading' => 'GHS Classification']);
+            $request = Http::timeout($this->timeoutSeconds);
+            if ($this->caBundle !== null) {
+                $request = $request->withOptions(['verify' => $this->caBundle]);
+            }
+
+            $response = $request->get("{$this->pugViewBaseUrl}/data/compound/{$cid}/JSON/", ['heading' => 'GHS Classification']);
 
             if (! $response->successful()) {
                 return $empty;

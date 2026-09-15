@@ -55,6 +55,9 @@ return [
         'pug_base_url' => env('PUBCHEM_PUG_BASE_URL', 'https://pubchem.ncbi.nlm.nih.gov/rest/pug'),
         'pug_view_base_url' => env('PUBCHEM_PUG_VIEW_BASE_URL', 'https://pubchem.ncbi.nlm.nih.gov/rest/pug_view'),
         'timeout_seconds' => (int) env('PUBCHEM_TIMEOUT_SECONDS', 10),
+        'ca_bundle' => env('PUBCHEM_VERIFY_SSL') === false || env('PUBCHEM_VERIFY_SSL') === 'false'
+            ? false
+            : env('PUBCHEM_CA_BUNDLE', file_exists(storage_path('certs/cacert.pem')) ? storage_path('certs/cacert.pem') : null),
     ],
 
 ];
