@@ -29,3 +29,8 @@ Thumbs.db
 /composer.phar
 /build
 /fonts
+
+# Raw, un-curated source export for the chemicals:import command — the curated,
+# reviewed result lives at database/data/chemicals_import.csv (tracked). This file
+# is a large one-off working copy, not meant to be committed.
+/download.csv

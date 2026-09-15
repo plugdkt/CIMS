@@ -17,6 +17,7 @@ final class UnitSeeder extends Seeder
     public function run(): void
     {
         $units = [
+            ['code' => 'ug', 'name_th' => 'ไมโครกรัม', 'dimension' => 'MASS', 'factor_to_base' => '0.001', 'is_base' => false, 'sort_order' => 0],
             ['code' => 'mg', 'name_th' => 'มิลลิกรัม', 'dimension' => 'MASS', 'factor_to_base' => '1', 'is_base' => true, 'sort_order' => 1],
             ['code' => 'g', 'name_th' => 'กรัม', 'dimension' => 'MASS', 'factor_to_base' => '1000', 'is_base' => false, 'sort_order' => 2],
             ['code' => 'kg', 'name_th' => 'กิโลกรัม', 'dimension' => 'MASS', 'factor_to_base' => '1000000', 'is_base' => false, 'sort_order' => 3],

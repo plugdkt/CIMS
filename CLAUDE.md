@@ -1128,3 +1128,53 @@ notes assumed.
 - **The Privacy Notice text (`lang/th/privacy.php`, T-050) has not been reviewed by legal counsel** —
   written to be a genuine, defensible first draft (same class of judgment call as T-015's GHS statement
   wording), but the notice itself says so explicitly and should not be treated as final without review.
+
+## Post-launch — Chemical catalog bulk import (`chemicals:import`, 2026-09-15)
+
+The user provided a raw ~8,225-row export of the central-store chemical/material catalog
+(`download.csv`, gitignored/not committed — item codes prefixed "AS", no category column,
+no separate quantity/unit columns, quantity and packaging embedded as free text in the name
+string, e.g. `"Asiatic Acid 500 mg /ขวด"`). Curated it down to `database/data/
+chemicals_import.csv` (5,261 rows) and built `ImportChemicalsCommand` (`php artisan
+chemicals:import`) to load it. Every judgment call below was made with the user, not guessed:
+
+- **`item_code` is the "AS" code verbatim, not a CMIS-generated one** — user-confirmed, so the
+  imported catalog stays directly reconcilable against the central store the codes came from.
+- **"Real chemical" filtering was a genuine, iterative classification problem, not a clean
+  rule** — the source data mixes true lab chemicals/reagents with dental materials, pharmacy
+  products (insulin, inhalers, tablets), Thai/Chinese herbal-medicine raw materials packaged
+  in ห่อ/แพ็ค, and finished cosmetic/consumer products (essential oils, Nivea, nail polish).
+  A pure "has CAS number or grade marker" regex only caught ~2,200 of 8,202 distinct names;
+  reaching a workable split required several rounds of showing the user concrete sample
+  buckets and confirming specific category calls: microbiology media/reagents with no CAS
+  (agar, broth, BSA) → **count as chemical**; industrial/high-pressure gases (Helium UHP) →
+  **count as chemical**; cosmetic/consumer finished products and food/herbal raw-material
+  packs → **exclude entirely**, even though some (e.g. Dimethicone, Laureth-series INCI raw
+  materials) are legitimate industrial chemicals in their own right and were kept. Final
+  split: 5,261 include / 1,623 exclude / 1,318 rows the classifier itself flagged as still
+  ambiguous — that "unclear" bucket was handed back to the user rather than silently guessed
+  either way. **Any future addition to this catalog from the same source should expect the
+  same triage effort** — there is no shortcut rule that classifies this dataset cleanly.
+- **23 exact-duplicate-name rows were dropped, keeping the row with the numerically higher
+  "AS" code** (assumed more-recently-added in the source system) — a reasonable default with
+  no stronger signal available; noted here in case a duplicate ever turns out to have been
+  the wrong one to keep.
+- **Quantity/unit/CAS/grade/molecular-formula were parsed out of the free-text name via
+  regex**, not guessed per-row — ~92% of the 5,261 included rows got a clean quantity+unit
+  match; the rest import with `package_size`/`base_unit_id` left `null` rather than a wrong
+  guess (`ImportChemicalsCommand` accepts null for both, matching the working-stock/single-
+  step merge's `base_unit_id`-nullable change above). The parsed `raw_name` (original,
+  unparsed string) and the packaging word (ขวด/หลอด/กล่อง/...) are preserved in `items.
+  specification` for anyone who wants to double-check or re-derive something the parser
+  discarded.
+- **Added a new `ug` (microgram) unit** (`UnitSeeder`, `factor_to_base = 0.001`) — user-
+  confirmed, since ~99 rows are dosed in µg (mostly antibiotic-susceptibility discs/potency
+  markers) and the system previously had nothing below `mg` for the MASS dimension. `mg`
+  stays the dimension's actual base (`is_base = true`, factor `1`, unchanged) — `ug` is
+  purely an additional non-base unit, so no existing stored quantity anywhere in the app
+  changes meaning; re-running `UnitSeeder` (idempotent, `updateOrCreate`) is all a fresh
+  environment needs to pick it up.
+- **`ImportChemicalsCommand` is idempotent by `item_code`** — an existing code is skipped,
+  never overwritten, so it's safe to re-run after hand-fixing a handful of rows in the CSV
+  (e.g. filling in a `package_size`/`base_unit` the parser couldn't confidently extract) —
+  only the newly-fixed rows will actually insert on a re-run.

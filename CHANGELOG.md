@@ -948,3 +948,19 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   replenishment (now the primary way stock enters the system, GRN having been removed) would have been
   the one write path left completely unscoped, undermining the whole feature's point. Full suite:
   395/395 passing, PHPStan level 8 clean, Pint clean, `composer audit` clean.
+- Chemical catalog bulk import (`php artisan chemicals:import`): curated a raw ~8,225-row export from
+  the central-store system (`download.csv`, item codes prefixed "AS") down to `database/data/
+  chemicals_import.csv` (5,261 rows) at the user's direction — item_code kept verbatim as the "AS" code
+  (so it stays reconcilable against the central store), filtered to real chemicals/lab reagents only
+  (drug products, dental materials, cosmetics/consumer goods, and Thai/Chinese herbal-medicine raw
+  materials excluded — a genuine judgment call given the source data had no category column at all;
+  see CLAUDE.md), 23 exact-duplicate-name rows dropped (kept the higher/likely-newer AS code in each
+  group), and free-text quantity/unit/CAS/grade/molecular-formula parsed out of each name string into
+  real columns (~92% of rows got a clean quantity+unit match; the rest import with those two fields
+  left null rather than guessed). Added a new `ug` (microgram) unit (`UnitSeeder`, `factor_to_base =
+  0.001`, `mg` stays the MASS dimension's base — this is purely an additional non-base unit, so no
+  existing quantity anywhere in the app changes meaning) since ~99 rows used it and the system had no
+  unit below `mg`. `ImportChemicalsCommand` is idempotent (skips an `item_code` already present, never
+  overwrites) so it's safe to re-run after manually fixing any of the rows the parser couldn't confidently
+  handle. Full suite: 399/399 passing (4 new tests for the command), PHPStan level 8 clean, Pint clean,
+  `composer audit` clean.
