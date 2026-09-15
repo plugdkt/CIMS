@@ -55,3 +55,46 @@ test('a not-found result shows the not-found message', function () {
         ->call('search')
         ->assertSee(__('chemicals.not_found'));
 });
+
+test('syncToRegistry creates a new item in registry', function () {
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [['CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O']]],
+        ], 200),
+        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+    $manager = labManagerUser();
+
+    Livewire::actingAs($manager)
+        ->test(PubchemLookup::class)
+        ->set('by', 'cas')
+        ->set('query', '64-17-5')
+        ->call('search')
+        ->call('syncToRegistry')
+        ->assertRedirect();
+
+    $item = \App\Models\Item::where('cas_no', '64-17-5')->first();
+    expect($item)->not->toBeNull();
+    expect($item->name_en)->toBe('Ethanol');
+    expect($item->formula)->toBe('C2H6O');
+});
+
+test('matchedItem detects existing registered chemical and displays status banner', function () {
+    makeItem(['cas_no' => '64-17-5', 'item_code' => 'CHM-EXIST', 'name_th' => 'เอทานอลทดสอบ']);
+
+    Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => Http::response([
+            'PropertyTable' => ['Properties' => [['CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O']]],
+        ], 200),
+        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+    $scientist = scientistUser();
+
+    Livewire::actingAs($scientist)
+        ->test(PubchemLookup::class)
+        ->set('by', 'cas')
+        ->set('query', '64-17-5')
+        ->call('search')
+        ->assertSee('CHM-EXIST')
+        ->assertSee('เอทานอลทดสอบ');
+});

@@ -15,6 +15,14 @@
                         </a>
                     @endcan
                     @can('update', $item)
+                        <form method="POST" action="{{ route('items.sync-pubchem', $item) }}" class="inline"
+                              onsubmit="return confirm('{{ __('chemicals.sync_btn_confirm') }}')">
+                            @csrf
+                            <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface text-ink text-xs font-semibold hover:bg-surface-alt transition-colors shadow-2xs">
+                                <svg class="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                {{ __('chemicals.sync_btn') }}
+                            </button>
+                        </form>
                         <a href="{{ route('items.edit', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
                             {{ __('items.edit') }}
                         </a>
@@ -22,6 +30,20 @@
                 </div>
             </div>
         </div>
+
+        @if (session('status'))
+            <div class="mb-5 rounded-xl bg-success-soft text-success-ink text-sm px-4 py-3 border border-success/20 flex items-center gap-2">
+                <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>{{ session('status') }}</span>
+            </div>
+        @endif
+
+        @if (session('status_warning'))
+            <div class="mb-5 rounded-xl bg-warning-soft text-warning-ink text-sm px-4 py-3 border border-warning/20 flex items-center gap-2">
+                <svg class="w-4 h-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <span>{{ session('status_warning') }}</span>
+            </div>
+        @endif
 
         @if (session('label_container_ids'))
             <div class="mb-5 rounded-xl border border-accent/40 bg-accent-soft/30 p-4">

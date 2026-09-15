@@ -31,3 +31,23 @@ if (! function_exists('makeItem')) {
         ], $overrides));
     }
 }
+
+if (! function_exists('labManagerUser')) {
+    function labManagerUser(array $overrides = []): \App\Models\User
+    {
+        $user = \App\Models\User::factory()->create($overrides);
+        $user->roles()->attach(\App\Models\Role::where('code', 'LAB_MANAGER')->firstOrFail());
+
+        return $user;
+    }
+}
+
+if (! function_exists('scientistUser')) {
+    function scientistUser(): \App\Models\User
+    {
+        $user = \App\Models\User::factory()->create();
+        $user->roles()->attach(\App\Models\Role::where('code', 'SCIENTIST')->firstOrFail());
+
+        return $user;
+    }
+}

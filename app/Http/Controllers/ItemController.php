@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Chemicals\Services\ChemicalSyncService;
 use App\Http\Requests\ItemRequest;
 use App\Models\Item;
 use App\Models\ItemCategory;
@@ -66,5 +67,20 @@ final class ItemController extends Controller
         $item->update($request->validated());
 
         return redirect()->route('items.index')->with('status', __('items.saved'));
+    }
+
+    public function syncPubChem(Item $item, ChemicalSyncService $syncService): RedirectResponse
+    {
+        $this->authorize('update', $item);
+
+        $synced = $syncService->syncItem($item);
+
+        if (! $synced) {
+            return redirect()->route('items.show', $item)
+                ->with('status_warning', __('chemicals.sync_not_found'));
+        }
+
+        return redirect()->route('items.show', $item)
+            ->with('status', __('chemicals.sync_success'));
     }
 }

@@ -75,7 +75,21 @@
                     @empty
                         <tr>
                             <td colspan="6" class="px-4 py-8 text-center text-ink-muted text-sm">
-                                {{ __('items.no_results') }}
+                                <div class="flex flex-col items-center justify-center gap-1">
+                                    <span>{{ __('items.no_results') }}</span>
+                                    @if (trim($search) !== '')
+                                        @can('viewAny', App\Models\Item::class)
+                                            <div class="mt-2 text-xs text-ink-muted flex items-center justify-center gap-1.5">
+                                                <span>{{ __('chemicals.registry_not_found_hint') }}</span>
+                                                <a href="{{ route('chemicals.lookup', ['q' => trim($search), 'by' => preg_match('/^\d+-\d+-\d+$/', trim($search)) ? 'cas' : 'name']) }}"
+                                                   class="font-semibold text-accent hover:text-accent-strong inline-flex items-center gap-1 underline underline-offset-2">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                                    {{ __('chemicals.registry_search_pubchem') }} "{{ trim($search) }}" &rarr;
+                                                </a>
+                                            </div>
+                                        @endcan
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @endforelse

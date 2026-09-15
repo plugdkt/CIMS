@@ -16,6 +16,9 @@ use Illuminate\Support\Str;
  * @property int|null $shelf_life_days_after_open
  * @property int|null $base_unit_id
  * @property int|null $package_unit_id
+ * @property list<string>|null $ghs_codes
+ * @property list<string>|null $h_statements
+ * @property list<string>|null $p_statements
  */
 #[Fillable([
     'item_code', 'category_id', 'name_th', 'name_en', 'cas_no', 'formula', 'brand', 'grade',

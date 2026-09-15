@@ -96,20 +96,55 @@
                     @endif
                 @endif
 
-                @can('create', App\Models\Item::class)
-                    <div class="mt-6 pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <span class="text-xs text-ink-muted">{{ __('chemicals.add_to_registry_hint') }}</span>
-                        <a href="{{ route('items.create', [
-                            'cas_no' => $by === 'cas' ? $query : '',
-                            'name_en' => $title,
-                            'formula' => $molecularFormula,
-                            'autofill' => 1,
-                        ]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2 flex items-center justify-center gap-2 shadow-2xs whitespace-nowrap">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                            {{ __('chemicals.add_to_registry') }}
-                        </a>
+                @if ($matchedItemId)
+                    <div class="mt-6 pt-5 border-t border-border">
+                        <div class="rounded-xl bg-success-soft border border-success/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-2 text-sm text-success-ink">
+                                <svg class="w-5 h-5 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <div>
+                                    <span class="font-semibold">{{ __('chemicals.item_exists_in_system') }}</span>
+                                    <span class="font-mono text-xs ml-1 font-bold">[{{ $matchedItemCode }}]</span>
+                                    <span class="ml-1">{{ $matchedItemName }}</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <a href="{{ route('items.show', $matchedItemUlid) }}" class="rounded-lg bg-surface border border-border text-ink hover:bg-surface-alt text-xs font-semibold px-3 py-1.5 shadow-2xs whitespace-nowrap">
+                                    {{ __('chemicals.item_exists_view') }}
+                                </a>
+                                @can('item.manage')
+                                    <button type="button" wire:click="syncExistingItem" wire:loading.attr="disabled"
+                                            wire:confirm="{{ __('chemicals.sync_btn_confirm') }}"
+                                            class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5 shadow-2xs whitespace-nowrap flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        {{ __('chemicals.item_exists_sync') }}
+                                    </button>
+                                @endcan
+                            </div>
+                        </div>
                     </div>
-                @endcan
+                @else
+                    @can('create', App\Models\Item::class)
+                        <div class="mt-6 pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <span class="text-xs text-ink-muted">{{ __('chemicals.add_to_registry_hint') }}</span>
+                            <div class="flex items-center gap-2">
+                                <button type="button" wire:click="syncToRegistry" wire:loading.attr="disabled"
+                                        wire:confirm="{{ __('chemicals.sync_1click_confirm') }}"
+                                        class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2 flex items-center justify-center gap-2 shadow-2xs whitespace-nowrap">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                    {{ __('chemicals.sync_1click_btn') }}
+                                </button>
+                                <a href="{{ route('items.create', [
+                                    'cas_no' => $by === 'cas' ? $query : '',
+                                    'name_en' => $title,
+                                    'formula' => $molecularFormula,
+                                    'autofill' => 1,
+                                ]) }}" class="rounded-lg border border-border bg-surface hover:bg-surface-alt text-ink text-sm font-semibold px-3.5 py-2 flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap">
+                                    {{ __('chemicals.add_to_registry') }}
+                                </a>
+                            </div>
+                        </div>
+                    @endcan
+                @endif
             @endif
         </div>
     @endif

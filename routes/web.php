@@ -98,6 +98,7 @@ Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
     Route::get('/{item}', [ItemController::class, 'show'])->name('show');
     Route::get('/{item}/edit', [ItemController::class, 'edit'])->name('edit');
     Route::put('/{item}', [ItemController::class, 'update'])->name('update');
+    Route::post('/{item}/sync-pubchem', [ItemController::class, 'syncPubChem'])->name('sync-pubchem');
     Route::post('/{item}/attachments', [AttachmentController::class, 'store'])->name('attachments.store');
     Route::get('/{item}/ledger', \App\Livewire\Items\ItemLedger::class)->name('ledger');
     Route::get('/{item}/ledger/export/pdf', [LedgerExportController::class, 'pdf'])->name('ledger.export.pdf');

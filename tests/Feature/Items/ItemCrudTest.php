@@ -11,20 +11,24 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-function labManagerUser(array $overrides = []): User
-{
-    $user = User::factory()->create($overrides);
-    $user->roles()->attach(Role::where('code', 'LAB_MANAGER')->firstOrFail());
+if (! function_exists('labManagerUser')) {
+    function labManagerUser(array $overrides = []): User
+    {
+        $user = User::factory()->create($overrides);
+        $user->roles()->attach(Role::where('code', 'LAB_MANAGER')->firstOrFail());
 
-    return $user;
+        return $user;
+    }
 }
 
-function scientistUser(): User
-{
-    $user = User::factory()->create();
-    $user->roles()->attach(Role::where('code', 'SCIENTIST')->firstOrFail());
+if (! function_exists('scientistUser')) {
+    function scientistUser(): User
+    {
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::where('code', 'SCIENTIST')->firstOrFail());
 
-    return $user;
+        return $user;
+    }
 }
 
 if (! function_exists('makeItem')) {
@@ -146,4 +150,29 @@ test('LAB_MANAGER can create an item with specification and without base_unit_id
     expect($item->base_unit_id)->toBeNull();
     $response->assertRedirect(route('items.index'));
     $response->assertSessionHas('status');
+});
+
+test('authorized user can trigger PubChem sync for an item', function () {
+    $manager = labManagerUser();
+    $item = makeItem(['cas_no' => '64-17-5', 'formula' => null]);
+
+    \Illuminate\Support\Facades\Http::fake([
+        '*rest/pug/compound/xref/RegistryID/*' => \Illuminate\Support\Facades\Http::response([
+            'PropertyTable' => ['Properties' => [['CID' => 702, 'Title' => 'Ethanol', 'MolecularFormula' => 'C2H6O']]],
+        ], 200),
+        '*rest/pug_view/*' => \Illuminate\Support\Facades\Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+
+    $response = $this->actingAs($manager)->post(route('items.sync-pubchem', $item));
+
+    $response->assertRedirect(route('items.show', $item));
+    $response->assertSessionHas('status');
+    expect($item->fresh()->formula)->toBe('C2H6O');
+});
+
+test('unauthorized user cannot trigger PubChem sync', function () {
+    $user = \App\Models\User::factory()->create();
+    $item = makeItem(['cas_no' => '64-17-5']);
+
+    $this->actingAs($user)->post(route('items.sync-pubchem', $item))->assertForbidden();
 });

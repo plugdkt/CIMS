@@ -987,4 +987,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   to 5,249 entries). Confirmed all 12 items had 0 containers, 0 stock ledger records, and 0 requisition
   references prior to deletion. Updated `ImportChemicalsCommand` with an explicit filter to skip rows
   containing "ยกเลิก" in name or raw_name on future imports, and added unit test coverage for the filter.
+- Chemical registry PubChem synchronization (`ChemicalSyncService`):
+  (1) 1-Click Sync & Add to Registry directly from the PubChem lookup page (`/chemicals/lookup`),
+  automatically generating the next sequential `item_code` (`CHM-xxxxx`) and populating formula,
+  molecular weight, GHS pictograms, and H/P statements without manual form retyping.
+  (2) In-lookup detection of already-registered chemicals matching CAS No. or name, displaying a direct
+  link to the existing item and a one-click "Sync & Update" action.
+  (3) On-demand "⚡ ซิงค์ข้อมูลกับ PubChem" button on item detail pages (`/items/{item}`, `POST /items/{item}/sync-pubchem`)
+  allowing lab managers to refresh/enrich an existing chemical's GHS codes, H-statements, P-statements,
+  and formula straight from PubChem.
+  (4) Registry search fallback on `ItemTable` (`/items`) displaying a direct search link to PubChem
+  whenever a search returns 0 results. Full suite: 5 new tests covering service, controller, and livewire
+  sync workflows, PHPStan level 8 clean, Pint clean.
+
 
