@@ -43,6 +43,7 @@ return [
     'item_exists_sync' => 'ซิงค์อัปเดตข้อมูล',
     'registry_not_found_hint' => 'ไม่พบสารเคมีตามคำค้นหานี้ในระบบคลัง',
     'registry_search_pubchem' => 'สืบค้นจาก PubChem',
+    'sanitized_search_hint' => 'ตรวจพบเปอร์เซ็นต์หรือคำขยายในคำค้นหา ":original" — ระบบปรับเป็นชื่อสารเคมีหลัก ":sanitized" เพื่อสืบค้น PubChem ให้อัตโนมัติ',
 
     // Batch sync command
     'cmd_description' => 'ซิงค์ข้อมูลสูตรเคมีและข้อมูลความปลอดภัย GHS จาก PubChem เข้าสู่ตาราง items เป็นชุด',

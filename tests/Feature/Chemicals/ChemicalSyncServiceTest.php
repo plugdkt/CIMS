@@ -138,3 +138,34 @@ test('ChemicalSyncService::generateNextItemCode increments sequentially and avoi
     expect($code2)->toMatch('/^CHM-\d{4}-\d{5}$/');
     expect($code2)->not->toBe($code1);
 });
+
+test('ChemicalSyncService::syncItem resolves chemical with percentage and commercial notes in name', function () {
+    $item = makeItem([
+        'cas_no' => null,
+        'name_th' => 'Ethanol 95% COM องค์การสุรา',
+        'name_en' => null,
+        'formula' => null,
+        'ghs_codes' => null,
+    ]);
+
+    Http::fake([
+        '*rest/pug/compound/name/Ethanol/*' => Http::response([
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702,
+                'Title' => 'Ethanol',
+                'MolecularFormula' => 'C2H6O',
+                'MolecularWeight' => '46.07',
+            ]]],
+        ], 200),
+        '*rest/pug_view/data/compound/702/*' => Http::response([
+            'Record' => ['Section' => []],
+        ], 200),
+    ]);
+
+    $service = app(ChemicalSyncService::class);
+    $result = $service->syncItem($item);
+
+    expect($result)->toBeTrue();
+    expect($item->fresh()->formula)->toBe('C2H6O');
+    expect($item->fresh()->name_en)->toBe('Ethanol');
+});

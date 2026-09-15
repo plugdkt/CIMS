@@ -16,28 +16,58 @@ final class ChemicalSyncService
     public function __construct(
         private readonly PubChemClient $client,
         private readonly DocumentNumberGenerator $documentNumberGenerator,
+        private readonly ChemicalNameSanitizer $sanitizer,
     ) {
     }
 
     /**
      * Synchronize an existing item with PubChem data.
-     * Looks up by CAS first, then by name_en, then by name_th.
+     * Multi-tier lookup:
+     * 1. By item's CAS No.
+     * 2. By CAS No. extracted from name_th/name_en if missing on model
+     * 3. By exact name_en
+     * 4. By exact name_th (if ASCII)
+     * 5. By sanitized chemical name (strips %, grades, brackets, commercial notes)
+     *
      * Records an entity-level AuditLog for any modified safety and chemical data.
      */
     public function syncItem(Item $item): bool
     {
         $compound = null;
 
+        // 1. Direct CAS lookup if available
         if ($item->cas_no !== null && trim($item->cas_no) !== '') {
             $compound = $this->client->lookupByCas(trim($item->cas_no));
         }
 
+        // 2. Try extracting CAS from name if item has no cas_no
+        if ($compound === null) {
+            $extractedCas = $this->sanitizer->extractCas($item->name_th.' '.($item->name_en ?? ''));
+            if ($extractedCas !== null) {
+                $compound = $this->client->lookupByCas($extractedCas);
+                if ($compound !== null && ($item->cas_no === null || trim($item->cas_no) === '')) {
+                    $item->cas_no = $extractedCas;
+                }
+            }
+        }
+
+        // 3. Lookup by exact name_en
         if ($compound === null && $item->name_en !== null && trim($item->name_en) !== '') {
             $compound = $this->client->lookupByName(trim($item->name_en));
         }
 
+        // 4. Lookup by exact name_th (if pure ASCII)
         if ($compound === null && $item->name_th !== '' && preg_match('/^[a-zA-Z0-9\s\-]+$/', $item->name_th)) {
             $compound = $this->client->lookupByName(trim($item->name_th));
+        }
+
+        // 5. Sanitized name lookup (strips percentages, grades, brackets, Thai text)
+        if ($compound === null) {
+            $nameCandidate = $item->name_en ?: $item->name_th;
+            $cleaned = $this->sanitizer->sanitize($nameCandidate);
+            if ($cleaned !== '' && preg_match('/[a-zA-Z]/', $cleaned) && mb_strlen($cleaned) >= 3) {
+                $compound = $this->client->lookupByName($cleaned);
+            }
         }
 
         if ($compound === null) {
@@ -46,6 +76,7 @@ final class ChemicalSyncService
 
         DB::transaction(function () use ($item, $compound) {
             $before = [
+                'cas_no' => $item->cas_no,
                 'formula' => $item->formula,
                 'name_en' => $item->name_en,
                 'ghs_codes' => $item->ghs_codes,
@@ -78,6 +109,7 @@ final class ChemicalSyncService
             $item->save();
 
             $after = [
+                'cas_no' => $item->cas_no,
                 'formula' => $item->formula,
                 'name_en' => $item->name_en,
                 'ghs_codes' => $item->ghs_codes,

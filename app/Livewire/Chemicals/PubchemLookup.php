@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Chemicals;
 
 use App\Domain\Chemicals\DTO\PubChemCompoundData;
+use App\Domain\Chemicals\Services\ChemicalNameSanitizer;
 use App\Domain\Chemicals\Services\ChemicalSyncService;
 use App\Domain\Chemicals\Services\PubChemClient;
 use App\Models\Item;
@@ -59,22 +60,43 @@ final class PubchemLookup extends Component
 
     public ?string $matchedItemUlid = null;
 
-    public function mount(PubChemClient $client): void
+    public ?string $sanitizedQuery = null;
+
+    public function mount(PubChemClient $client, ChemicalNameSanitizer $sanitizer): void
     {
         $this->authorize('viewAny', Item::class);
 
         if (trim($this->query) !== '') {
-            $this->search($client);
+            $this->search($client, $sanitizer);
         }
     }
 
-    public function search(PubChemClient $client): void
+    public function search(PubChemClient $client, ChemicalNameSanitizer $sanitizer): void
     {
         $this->authorize('viewAny', Item::class);
         $this->validate(['query' => ['required', 'string', 'max:255']]);
 
         $this->searched = true;
-        $result = $this->by === 'cas' ? $client->lookupByCas($this->query) : $client->lookupByName($this->query);
+        $this->sanitizedQuery = null;
+        $rawQuery = trim($this->query);
+        $result = null;
+
+        if ($this->by === 'cas') {
+            $cas = $sanitizer->extractCas($rawQuery) ?? $rawQuery;
+            $result = $client->lookupByCas($cas);
+        } else {
+            $result = $client->lookupByName($rawQuery);
+            if ($result === null) {
+                // Try sanitized chemical name if raw query had %, grades, or commercial terms
+                $cleaned = $sanitizer->sanitize($rawQuery);
+                if ($cleaned !== '' && mb_strtolower($cleaned) !== mb_strtolower($rawQuery)) {
+                    $result = $client->lookupByName($cleaned);
+                    if ($result !== null) {
+                        $this->sanitizedQuery = $cleaned;
+                    }
+                }
+            }
+        }
 
         $this->found = $result !== null;
 

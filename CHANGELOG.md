@@ -1024,4 +1024,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`--delay=250` ms to strictly respect NIH PubChem's 5 req/s policy), optional `--limit=`, `--force`, and `--all` flags,
   streaming via Eloquent cursor, CLI progress bar, comprehensive summary table, and entity-level `AuditLog` records.
   Includes full feature tests (3/3 passing), PHPStan level 8 clean, Pint clean.
+- Chemical name sanitization for PubChem synchronization (`ChemicalNameSanitizer`):
+  Added `ChemicalNameSanitizer` service that extracts embedded CAS numbers and cleans chemical names by
+  stripping concentration percentages (e.g. `95%`, `99.9%`, `70% v/v`), parenthesized notes/formulas,
+  Thai script, and commercial/grade keywords (`grade`, `liquid`, `solid`, `com`, `hdpe`, `emsure`, etc.)
+  before querying PubChem. Integrated into `ChemicalSyncService` as a multi-tier fallback (CAS -> extracted CAS ->
+  exact name -> sanitized name) and into `PubchemLookup` Livewire component with automated query adjustment and UI hint.
+  Includes unit and feature tests (5 new tests), PHPStan level 8 clean, Pint clean.
+
 

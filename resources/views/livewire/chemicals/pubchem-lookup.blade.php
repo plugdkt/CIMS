@@ -32,6 +32,12 @@
             @if (! $found)
                 <p class="text-sm text-ink-muted">{{ __('chemicals.not_found') }}</p>
             @else
+                @if ($sanitizedQuery)
+                    <div class="mb-4 rounded-xl bg-accent-soft text-accent-ink border border-accent/20 p-3 text-xs flex items-center gap-2">
+                        <svg class="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>{{ __('chemicals.sanitized_search_hint', ['original' => $query, 'sanitized' => $sanitizedQuery]) }}</span>
+                    </div>
+                @endif
                 <h2 class="font-display text-base font-bold mb-3">{{ $title }}</h2>
                 <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-5">
                     <div>

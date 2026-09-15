@@ -113,10 +113,37 @@ test('user with item.manage (lab manager) can call syncExistingItem and syncToRe
         ->test(PubchemLookup::class)
         ->set('by', 'cas')
         ->set('query', '64-17-5')
-        ->call('search', app(PubChemClient::class))
+        ->call('search')
         ->assertSet('matchedItemId', $item->id)
         ->call('syncExistingItem')
         ->assertRedirect(route('items.show', $item));
 
     expect($item->fresh()->formula)->toBe('C2H6O');
+});
+
+test('pubchem lookup automatically sanitizes percentage query and finds substance', function () {
+    $scientist = scientistUser();
+
+    Http::fake([
+        '*rest/pug/compound/name/Ethanol/*' => Http::response([
+            'PropertyTable' => ['Properties' => [[
+                'CID' => 702,
+                'Title' => 'Ethanol',
+                'MolecularFormula' => 'C2H6O',
+                'MolecularWeight' => '46.07',
+            ]]],
+        ], 200),
+        '*rest/pug_view/*' => Http::response(['Record' => ['Section' => []]], 200),
+    ]);
+
+    Livewire::actingAs($scientist)
+        ->test(PubchemLookup::class)
+        ->set('by', 'name')
+        ->set('query', 'Ethanol 95%')
+        ->call('search')
+        ->assertSet('found', true)
+        ->assertSet('title', 'Ethanol')
+        ->assertSet('sanitizedQuery', 'Ethanol')
+        ->assertSee('Ethanol 95%')
+        ->assertSee('Ethanol');
 });
