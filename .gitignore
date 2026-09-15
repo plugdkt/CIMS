@@ -34,3 +34,4 @@ Thumbs.db
 # reviewed result lives at database/data/chemicals_import.csv (tracked). This file
 # is a large one-off working copy, not meant to be committed.
 /download.csv
+/storage/download.csv
