@@ -95,6 +95,21 @@
                         </div>
                     @endif
                 @endif
+
+                @can('create', App\Models\Item::class)
+                    <div class="mt-6 pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <span class="text-xs text-ink-muted">{{ __('chemicals.add_to_registry_hint') }}</span>
+                        <a href="{{ route('items.create', [
+                            'cas_no' => $by === 'cas' ? $query : '',
+                            'name_en' => $title,
+                            'formula' => $molecularFormula,
+                            'autofill' => 1,
+                        ]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2 flex items-center justify-center gap-2 shadow-2xs whitespace-nowrap">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            {{ __('chemicals.add_to_registry') }}
+                        </a>
+                    </div>
+                @endcan
             @endif
         </div>
     @endif

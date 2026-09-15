@@ -372,6 +372,10 @@
                         setStatus('{{ __('chemicals.autofill_not_found') }}', true);
                     });
             });
+
+            if (new URLSearchParams(window.location.search).get('autofill') === '1') {
+                btn.click();
+            }
         })();
     </script>
 </x-layout>

@@ -10,15 +10,23 @@ use App\Models\ItemCategory;
 use App\Models\Unit;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 final class ItemController extends Controller
 {
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', Item::class);
 
+        $item = new Item([
+            'cas_no' => $request->query('cas_no'),
+            'name_en' => $request->query('name_en'),
+            'formula' => $request->query('formula'),
+            'category_id' => $request->query('category_id') ? (int) $request->query('category_id') : ItemCategory::where('code', 'CHEMICAL')->value('id'),
+        ]);
+
         return view('items.form', [
-            'item' => new Item(),
+            'item' => $item,
             'categories' => ItemCategory::orderBy('name_th')->get(),
             'units' => Unit::orderBy('sort_order')->get(),
         ]);

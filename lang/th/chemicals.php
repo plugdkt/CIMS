@@ -28,4 +28,7 @@ return [
     'autofill_searching' => 'กำลังค้นหา...',
     'autofill_not_found' => 'ไม่พบข้อมูลใน PubChem — กรุณากรอกข้อมูลเอง',
     'autofill_filled' => 'เติมข้อมูลจาก PubChem แล้ว — กรุณาตรวจสอบก่อนบันทึก',
+    'add_to_registry' => 'นำข้อมูลนี้ไปสร้างสารเคมีใหม่',
+    'add_to_registry_hint' => 'ต้องการเพิ่มสารนี้เข้าสู่ทะเบียนสารเคมี/วัสดุหรือไม่?',
+    'lookup_menu' => 'สืบค้นจาก PubChem',
 ];

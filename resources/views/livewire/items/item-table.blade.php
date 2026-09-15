@@ -4,11 +4,19 @@
             <h1 class="font-display text-lg font-bold">{{ __('items.index_title') }}</h1>
             <p class="text-sm text-ink-muted mt-1">{{ __('items.index_subtitle') }}</p>
         </div>
-        @if ($canManage)
-            <a href="{{ route('items.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
-                {{ __('items.new_item') }}
-            </a>
-        @endif
+        <div class="flex items-center gap-2">
+            @can('viewAny', App\Models\Item::class)
+                <a href="{{ route('chemicals.lookup') }}" class="rounded-lg border border-border hover:bg-surface-alt text-ink text-sm font-semibold px-3.5 py-2.5 whitespace-nowrap flex items-center gap-1.5 shadow-2xs">
+                    <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    {{ __('chemicals.lookup_menu') }}
+                </a>
+            @endcan
+            @if ($canManage)
+                <a href="{{ route('items.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap shadow-2xs">
+                    {{ __('items.new_item') }}
+                </a>
+            @endif
+        </div>
     </div>
 
     @if (session('status'))
