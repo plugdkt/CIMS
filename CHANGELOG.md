@@ -1018,3 +1018,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   browsed to a later page (e.g. page 7+) of the registry and then searched for a term like "Alcohol" (which has
   108 results across 6 pages), Livewire stayed on page 7+, causing it to display 0 results and show the empty
   state ("ไม่พบรายการที่ค้นหา"). Also added `#[Url]` sync on `$search` in `ItemTable` and regression test.
+- Batch PubChem synchronization command (`php artisan chemicals:sync-pubchem`):
+  Added `SyncPubChemChemicalsCommand` enabling automated batch enrichment of chemical items from PubChem.
+  Defaults to syncing items with valid `cas_no` that do not yet have GHS data, with configurable rate limiting
+  (`--delay=250` ms to strictly respect NIH PubChem's 5 req/s policy), optional `--limit=`, `--force`, and `--all` flags,
+  streaming via Eloquent cursor, CLI progress bar, comprehensive summary table, and entity-level `AuditLog` records.
+  Includes full feature tests (3/3 passing), PHPStan level 8 clean, Pint clean.
+

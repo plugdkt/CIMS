@@ -43,4 +43,15 @@ return [
     'item_exists_sync' => 'ซิงค์อัปเดตข้อมูล',
     'registry_not_found_hint' => 'ไม่พบสารเคมีตามคำค้นหานี้ในระบบคลัง',
     'registry_search_pubchem' => 'สืบค้นจาก PubChem',
+
+    // Batch sync command
+    'cmd_description' => 'ซิงค์ข้อมูลสูตรเคมีและข้อมูลความปลอดภัย GHS จาก PubChem เข้าสู่ตาราง items เป็นชุด',
+    'cmd_no_items' => 'ไม่พบรายการสารเคมีที่ต้องซิงค์ตามเงื่อนไขที่กำหนด',
+    'cmd_starting' => 'เริ่มการซิงค์ข้อมูลจาก PubChem สำหรับสารเคมีจำนวน :count รายการ...',
+    'cmd_summary_header_result' => 'ผลการทำงาน',
+    'cmd_summary_header_count' => 'จำนวน (รายการ)',
+    'cmd_summary_synced' => 'ซิงค์สำเร็จ (พบข้อมูลใน PubChem)',
+    'cmd_summary_not_found' => 'ไม่พบข้อมูลใน PubChem',
+    'cmd_summary_failed' => 'เกิดข้อผิดพลาดในการเชื่อมต่อ (Failed)',
+    'cmd_summary_total' => 'รวมทั้งหมดที่ประมวลผล',
 ];
