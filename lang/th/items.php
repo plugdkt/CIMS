@@ -7,6 +7,8 @@ return [
     'new_item' => 'เพิ่มรายการใหม่',
     'col_code' => 'รหัส',
     'col_name' => 'ชื่อรายการ',
+    'col_cas' => 'เลข CAS',
+    'col_package_size' => 'ขนาดบรรจุ',
     'col_category' => 'หมวดหมู่',
     'col_unit' => 'หน่วยหลัก',
     'col_status' => 'สถานะ',
