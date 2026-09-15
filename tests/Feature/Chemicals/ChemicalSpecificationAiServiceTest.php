@@ -149,3 +149,36 @@ test('ChemicalSpecificationAiService returns null if inputs are all empty', func
 
     expect($result)->toBeNull();
 });
+
+test('mergeIntoSpecification appends the AI draft below existing content instead of overwriting it', function () {
+    $service = new ChemicalSpecificationAiService(baseUrl: 'https://fake.gen.ai/v1', apiKey: 'k', model: 'm');
+    $generated = ChemicalSpecificationAiService::SPEC_PREFIX.'ข้อกำหนดบรรจุภัณฑ์: เก็บในที่แห้ง';
+
+    $merged = $service->mergeIntoSpecification('สูตรโมเลกุล C2H6O (PubChem CID: 702)', $generated);
+
+    expect($merged)->toContain('สูตรโมเลกุล C2H6O (PubChem CID: 702)')
+        ->and($merged)->toContain('ข้อกำหนดบรรจุภัณฑ์: เก็บในที่แห้ง');
+});
+
+test('mergeIntoSpecification replaces its own previous AI block in place rather than duplicating it', function () {
+    $service = new ChemicalSpecificationAiService(baseUrl: 'https://fake.gen.ai/v1', apiKey: 'k', model: 'm');
+    $existing = 'สูตรโมเลกุล C2H6O (PubChem CID: 702)'
+        ."\n\n".ChemicalSpecificationAiService::SPEC_PREFIX.'สเปกฉบับเก่า';
+    $generated = ChemicalSpecificationAiService::SPEC_PREFIX.'สเปกฉบับใหม่';
+
+    $merged = $service->mergeIntoSpecification($existing, $generated);
+
+    expect($merged)->toContain('สูตรโมเลกุล C2H6O (PubChem CID: 702)')
+        ->and($merged)->toContain('สเปกฉบับใหม่')
+        ->and($merged)->not->toContain('สเปกฉบับเก่า')
+        ->and(substr_count($merged, '[ร่างโดย AI'))->toBe(1);
+});
+
+test('mergeIntoSpecification returns the draft as-is when there is nothing to merge into', function () {
+    $service = new ChemicalSpecificationAiService(baseUrl: 'https://fake.gen.ai/v1', apiKey: 'k', model: 'm');
+    $generated = ChemicalSpecificationAiService::SPEC_PREFIX.'สเปกใหม่';
+
+    expect($service->mergeIntoSpecification(null, $generated))->toBe($generated);
+    expect($service->mergeIntoSpecification('', $generated))->toBe($generated);
+    expect($service->mergeIntoSpecification('   ', $generated))->toBe($generated);
+});

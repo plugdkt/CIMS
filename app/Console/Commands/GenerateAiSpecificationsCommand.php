@@ -27,9 +27,12 @@ final class GenerateAiSpecificationsCommand extends Command
 
         if (! $this->option('force')) {
             $query->where(function ($q) {
+                // The AI block can now sit *after* other content once merged (PubChem facts,
+                // imported raw name/packaging notes), so "already drafted" must check anywhere
+                // in the field, not just whether it starts with the marker.
                 $q->whereNull('specification')
                     ->orWhere('specification', '')
-                    ->orWhere('specification', 'not like', '[ร่างโดย AI%');
+                    ->orWhere('specification', 'not like', '%[ร่างโดย AI%');
             });
         }
 
@@ -96,7 +99,7 @@ final class GenerateAiSpecificationsCommand extends Command
             if ($spec !== null && $spec !== '') {
                 if (! $isDryRun) {
                     $before = ['specification' => $item->specification];
-                    $item->specification = $spec;
+                    $item->specification = $aiService->mergeIntoSpecification($item->specification, $spec);
                     $item->save();
 
                     AuditLog::record(
@@ -107,7 +110,7 @@ final class GenerateAiSpecificationsCommand extends Command
                         entityType: Item::class,
                         entityId: $item->id,
                         oldValue: $before,
-                        newValue: ['specification' => $spec],
+                        newValue: ['specification' => $item->specification],
                         message: 'Generated via KKU GenAI Gateway',
                     );
                 }

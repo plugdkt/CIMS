@@ -172,4 +172,32 @@ PROMPT;
             return null;
         }
     }
+
+    /**
+     * Merges a freshly generated AI draft into whatever's already in `specification`,
+     * instead of overwriting the whole field — this field can also carry real, verified
+     * facts from elsewhere (e.g. `ChemicalSyncService`'s PubChem-derived formula/CAS/MW/
+     * physical-description paragraph, or the original catalog import's raw name/packaging
+     * notes), which must never be silently destroyed by an unverified AI draft.
+     *
+     * Any content before the AI block (identified by its own `SPEC_PREFIX` marker) is left
+     * untouched; the AI block itself is replaced in place on a re-run rather than
+     * duplicated, the same discipline `ChemicalSyncService::mergeSpecification()` already
+     * applies to its own `(PubChem CID: N)` line.
+     */
+    public function mergeIntoSpecification(?string $existing, string $generated): string
+    {
+        if ($existing === null || trim($existing) === '') {
+            return $generated;
+        }
+
+        $markerPos = strpos($existing, '[ร่างโดย AI');
+        if ($markerPos === false) {
+            return rtrim($existing)."\n\n".$generated;
+        }
+
+        $before = rtrim(substr($existing, 0, $markerPos));
+
+        return $before === '' ? $generated : $before."\n\n".$generated;
+    }
 }

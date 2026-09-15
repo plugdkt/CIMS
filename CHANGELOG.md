@@ -1085,5 +1085,26 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `specification` already has non-AI content (e.g. from the PubChem sync above, or the original catalog
   import) but has never received an AI draft — previously only `NULL`/empty rows were picked up, silently
   skipping every already-populated item forever.
+- **Fixed a real data-loss bug found while merging the above with the PubChem-sync specification work**:
+  both `GenerateAiSpecificationsCommand` and the "✨ ร่างสเปกด้วย AI" button's own JS were writing
+  `specification = <AI draft>` outright — on an item that already carried real, verified facts (formula/
+  MW/CAS/physical description from `ChemicalSyncService`, or raw name/packaging from the catalog import),
+  running the AI generator silently destroyed all of it, leaving only the unverified AI text behind.
+  Confirmed via `tinker` before fixing: a real PubChem-derived specification was completely gone after
+  one `generateSpecification()` call. Added `ChemicalSpecificationAiService::mergeIntoSpecification()` —
+  same discipline as `ChemicalSyncService::mergeSpecification()`'s `(PubChem CID: N)` marker: appends the
+  AI block below whatever's already there the first time, then replaces just its own previous block
+  (found via the `SPEC_PREFIX` marker) in place on every later re-run, never touching content that isn't
+  its own. `GenerateAiSpecificationsCommand` and the client-side JS in `items/form.blade.php` both now go
+  through this merge instead of a bare assignment. Needed one companion fix: the command's own "already
+  drafted, skip it" default-scope check (`specification NOT LIKE '[ร่างโดย AI%'`, added in the previous
+  commit) only matched the marker at the very *start* of the field — now that the AI block can legitimately
+  sit *after* other content, that check is `NOT LIKE '%[ร่างโดย AI%'` (anywhere in the field) instead, or
+  every merged item would be endlessly reprocessed on every non-`--force` run. Verified: 3 new
+  `mergeIntoSpecification()` unit tests (append when empty, replace-in-place on re-run, pass-through when
+  nothing to merge into) and 3 new command-level regression tests (existing PubChem spec survives a
+  default run, a re-run replaces only the old AI block not the facts above it, an item that already has an
+  AI block after other content is correctly skipped by the default scope) — all against real reproduction
+  fixtures, not just the fixed code.
 
 

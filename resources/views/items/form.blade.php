@@ -437,7 +437,14 @@
                         if (aiSpecSpinner) aiSpecSpinner.classList.add('hidden');
 
                         if (data.success && data.specification) {
-                            specTextarea.value = data.specification;
+                            // Merge into whatever's already there (e.g. real facts synced
+                            // from PubChem) instead of wiping it — replace only a previous
+                            // AI block of our own if one is already present.
+                            var existing = specTextarea.value;
+                            var marker = '[ร่างโดย AI';
+                            var markerPos = existing.indexOf(marker);
+                            var before = markerPos !== -1 ? existing.slice(0, markerPos).trim() : existing.trim();
+                            specTextarea.value = before === '' ? data.specification : (before + '\n\n' + data.specification);
                             setAiStatus('{{ __('items.ai_spec_success') }}', false);
                         } else {
                             setAiStatus(data.message || '{{ __('items.ai_spec_failed') }}', true);

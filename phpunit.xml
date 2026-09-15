@@ -41,5 +41,14 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!--
+            Dummy, non-empty value so ChemicalSpecificationAiService's app()-resolved
+            singleton (ChemicalSpecificationAiControllerTest, GenerateAiSpecificationsCommandTest)
+            doesn't short-circuit before Http::fake() ever gets a chance to intercept the
+            call — the real .env key is never present in a fresh clone/CI, and these tests
+            must not depend on it being set. Tests that need an empty/null key construct
+            the service directly instead (ChemicalSpecificationAiServiceTest).
+        -->
+        <env name="AI_GATEWAY_API_KEY" value="phpunit-dummy-key"/>
     </php>
 </phpunit>
