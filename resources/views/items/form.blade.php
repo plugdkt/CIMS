@@ -117,10 +117,18 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold mb-1" for="specification">
-                            {{ __('items.field_specification') }}
-                        </label>
-                        <textarea name="specification" id="specification" rows="5"
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="block text-sm font-semibold" for="specification">
+                                {{ __('items.field_specification') }}
+                            </label>
+                            <button type="button" id="ai-spec-btn"
+                                    class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface hover:bg-surface-alt text-xs font-semibold px-2.5 py-1 text-ink shadow-2xs transition-colors">
+                                <span id="ai-spec-spinner" class="hidden animate-spin text-accent text-xs">&#9696;</span>
+                                <span>{{ __('items.btn_ai_generate_spec') }}</span>
+                            </button>
+                        </div>
+                        <p id="ai-spec-status" class="text-xs mb-1.5" hidden></p>
+                        <textarea name="specification" id="specification" rows="6"
                                   class="w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent leading-relaxed"
                                   placeholder="{{ __('items.specification_placeholder') }}">{{ old('specification', $item->specification) }}</textarea>
                     </div>
@@ -375,6 +383,72 @@
 
             if (new URLSearchParams(window.location.search).get('autofill') === '1') {
                 btn.click();
+            }
+
+            var aiSpecBtn = document.getElementById('ai-spec-btn');
+            if (aiSpecBtn) {
+                var aiSpecStatus = document.getElementById('ai-spec-status');
+                var aiSpecSpinner = document.getElementById('ai-spec-spinner');
+                var specTextarea = document.getElementById('specification');
+
+                function setAiStatus(text, isError) {
+                    aiSpecStatus.textContent = text;
+                    aiSpecStatus.hidden = false;
+                    aiSpecStatus.className = 'text-xs mb-1.5 ' + (isError ? 'text-danger' : 'text-success-ink');
+                }
+
+                aiSpecBtn.addEventListener('click', function () {
+                    var nameThEl = document.getElementById('name_th');
+                    var nameEnEl = document.getElementById('name_en');
+                    var casNoEl = document.getElementById('cas_no');
+                    var formulaEl = document.getElementById('formula');
+
+                    var nameTh = nameThEl ? nameThEl.value.trim() : '';
+                    var nameEn = nameEnEl ? nameEnEl.value.trim() : '';
+                    var casNo = casNoEl ? casNoEl.value.trim() : '';
+                    var formula = formulaEl ? formulaEl.value.trim() : '';
+
+                    if (nameTh === '' && nameEn === '' && casNo === '') {
+                        setAiStatus('{{ __('items.ai_spec_require_identifier') }}', true);
+                        return;
+                    }
+
+                    aiSpecBtn.disabled = true;
+                    if (aiSpecSpinner) aiSpecSpinner.classList.remove('hidden');
+                    setAiStatus('{{ __('items.ai_generating_spec') }}', false);
+
+                    fetch('{{ route('items.ai-specification') }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            name_th: nameTh,
+                            name_en: nameEn,
+                            cas_no: casNo,
+                            formula: formula
+                        })
+                    })
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        aiSpecBtn.disabled = false;
+                        if (aiSpecSpinner) aiSpecSpinner.classList.add('hidden');
+
+                        if (data.success && data.specification) {
+                            specTextarea.value = data.specification;
+                            setAiStatus('{{ __('items.ai_spec_success') }}', false);
+                        } else {
+                            setAiStatus(data.message || '{{ __('items.ai_spec_failed') }}', true);
+                        }
+                    })
+                    .catch(function () {
+                        aiSpecBtn.disabled = false;
+                        if (aiSpecSpinner) aiSpecSpinner.classList.add('hidden');
+                        setAiStatus('{{ __('items.ai_spec_failed') }}', true);
+                    });
+                });
             }
         })();
     </script>

@@ -1024,12 +1024,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`--delay=250` ms to strictly respect NIH PubChem's 5 req/s policy), optional `--limit=`, `--force`, and `--all` flags,
   streaming via Eloquent cursor, CLI progress bar, comprehensive summary table, and entity-level `AuditLog` records.
   Includes full feature tests (3/3 passing), PHPStan level 8 clean, Pint clean.
-- Chemical name sanitization for PubChem synchronization (`ChemicalNameSanitizer`):
-  Added `ChemicalNameSanitizer` service that extracts embedded CAS numbers and cleans chemical names by
-  stripping concentration percentages (e.g. `95%`, `99.9%`, `70% v/v`), parenthesized notes/formulas,
-  Thai script, and commercial/grade keywords (`grade`, `liquid`, `solid`, `com`, `hdpe`, `emsure`, etc.)
-  before querying PubChem. Integrated into `ChemicalSyncService` as a multi-tier fallback (CAS -> extracted CAS ->
-  exact name -> sanitized name) and into `PubchemLookup` Livewire component with automated query adjustment and UI hint.
-  Includes unit and feature tests (5 new tests), PHPStan level 8 clean, Pint clean.
+- AI-assisted chemical specification generator (`ChemicalSpecificationAiService`):
+  Integrated KKU GenAI Gateway (OpenAI-compatible) with `gemini-2.5-flash-lite` to automatically draft
+  laboratory procurement specifications (appearance/physical state, standard grades like AR/ACS/Technical,
+  and packaging/storage requirements):
+  (1) "✨ ร่างสเปกด้วย AI" button on the item create/edit form (`resources/views/items/form.blade.php`),
+  calling `POST /items/ai-specification` with client-side loading indicator and inline textarea population.
+  (2) Hallucination prevention: prompt explicitly restricts the LLM from inventing specific purity numbers/grades
+  and instructs purchasers to specify based on actual laboratory usage; prepends a clear `[ร่างโดย AI — โปรดตรวจสอบความถูกต้องและระบุเกรดที่ต้องการก่อนนำไปใช้จัดซื้อจริง]`
+  disclaimer banner on all generated specifications.
+  (3) Robust security & authorization: gated via `ItemPolicy::create` (`$this->authorize('create', Item::class)`)
+  requiring `item.manage` permission (preventing read-only users from draining external API quota), paired with
+  `GenerateAiSpecificationRequest` validation and `throttle:10,1` rate limiting middleware.
+  (4) Batch generation command (`php artisan chemicals:ai-generate-specs`): allows bulk population of missing
+  specifications with configurable `--limit=`, `--delay=`, `--dry-run`, and audit trail via `AuditLog::record(action: 'AI_SPEC_GENERATE')`.
+  (5) Production resiliency: 30-day success-only caching (`Cache::remember`), SSL CA bundle verification via
+  `services.ai_gateway.ca_bundle`, and graceful degradation returning null on network or API failures.
+  Includes 12 new feature tests (all passing), PHPStan level 8 clean (0 errors), Pint PSR-12 clean.
+
 
 

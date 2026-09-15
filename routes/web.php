@@ -11,6 +11,7 @@ use App\Http\Controllers\AccountDataController;
 use App\Http\Controllers\AdjustmentController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\ChemicalLookupController;
+use App\Http\Controllers\ChemicalSpecificationAiController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DisposalController;
 use App\Http\Controllers\DocumentVerifyController;
@@ -95,6 +96,9 @@ Route::middleware('auth')->prefix('items')->name('items.')->group(function () {
     Route::get('/create', [ItemController::class, 'create'])->name('create');
     Route::post('/', [ItemController::class, 'store'])->name('store');
     Route::get('/lookup-pubchem', [ChemicalLookupController::class, 'lookup'])->name('lookup-pubchem');
+    Route::post('/ai-specification', [ChemicalSpecificationAiController::class, 'generate'])
+        ->middleware('throttle:10,1')
+        ->name('ai-specification');
     Route::get('/{item}', [ItemController::class, 'show'])->name('show');
     Route::get('/{item}/edit', [ItemController::class, 'edit'])->name('edit');
     Route::put('/{item}', [ItemController::class, 'update'])->name('update');

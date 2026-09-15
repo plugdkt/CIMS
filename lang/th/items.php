@@ -65,6 +65,12 @@ return [
     'no_h_statements' => 'ยังไม่ได้ระบุ H-Statement',
     'no_p_statements' => 'ยังไม่ได้ระบุ P-Statement',
 
+    'btn_ai_generate_spec' => '✨ ร่างสเปกด้วย AI',
+    'ai_generating_spec' => 'กำลังสังเคราะห์สเปกด้วย AI...',
+    'ai_spec_success' => 'สังเคราะห์สเปกสำเร็จ ตรวจสอบและแก้ไขได้ด้านล่าง',
+    'ai_spec_failed' => 'ไม่สามารถเชื่อมต่อ AI ได้ กรุณาลองใหม่อีกครั้ง หรือตรวจสอบการตั้งค่า API',
+    'ai_spec_require_identifier' => 'กรุณาระบุชื่อสารเคมี หรือเลข CAS เพื่อให้ AI สังเคราะห์สเปก',
+
     'validation' => [
         'item_code_required' => 'กรุณากรอกรหัสรายการ',
         'item_code_unique' => 'รหัสรายการนี้มีอยู่แล้ว',

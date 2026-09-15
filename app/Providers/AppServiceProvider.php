@@ -39,6 +39,14 @@ class AppServiceProvider extends ServiceProvider
             timeoutSeconds: (int) config('services.pubchem.timeout_seconds'),
             caBundle: config('services.pubchem.ca_bundle'),
         ));
+
+        $this->app->singleton(\App\Domain\Chemicals\Services\ChemicalSpecificationAiService::class, fn () => new \App\Domain\Chemicals\Services\ChemicalSpecificationAiService(
+            baseUrl: (string) config('services.ai_gateway.base_url'),
+            apiKey: config('services.ai_gateway.api_key') !== null ? (string) config('services.ai_gateway.api_key') : null,
+            model: (string) config('services.ai_gateway.model'),
+            timeoutSeconds: (int) config('services.ai_gateway.timeout_seconds'),
+            caBundle: config('services.ai_gateway.ca_bundle'),
+        ));
     }
 
     public function boot(): void

@@ -60,4 +60,15 @@ return [
             : env('PUBCHEM_CA_BUNDLE', file_exists(storage_path('certs/cacert.pem')) ? storage_path('certs/cacert.pem') : null),
     ],
 
+    // KKU GenAI Gateway (OpenAI-compatible) for chemical specifications
+    'ai_gateway' => [
+        'base_url' => env('AI_GATEWAY_BASE_URL', 'https://gen.ai.kku.ac.th/upacth/api/v1'),
+        'api_key' => env('AI_GATEWAY_API_KEY'),
+        'model' => env('AI_GATEWAY_MODEL', 'gemini-2.5-flash-lite'),
+        'timeout_seconds' => (int) env('AI_GATEWAY_TIMEOUT_SECONDS', 30),
+        'ca_bundle' => env('AI_GATEWAY_VERIFY_SSL') === false || env('AI_GATEWAY_VERIFY_SSL') === 'false'
+            ? false
+            : env('AI_GATEWAY_CA_BUNDLE', file_exists(storage_path('certs/cacert.pem')) ? storage_path('certs/cacert.pem') : null),
+    ],
+
 ];
