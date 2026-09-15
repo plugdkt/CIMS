@@ -27,7 +27,9 @@ final class GenerateAiSpecificationsCommand extends Command
 
         if (! $this->option('force')) {
             $query->where(function ($q) {
-                $q->whereNull('specification')->orWhere('specification', '');
+                $q->whereNull('specification')
+                    ->orWhere('specification', '')
+                    ->orWhere('specification', 'not like', '[ร่างโดย AI%');
             });
         }
 
