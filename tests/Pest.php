@@ -98,3 +98,86 @@ if (! function_exists('makeRequisition')) {
         ], $overrides));
     }
 }
+
+if (! function_exists('studentUser')) {
+    function studentUser(array $overrides = []): \App\Models\User
+    {
+        $advisor = \App\Models\User::factory()->create(['person_type' => 'LECTURER']);
+        $advisor->roles()->attach(\App\Models\Role::where('code', 'ADVISOR')->firstOrFail());
+
+        $user = \App\Models\User::factory()->create(array_merge([
+            'person_type' => 'STUDENT',
+            'phone_encrypted' => '0812345678',
+            'person_code_encrypted' => '6512345',
+            'program' => 'เคมี',
+            'faculty' => 'วิทยาศาสตร์',
+            'advisor_id' => $advisor->id,
+            'profile_completed_at' => now(),
+        ], $overrides));
+        $user->roles()->attach(\App\Models\Role::where('code', 'STUDENT')->firstOrFail());
+
+        return $user;
+    }
+}
+
+if (! function_exists('staffUser')) {
+    function staffUser(array $overrides = []): \App\Models\User
+    {
+        $user = \App\Models\User::factory()->create(array_merge([
+            'person_type' => 'STAFF',
+            'phone_encrypted' => '0898765432',
+            'program' => null,
+            'faculty' => 'วิทยาศาสตร์',
+            'profile_completed_at' => now(),
+        ], $overrides));
+        $user->roles()->attach(\App\Models\Role::where('code', 'STAFF')->firstOrFail());
+
+        return $user;
+    }
+}
+
+if (! function_exists('makeContainer')) {
+    function makeContainer(array $overrides = []): \App\Models\Container
+    {
+        $itemId = $overrides['item_id'] ?? null;
+        unset($overrides['item_id']);
+        $itemId = $itemId ?? makeItem()->id;
+
+        return \App\Models\Container::create(array_merge([
+            'item_id' => $itemId,
+            'barcode' => 'BC-'.fake()->unique()->numerify('########'),
+            'received_at' => now()->toDateString(),
+            'initial_qty_base' => '100.000000',
+            'remaining_qty_base' => '0.000000',
+            'status' => 'SEALED',
+        ], $overrides));
+    }
+}
+
+if (! function_exists('approvedRequisition')) {
+    function approvedRequisition(\App\Models\User $requester, string $qtyRequested = '100.000000'): \App\Models\Requisition
+    {
+        $requisition = makeRequisition($requester);
+        $item = makeItem();
+        $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+        app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $g, $qtyRequested);
+        $requisition->update(['status' => 'APPROVED']);
+
+        return $requisition->fresh(['items']);
+    }
+}
+
+if (! function_exists('stockedContainer')) {
+    function stockedContainer(int $itemId, string $qtyBase, \App\Models\User $receiver): \App\Models\Container
+    {
+        $container = makeContainer(['item_id' => $itemId, 'remaining_qty_base' => '0.000000']);
+        $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+        app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+            $container->id,
+            $qtyBase,
+            new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $receiver->id)
+        );
+
+        return $container->fresh();
+    }
+}

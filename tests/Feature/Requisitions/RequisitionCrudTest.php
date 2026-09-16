@@ -9,37 +9,41 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function studentUser(array $overrides = []): User
-{
-    $advisor = User::factory()->create(['person_type' => 'LECTURER']);
-    $advisor->roles()->attach(Role::where('code', 'ADVISOR')->firstOrFail());
+if (! function_exists('studentUser')) {
+    function studentUser(array $overrides = []): User
+    {
+        $advisor = User::factory()->create(['person_type' => 'LECTURER']);
+        $advisor->roles()->attach(Role::where('code', 'ADVISOR')->firstOrFail());
 
-    $user = User::factory()->create(array_merge([
-        'person_type' => 'STUDENT',
-        'phone_encrypted' => '0812345678',
-        'person_code_encrypted' => '6512345',
-        'program' => 'เคมี',
-        'faculty' => 'วิทยาศาสตร์',
-        'advisor_id' => $advisor->id,
-        'profile_completed_at' => now(),
-    ], $overrides));
-    $user->roles()->attach(Role::where('code', 'STUDENT')->firstOrFail());
+        $user = User::factory()->create(array_merge([
+            'person_type' => 'STUDENT',
+            'phone_encrypted' => '0812345678',
+            'person_code_encrypted' => '6512345',
+            'program' => 'เคมี',
+            'faculty' => 'วิทยาศาสตร์',
+            'advisor_id' => $advisor->id,
+            'profile_completed_at' => now(),
+        ], $overrides));
+        $user->roles()->attach(Role::where('code', 'STUDENT')->firstOrFail());
 
-    return $user;
+        return $user;
+    }
 }
 
-function staffUser(array $overrides = []): User
-{
-    $user = User::factory()->create(array_merge([
-        'person_type' => 'STAFF',
-        'phone_encrypted' => '0898765432',
-        'program' => null,
-        'faculty' => 'วิทยาศาสตร์',
-        'profile_completed_at' => now(),
-    ], $overrides));
-    $user->roles()->attach(Role::where('code', 'STAFF')->firstOrFail());
+if (! function_exists('staffUser')) {
+    function staffUser(array $overrides = []): User
+    {
+        $user = User::factory()->create(array_merge([
+            'person_type' => 'STAFF',
+            'phone_encrypted' => '0898765432',
+            'program' => null,
+            'faculty' => 'วิทยาศาสตร์',
+            'profile_completed_at' => now(),
+        ], $overrides));
+        $user->roles()->attach(Role::where('code', 'STAFF')->firstOrFail());
 
-    return $user;
+        return $user;
+    }
 }
 
 test('a user without requisition.create gets 403 on the create page', function () {

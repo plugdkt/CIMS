@@ -19,7 +19,9 @@
         @endif
 
         @foreach ($lines as $row)
-            @php($line = $row['line'])
+            @php
+                $line = $row['line'];
+            @endphp
             <div class="bg-surface border border-border rounded-xl p-6 mb-4">
                     <div class="flex items-center gap-2 flex-wrap">
                         <h2 class="font-display text-base font-bold">{{ $line->item?->name_th }}</h2>

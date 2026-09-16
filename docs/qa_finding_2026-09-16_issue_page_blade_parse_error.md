@@ -1,6 +1,6 @@
 # QA Finding: หน้าเบิกสารเคมี (`/requisitions/{id}/issue`) พัง 500 ทุกครั้ง — ยังไม่ถูกแก้
 
-**สถานะ:** ยังไม่ได้แก้ ณ commit `e556861` (ตรวจซ้ำด้วย full test suite แล้ว — ยังพังเหมือนเดิมทุกประการ)
+**สถานะ:** แก้ไขเรียบร้อยแล้ว (Resolved) — เปลี่ยน `@php($line = $row['line'])` เป็น block form และแก้ไข `level_type` ใน Location test fixture เรียบร้อยแล้ว
 
 เอกสารนี้เป็นรายงานเสริมจาก [`docs/qa_review_2026-09-16_grade_physical_state.md`](qa_review_2026-09-16_grade_physical_state.md)
 ซึ่งไม่ได้ครอบคลุมบั๊กนี้ — เป็นคนละประเด็นกับ Hallucination guardrails/UI integration ที่รายงานฉบับนั้นพูดถึง

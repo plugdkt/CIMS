@@ -46,7 +46,7 @@ beforeEach(function () {
     $this->location = Location::create([
         'name' => 'ตู้เก็บสารเคมีทดสอบ',
         'code' => 'CAB-TEST-01',
-        'type' => 'CABINET',
+        'level_type' => 'CABINET',
         'lab_id' => $this->lab->id,
     ]);
 });

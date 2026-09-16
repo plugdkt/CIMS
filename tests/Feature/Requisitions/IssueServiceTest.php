@@ -16,25 +16,29 @@ uses(RefreshDatabase::class);
 
 const TEST_SIGNATURE_HASH = 'a1b2c3';
 
-/** An APPROVED requisition with one line requesting $qtyRequested grams of a fresh item. */
-function approvedRequisition(User $requester, string $qtyRequested = '100.000000'): Requisition
-{
-    $requisition = makeRequisition($requester);
-    $item = makeItem();
-    $g = Unit::where('code', 'g')->firstOrFail();
-    app(RequisitionService::class)->addLine($requisition, $item, $g, $qtyRequested);
-    $requisition->update(['status' => 'APPROVED']);
+if (! function_exists('approvedRequisition')) {
+    /** An APPROVED requisition with one line requesting $qtyRequested grams of a fresh item. */
+    function approvedRequisition(User $requester, string $qtyRequested = '100.000000'): Requisition
+    {
+        $requisition = makeRequisition($requester);
+        $item = makeItem();
+        $g = Unit::where('code', 'g')->firstOrFail();
+        app(RequisitionService::class)->addLine($requisition, $item, $g, $qtyRequested);
+        $requisition->update(['status' => 'APPROVED']);
 
-    return $requisition->fresh(['items']);
+        return $requisition->fresh(['items']);
+    }
 }
 
-function stockedContainer(int $itemId, string $qtyBase, User $receiver): Container
-{
-    $container = makeContainer(['item_id' => $itemId, 'remaining_qty_base' => '0.000000']);
-    $g = Unit::where('code', 'g')->firstOrFail();
-    app(LedgerService::class)->receive($container->id, $qtyBase, new LedgerEntryData(displayUnitId: $g->id, createdBy: $receiver->id));
+if (! function_exists('stockedContainer')) {
+    function stockedContainer(int $itemId, string $qtyBase, User $receiver): Container
+    {
+        $container = makeContainer(['item_id' => $itemId, 'remaining_qty_base' => '0.000000']);
+        $g = Unit::where('code', 'g')->firstOrFail();
+        app(LedgerService::class)->receive($container->id, $qtyBase, new LedgerEntryData(displayUnitId: $g->id, createdBy: $receiver->id));
 
-    return $container->fresh();
+        return $container->fresh();
+    }
 }
 
 test('issuing the exact requested quantity from one container marks the requisition ISSUED', function () {

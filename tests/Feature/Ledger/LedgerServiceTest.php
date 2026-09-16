@@ -12,20 +12,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function makeContainer(array $overrides = []): Container
-{
-    $item = $overrides['item_id'] ?? null;
-    unset($overrides['item_id']);
-    $item = $item ?? makeItem()->id;
+if (! function_exists('makeContainer')) {
+    function makeContainer(array $overrides = []): Container
+    {
+        $item = $overrides['item_id'] ?? null;
+        unset($overrides['item_id']);
+        $item = $item ?? makeItem()->id;
 
-    return Container::create(array_merge([
-        'item_id' => $item,
-        'barcode' => 'BC-'.fake()->unique()->numerify('########'),
-        'received_at' => now()->toDateString(),
-        'initial_qty_base' => '100.000000',
-        'remaining_qty_base' => '0.000000',
-        'status' => 'SEALED',
-    ], $overrides));
+        return Container::create(array_merge([
+            'item_id' => $item,
+            'barcode' => 'BC-'.fake()->unique()->numerify('########'),
+            'received_at' => now()->toDateString(),
+            'initial_qty_base' => '100.000000',
+            'remaining_qty_base' => '0.000000',
+            'status' => 'SEALED',
+        ], $overrides));
+    }
 }
 
 function ledgerCtx(User $user, array $overrides = []): LedgerEntryData
