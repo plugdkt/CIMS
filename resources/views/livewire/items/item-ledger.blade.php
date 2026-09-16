@@ -46,6 +46,28 @@
                 <dd>{{ $item->grade ?: '—' }}</dd>
             </div>
             <div>
+                <dt class="text-xs text-ink-faint">{{ __('ledger.header_physical_state') }}</dt>
+                <dd>
+                    @if ($item->physical_state)
+                        @php
+                            $stateBadge = match($item->physical_state) {
+                                'liquid' => ['label' => __('items.state_liquid'), 'icon' => '💧'],
+                                'powder' => ['label' => __('items.state_powder'), 'icon' => '🧂'],
+                                'solid' => ['label' => __('items.state_solid'), 'icon' => '🧊'],
+                                'solution' => ['label' => __('items.state_solution'), 'icon' => '🧪'],
+                                'gas' => ['label' => __('items.state_gas'), 'icon' => '💨'],
+                                'crystal' => ['label' => __('items.state_crystal'), 'icon' => '💎'],
+                                'pellet' => ['label' => __('items.state_pellet'), 'icon' => '⚪'],
+                                default => ['label' => $item->physical_state, 'icon' => '•'],
+                            };
+                        @endphp
+                        <span>{{ $stateBadge['icon'] }} {{ $stateBadge['label'] }}</span>
+                    @else
+                        <span>—</span>
+                    @endif
+                </dd>
+            </div>
+            <div>
                 <dt class="text-xs text-ink-faint">{{ __('ledger.header_package_size') }}</dt>
                 <dd>{{ $item->package_size ?: '—' }} {{ $item->packageUnit?->code }}</dd>
             </div>

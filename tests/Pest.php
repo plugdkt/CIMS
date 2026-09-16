@@ -51,3 +51,50 @@ if (! function_exists('scientistUser')) {
         return $user;
     }
 }
+
+if (! function_exists('makeLab')) {
+    function makeLab(array $overrides = []): \App\Models\Lab
+    {
+        return \App\Models\Lab::create(array_merge([
+            'code' => 'LAB-'.fake()->unique()->numerify('####'),
+            'name_th' => 'ห้องปฏิบัติการทดสอบ',
+            'is_active' => true,
+        ], $overrides));
+    }
+}
+
+if (! function_exists('makeLocationForLab')) {
+    function makeLocationForLab(\App\Models\Lab $lab): \App\Models\Location
+    {
+        return \App\Models\Location::create([
+            'code' => 'BLD-'.fake()->unique()->numerify('####'),
+            'name' => 'อาคารทดสอบ',
+            'level_type' => 'BUILDING',
+            'lab_id' => $lab->id,
+        ]);
+    }
+}
+
+if (! function_exists('makeRequisition')) {
+    function makeRequisition(\App\Models\User $requester, array $overrides = []): \App\Models\Requisition
+    {
+        $lab = makeLab();
+
+        return \App\Models\Requisition::create(array_merge([
+            'doc_no' => 'REQ-2569-'.str_pad((string) fake()->unique()->numberBetween(1, 99999), 5, '0', STR_PAD_LEFT),
+            'lab_id' => $requester->lab_id ?? $lab->id,
+            'doc_date' => now()->toDateString(),
+            'requester_id' => $requester->id,
+            'requester_name' => $requester->full_name,
+            'requester_status' => $requester->person_type,
+            'requester_phone' => $requester->phone_encrypted,
+            'student_code' => $requester->person_type === 'STUDENT' ? $requester->person_code_encrypted : null,
+            'program' => $requester->program,
+            'faculty' => $requester->faculty,
+            'advisor_id' => $requester->advisor_id,
+            'request_type' => ['CHEMICAL'],
+            'purpose_type' => 'TEACHING',
+            'status' => 'DRAFT',
+        ], $overrides));
+    }
+}

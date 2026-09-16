@@ -264,23 +264,26 @@ test('the item balance endpoint returns the current ledger balance for FR-RQ-05'
         ->assertJson(['balance' => '42.500000', 'unit' => 'g']);
 });
 
-function makeRequisition(User $requester, array $overrides = []): Requisition
-{
-    $lab = makeLab();
+if (! function_exists('makeRequisition')) {
+    function makeRequisition(User $requester, array $overrides = []): Requisition
+    {
+        $lab = makeLab();
 
-    return Requisition::create(array_merge([
-        'doc_no' => 'REQ-2569-'.str_pad((string) fake()->unique()->numberBetween(1, 99999), 5, '0', STR_PAD_LEFT),
-        'lab_id' => $lab->id,
-        'doc_date' => now()->toDateString(),
-        'requester_id' => $requester->id,
-        'requester_status' => $requester->person_type,
-        'requester_phone' => $requester->phone_encrypted,
-        'student_code' => $requester->person_type === 'STUDENT' ? $requester->person_code_encrypted : null,
-        'program' => $requester->program,
-        'faculty' => $requester->faculty,
-        'advisor_id' => $requester->advisor_id,
-        'request_type' => ['CHEMICAL'],
-        'purpose_type' => 'TEACHING',
-        'status' => 'DRAFT',
-    ], $overrides));
+        return Requisition::create(array_merge([
+            'doc_no' => 'REQ-2569-'.str_pad((string) fake()->unique()->numberBetween(1, 99999), 5, '0', STR_PAD_LEFT),
+            'lab_id' => $lab->id,
+            'doc_date' => now()->toDateString(),
+            'requester_id' => $requester->id,
+            'requester_name' => $requester->full_name,
+            'requester_status' => $requester->person_type,
+            'requester_phone' => $requester->phone_encrypted,
+            'student_code' => $requester->person_type === 'STUDENT' ? $requester->person_code_encrypted : null,
+            'program' => $requester->program,
+            'faculty' => $requester->faculty,
+            'advisor_id' => $requester->advisor_id,
+            'request_type' => ['CHEMICAL'],
+            'purpose_type' => 'TEACHING',
+            'status' => 'DRAFT',
+        ], $overrides));
+    }
 }

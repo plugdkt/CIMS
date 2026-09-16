@@ -11,6 +11,7 @@ return [
     'header_item' => 'รายการ',
     'header_brand' => 'ยี่ห้อ',
     'header_grade' => 'เกรด',
+    'header_physical_state' => 'สถานะกายภาพ',
     'header_package_size' => 'ขนาดบรรจุ',
     'header_unit' => 'หน่วยนับ',
     'header_sub_unit' => 'หน่วยนับย่อย',

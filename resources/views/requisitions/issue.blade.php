@@ -21,8 +21,33 @@
         @foreach ($lines as $row)
             @php($line = $row['line'])
             <div class="bg-surface border border-border rounded-xl p-6 mb-4">
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="font-display text-base font-bold">{{ $line->item?->name_th }}</h2>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h2 class="font-display text-base font-bold">{{ $line->item?->name_th }}</h2>
+                        @if ($line->item?->item_code)
+                            <span class="font-mono text-xs text-ink-muted px-1.5 py-0.5 rounded bg-surface-alt border border-border/70">{{ $line->item->item_code }}</span>
+                        @endif
+                        @if ($line->item?->grade)
+                            <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-accent-soft text-accent-strong font-semibold border border-accent/20">{{ $line->item->grade }}</span>
+                        @endif
+                        @if ($line->item?->physical_state)
+                            @php
+                                $stateBadge = match($line->item->physical_state) {
+                                    'liquid' => ['bg' => 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800', 'label' => __('items.state_liquid'), 'icon' => '💧'],
+                                    'powder' => ['bg' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800', 'label' => __('items.state_powder'), 'icon' => '🧂'],
+                                    'solid' => ['bg' => 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700', 'label' => __('items.state_solid'), 'icon' => '🧊'],
+                                    'gas' => ['bg' => 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800', 'label' => __('items.state_gas'), 'icon' => '💨'],
+                                    'solution' => ['bg' => 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800', 'label' => __('items.state_solution'), 'icon' => '🧪'],
+                                    'crystal' => ['bg' => 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800', 'label' => __('items.state_crystal'), 'icon' => '💎'],
+                                    'pellet' => ['bg' => 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800', 'label' => __('items.state_pellet'), 'icon' => '⚪'],
+                                    default => ['bg' => 'bg-surface-alt text-ink border-border', 'label' => $line->item->physical_state, 'icon' => '•'],
+                                };
+                            @endphp
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border {{ $stateBadge['bg'] }} font-medium">
+                                <span>{{ $stateBadge['icon'] }}</span>
+                                <span>{{ $stateBadge['label'] }}</span>
+                            </span>
+                        @endif
+                    </div>
                     <span class="text-xs text-ink-muted">
                         {{ __('requisitions.field_qty_requested') }} {{ $line->qty_requested_base }}
                         / {{ __('requisitions.issued_so_far') }} {{ $line->qty_issued_base }}

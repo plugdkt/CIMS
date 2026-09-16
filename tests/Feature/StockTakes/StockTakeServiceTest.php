@@ -12,14 +12,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function makeLocationForLab(\App\Models\Lab $lab): Location
-{
-    return Location::create([
-        'code' => 'BLD-'.fake()->unique()->numerify('####'),
-        'name' => 'อาคารทดสอบ',
-        'level_type' => 'BUILDING',
-        'lab_id' => $lab->id,
-    ]);
+if (! function_exists('makeLocationForLab')) {
+    function makeLocationForLab(\App\Models\Lab $lab): Location
+    {
+        return Location::create([
+            'code' => 'BLD-'.fake()->unique()->numerify('####'),
+            'name' => 'อาคารทดสอบ',
+            'level_type' => 'BUILDING',
+            'lab_id' => $lab->id,
+        ]);
+    }
 }
 
 test('FR-ST-02: creating a round generates one line per active container in the lab, excluding EMPTY/DISPOSED', function () {

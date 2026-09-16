@@ -14,13 +14,15 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function makeLab(array $overrides = []): Lab
-{
-    return Lab::create(array_merge([
-        'code' => 'LAB-'.fake()->unique()->numerify('####'),
-        'name_th' => 'ห้องปฏิบัติการทดสอบ',
-        'is_active' => true,
-    ], $overrides));
+if (! function_exists('makeLab')) {
+    function makeLab(array $overrides = []): Lab
+    {
+        return Lab::create(array_merge([
+            'code' => 'LAB-'.fake()->unique()->numerify('####'),
+            'name_th' => 'ห้องปฏิบัติการทดสอบ',
+            'is_active' => true,
+        ], $overrides));
+    }
 }
 
 function makeDraftGrn(array $overrides = []): GoodsReceipt

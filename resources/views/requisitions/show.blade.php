@@ -86,7 +86,32 @@
                             @foreach ($requisition->items as $line)
                                 <tr>
                                     <td class="px-3 py-2 align-top text-ink-muted">{{ $line->line_no }}</td>
-                                    <td class="px-3 py-2 align-top">{{ $line->item?->name_th }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                        <div class="font-medium text-ink">{{ $line->item?->name_th }}</div>
+                                        <div class="flex items-center gap-1.5 mt-0.5">
+                                            @if ($line->item?->item_code)
+                                                <span class="font-mono text-[11px] text-ink-muted">{{ $line->item->item_code }}</span>
+                                            @endif
+                                            @if ($line->item?->grade)
+                                                <span class="inline-block text-[11px] px-1.5 py-0.2 rounded bg-accent-soft text-accent-strong font-semibold border border-accent/20">{{ $line->item->grade }}</span>
+                                            @endif
+                                            @if ($line->item?->physical_state)
+                                                @php
+                                                    $stateBadge = match($line->item->physical_state) {
+                                                        'liquid' => ['icon' => '💧', 'label' => __('items.state_liquid')],
+                                                        'powder' => ['icon' => '🧂', 'label' => __('items.state_powder')],
+                                                        'solid' => ['icon' => '🧊', 'label' => __('items.state_solid')],
+                                                        'solution' => ['icon' => '🧪', 'label' => __('items.state_solution')],
+                                                        'gas' => ['icon' => '💨', 'label' => __('items.state_gas')],
+                                                        'crystal' => ['icon' => '💎', 'label' => __('items.state_crystal')],
+                                                        'pellet' => ['icon' => '⚪', 'label' => __('items.state_pellet')],
+                                                        default => ['icon' => '•', 'label' => $line->item->physical_state],
+                                                    };
+                                                @endphp
+                                                <span class="text-[11px] text-ink-muted">({{ $stateBadge['icon'] }} {{ $stateBadge['label'] }})</span>
+                                            @endif
+                                        </div>
+                                    </td>
                                     <td class="px-3 py-2 align-top">{{ $line->qty_requested }} {{ $line->unit?->code }}</td>
                                     <td class="px-3 py-2 align-top">{{ $line->reference_doc ?: '—' }}</td>
                                     <td class="px-3 py-2 align-top text-right">
@@ -126,7 +151,14 @@
                                 @change="loadBalance($event.target.selectedOptions[0].dataset.ulid)">
                             <option value="">{{ __('items.select_placeholder') }}</option>
                             @foreach ($items as $item)
-                                <option value="{{ $item->id }}" data-ulid="{{ $item->ulid }}">{{ $item->name_th }} ({{ $item->item_code }})</option>
+                                @php
+                                    $extraInfo = array_filter([
+                                        $item->item_code,
+                                        $item->grade ? 'เกรด: '.$item->grade : null,
+                                        $item->physical_state ? __('items.state_'.$item->physical_state) : null,
+                                    ]);
+                                @endphp
+                                <option value="{{ $item->id }}" data-ulid="{{ $item->ulid }}">{{ $item->name_th }} ({{ implode(' | ', $extraInfo) }})</option>
                             @endforeach
                         </select>
                         {{-- FR-RQ-05: current balance next to the selected item, real-time. --}}

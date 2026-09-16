@@ -33,9 +33,23 @@
                       'name_th' => $it->name_th,
                       'name_en' => $it->name_en ?? '',
                       'cas_no' => $it->cas_no ?? '',
+                      'grade' => $it->grade,
+                      'physical_state' => $it->physical_state,
                       'unit_id' => $it->base_unit_id,
                       'expiry_date' => $it->expiry_date?->toDateString(),
                   ])) }},
+                  stateInfo(state) {
+                      const map = {
+                          'liquid': { icon: '💧', label: '{{ __('items.state_liquid') }}', cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
+                          'powder': { icon: '🧂', label: '{{ __('items.state_powder') }}', cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' },
+                          'solid': { icon: '🧊', label: '{{ __('items.state_solid') }}', cls: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+                          'solution': { icon: '🧪', label: '{{ __('items.state_solution') }}', cls: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' },
+                          'gas': { icon: '💨', label: '{{ __('items.state_gas') }}', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' },
+                          'crystal': { icon: '💎', label: '{{ __('items.state_crystal') }}', cls: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800' },
+                          'pellet': { icon: '⚪', label: '{{ __('items.state_pellet') }}', cls: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800' }
+                      };
+                      return map[state] || { icon: '•', label: state, cls: 'bg-surface-alt text-ink border-border' };
+                  },
                   get selectedItem() {
                       return this.items.find(i => i.id === this.selectedItemId) || null;
                   },
@@ -48,7 +62,9 @@
                           return (i.name_th && i.name_th.toLowerCase().includes(q))
                               || (i.name_en && i.name_en.toLowerCase().includes(q))
                               || (i.code && i.code.toLowerCase().includes(q))
-                              || (i.cas_no && i.cas_no.toLowerCase().includes(q));
+                              || (i.cas_no && i.cas_no.toLowerCase().includes(q))
+                              || (i.grade && i.grade.toLowerCase().includes(q))
+                              || (i.physical_state && i.physical_state.toLowerCase().includes(q));
                       }).slice(0, 50);
                   },
                   selectItem(item) {
@@ -99,6 +115,16 @@
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-surface text-ink-muted border border-border" x-text="selectedItem.code"></span>
                                 </template>
                                 <span class="font-bold text-ink text-sm sm:text-base truncate" x-text="selectedItem?.name_th"></span>
+                                <template x-if="selectedItem?.grade">
+                                    <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-accent-soft text-accent-strong font-semibold border border-accent/20" x-text="selectedItem.grade"></span>
+                                </template>
+                                <template x-if="selectedItem?.physical_state">
+                                    <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border font-medium"
+                                          :class="stateInfo(selectedItem.physical_state).cls">
+                                        <span x-text="stateInfo(selectedItem.physical_state).icon"></span>
+                                        <span x-text="stateInfo(selectedItem.physical_state).label"></span>
+                                    </span>
+                                </template>
                             </div>
                             <div class="text-xs text-ink-muted mt-0.5 flex items-center gap-3 flex-wrap">
                                 <template x-if="selectedItem?.name_en">
@@ -162,6 +188,16 @@
                                             <span class="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-surface-alt text-ink-muted border border-border/80" x-text="item.code"></span>
                                         </template>
                                         <span class="text-sm font-semibold text-ink group-hover:text-accent transition-colors" x-text="item.name_th"></span>
+                                        <template x-if="item.grade">
+                                            <span class="inline-block text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent-strong font-semibold border border-accent/20" x-text="item.grade"></span>
+                                        </template>
+                                        <template x-if="item.physical_state">
+                                            <span class="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md border font-medium"
+                                                  :class="stateInfo(item.physical_state).cls">
+                                                <span x-text="stateInfo(item.physical_state).icon"></span>
+                                                <span x-text="stateInfo(item.physical_state).label"></span>
+                                            </span>
+                                        </template>
                                     </div>
                                     <div class="text-xs text-ink-muted mt-0.5 flex items-center gap-3 flex-wrap">
                                         <template x-if="item.name_en">

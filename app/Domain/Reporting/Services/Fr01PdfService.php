@@ -103,6 +103,21 @@ final class Fr01PdfService
         $rows = $requisition->items->map(function (RequisitionItem $line) {
             $lineItem = $line->item()->firstOrFail();
             $item = $this->e($lineItem->name_th);
+
+            $subParts = [];
+            if ($lineItem->item_code) {
+                $subParts[] = $lineItem->item_code;
+            }
+            if ($lineItem->grade) {
+                $subParts[] = __('items.field_grade').': '.$lineItem->grade;
+            }
+            if ($lineItem->physical_state) {
+                $subParts[] = __('items.state_'.$lineItem->physical_state);
+            }
+            $itemSub = ! empty($subParts)
+                ? '<div style="font-size: 7.5pt; color: #555; margin-top: 2px;">'.$this->e(implode(' | ', $subParts)).'</div>'
+                : '';
+
             $qtyRequested = $this->e("{$line->qty_requested} {$line->unit?->code}");
             $qtyIssued = $this->e($line->qty_issued_base).' ('.$this->e($lineItem->baseUnit?->code).')';
             $reference = $this->e($line->reference_doc ?? '—');
@@ -110,7 +125,7 @@ final class Fr01PdfService
             return <<<HTML
                 <tr>
                     <td>{$line->line_no}</td>
-                    <td>{$item}</td>
+                    <td>{$item}{$itemSub}</td>
                     <td class="num">{$qtyRequested}</td>
                     <td class="num">{$qtyIssued}</td>
                     <td>{$reference}</td>

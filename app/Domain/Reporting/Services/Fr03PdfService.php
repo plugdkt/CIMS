@@ -94,6 +94,7 @@ final class Fr03PdfService
             'header_item' => $item->name_th.' ('.$item->item_code.')',
             'header_brand' => $item->brand,
             'header_grade' => $item->grade,
+            'header_physical_state' => $item->physical_state ? (string) __('items.state_'.$item->physical_state) : null,
             'header_package_size' => $item->package_size !== null
                 ? $item->package_size.' '.$item->packageUnit?->code
                 : null,
