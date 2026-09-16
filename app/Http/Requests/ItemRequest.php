@@ -51,6 +51,7 @@ final class ItemRequest extends FormRequest
             'formula' => ['nullable', 'string', 'max:128'],
             'brand' => ['nullable', 'string', 'max:128'],
             'grade' => ['nullable', 'string', 'max:64'],
+            'physical_state' => ['nullable', 'string', 'max:32', Rule::in(['liquid', 'solid', 'powder', 'solution', 'gas', 'crystal', 'pellet'])],
             'specification' => ['nullable', 'string'],
             'package_size' => ['nullable', 'numeric', 'min:0'],
             'package_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')],

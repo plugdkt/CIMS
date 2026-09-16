@@ -94,6 +94,28 @@
                     <dd>{{ $item->grade ?: '—' }}</dd>
                 </div>
                 <div>
+                    <dt class="text-xs text-ink-faint">{{ __('items.field_physical_state') }}</dt>
+                    <dd>
+                        @if ($item->physical_state)
+                            @php
+                                $stateName = match($item->physical_state) {
+                                    'liquid' => __('items.state_liquid'),
+                                    'solid' => __('items.state_solid'),
+                                    'powder' => __('items.state_powder'),
+                                    'solution' => __('items.state_solution'),
+                                    'gas' => __('items.state_gas'),
+                                    'crystal' => __('items.state_crystal'),
+                                    'pellet' => __('items.state_pellet'),
+                                    default => $item->physical_state,
+                                };
+                            @endphp
+                            <span>{{ $stateName }}</span>
+                        @else
+                            <span>—</span>
+                        @endif
+                    </dd>
+                </div>
+                <div>
                     <dt class="text-xs text-ink-faint">{{ __('items.field_storage_class') }}</dt>
                     <dd>{{ $item->storage_class ?: '—' }}</dd>
                 </div>

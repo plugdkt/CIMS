@@ -48,7 +48,9 @@ final class ItemTable extends Component
                         ->orWhere('name_en', 'like', "%{$term}%")
                         ->orWhere('brand', 'like', "%{$term}%")
                         ->orWhere('item_code', 'like', "%{$term}%")
-                        ->orWhere('cas_no', 'like', "%{$term}%");
+                        ->orWhere('cas_no', 'like', "%{$term}%")
+                        ->orWhere('grade', 'like', "%{$term}%")
+                        ->orWhere('physical_state', 'like', "%{$term}%");
                 });
             })
             ->orderBy('name_th')

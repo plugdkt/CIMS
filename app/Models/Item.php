@@ -16,12 +16,13 @@ use Illuminate\Support\Str;
  * @property int|null $shelf_life_days_after_open
  * @property int|null $base_unit_id
  * @property int|null $package_unit_id
+ * @property string|null $physical_state
  * @property list<string>|null $ghs_codes
  * @property list<string>|null $h_statements
  * @property list<string>|null $p_statements
  */
 #[Fillable([
-    'item_code', 'category_id', 'name_th', 'name_en', 'cas_no', 'formula', 'brand', 'grade',
+    'item_code', 'category_id', 'name_th', 'name_en', 'cas_no', 'formula', 'brand', 'grade', 'physical_state',
     'specification', 'package_size', 'package_unit_id', 'sub_unit_id', 'base_unit_id', 'density_g_per_ml',
     'reorder_point_base', 'is_controlled', 'control_class', 'ghs_codes', 'h_statements',
     'p_statements', 'storage_class', 'shelf_life_days_after_open', 'expiry_date', 'is_active',

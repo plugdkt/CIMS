@@ -101,7 +101,7 @@
                         <p id="pubchem-autofill-status" class="text-xs mt-1.5" hidden></p>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium mb-1" for="brand">{{ __('items.field_brand') }}</label>
                             <input type="text" name="brand" id="brand" value="{{ old('brand', $item->brand) }}"
@@ -113,6 +113,20 @@
                             <input type="text" name="grade" id="grade" value="{{ old('grade', $item->grade) }}"
                                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                                    placeholder="เช่น AR, HPLC, ACS">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1" for="physical_state">{{ __('items.field_physical_state') }}</label>
+                            <select name="physical_state" id="physical_state"
+                                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                                <option value="">{{ __('items.select_placeholder') }}</option>
+                                <option value="liquid" @selected(old('physical_state', $item->physical_state) === 'liquid')>{{ __('items.state_liquid') }}</option>
+                                <option value="solid" @selected(old('physical_state', $item->physical_state) === 'solid')>{{ __('items.state_solid') }}</option>
+                                <option value="powder" @selected(old('physical_state', $item->physical_state) === 'powder')>{{ __('items.state_powder') }}</option>
+                                <option value="solution" @selected(old('physical_state', $item->physical_state) === 'solution')>{{ __('items.state_solution') }}</option>
+                                <option value="gas" @selected(old('physical_state', $item->physical_state) === 'gas')>{{ __('items.state_gas') }}</option>
+                                <option value="crystal" @selected(old('physical_state', $item->physical_state) === 'crystal')>{{ __('items.state_crystal') }}</option>
+                                <option value="pellet" @selected(old('physical_state', $item->physical_state) === 'pellet')>{{ __('items.state_pellet') }}</option>
+                            </select>
                         </div>
                     </div>
 

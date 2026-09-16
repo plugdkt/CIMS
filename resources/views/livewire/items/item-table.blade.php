@@ -39,6 +39,8 @@
                         <th class="px-4 py-3 font-semibold">{{ __('items.col_code') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('items.col_name') }}</th>
                         <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('items.col_cas') }}</th>
+                        <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('items.col_grade') }}</th>
+                        <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('items.col_physical_state') }}</th>
                         <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('items.col_package_size') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('items.col_category') }}</th>
                         <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ __('items.col_status') }}</th>
@@ -62,11 +64,6 @@
                                             {{ $item->formula }}
                                         </span>
                                     @endif
-                                    @if ($item->grade)
-                                        <span class="inline-block text-[11px] px-1.5 py-0.5 rounded bg-accent-soft/70 text-accent-strong font-semibold" title="{{ __('items.field_grade') }}">
-                                            {{ $item->grade }}
-                                        </span>
-                                    @endif
                                     @if ($item->brand)
                                         <span class="inline-block text-[11px] px-1.5 py-0.5 rounded bg-surface-alt text-ink-faint border border-border/60" title="{{ __('items.field_brand') }}">
                                             {{ $item->brand }}
@@ -85,6 +82,37 @@
                                 @if ($item->cas_no)
                                     <span class="inline-block font-mono text-xs px-2 py-0.5 rounded bg-surface-alt border border-border/80 text-ink font-medium">
                                         {{ $item->cas_no }}
+                                    </span>
+                                @else
+                                    <span class="text-xs text-ink-faint">—</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 align-top whitespace-nowrap text-xs">
+                                @if ($item->grade)
+                                    <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-accent-soft text-accent-strong font-semibold border border-accent/20">
+                                        {{ $item->grade }}
+                                    </span>
+                                @else
+                                    <span class="text-xs text-ink-faint">—</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 align-top whitespace-nowrap text-xs">
+                                @if ($item->physical_state)
+                                    @php
+                                        $stateBadge = match($item->physical_state) {
+                                            'liquid' => ['bg' => 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800', 'label' => __('items.state_liquid'), 'icon' => '💧'],
+                                            'powder' => ['bg' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800', 'label' => __('items.state_powder'), 'icon' => '🧂'],
+                                            'solid' => ['bg' => 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700', 'label' => __('items.state_solid'), 'icon' => '🧊'],
+                                            'gas' => ['bg' => 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800', 'label' => __('items.state_gas'), 'icon' => '💨'],
+                                            'solution' => ['bg' => 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800', 'label' => __('items.state_solution'), 'icon' => '🧪'],
+                                            'crystal' => ['bg' => 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800', 'label' => __('items.state_crystal'), 'icon' => '💎'],
+                                            'pellet' => ['bg' => 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800', 'label' => __('items.state_pellet'), 'icon' => '⚪'],
+                                            default => ['bg' => 'bg-surface-alt text-ink border-border', 'label' => $item->physical_state, 'icon' => '•'],
+                                        };
+                                    @endphp
+                                    <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border {{ $stateBadge['bg'] }} font-medium">
+                                        <span>{{ $stateBadge['icon'] }}</span>
+                                        <span>{{ $stateBadge['label'] }}</span>
                                     </span>
                                 @else
                                     <span class="text-xs text-ink-faint">—</span>
@@ -127,7 +155,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-4 py-8 text-center text-ink-muted text-sm">
+                            <td colspan="9" class="px-4 py-8 text-center text-ink-muted text-sm">
                                 <div class="flex flex-col items-center justify-center gap-1">
                                     <span>{{ __('items.no_results') }}</span>
                                     @if (trim($search) !== '')
