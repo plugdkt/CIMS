@@ -68,6 +68,8 @@ return [
     'section_actions' => 'การบันทึกรายการ',
     'actions_hint' => 'ตรวจสอบความถูกต้องของข้อมูลและสเปกก่อนบันทึกเข้าระบบ',
 
+    'inventory_section_title' => 'รายการคงคลังในห้องปฏิบัติการ (Inventory in Lab)',
+    'inventory_empty' => 'ไม่พบภาชนะของสารนี้ในสาขาวิชาของคุณ',
     'ghs_section_title' => 'สัญลักษณ์ความเป็นอันตราย (GHS Pictogram)',
     'h_statements_section_title' => 'ข้อความแสดงความเป็นอันตราย (H-Statements)',
     'p_statements_section_title' => 'ข้อความข้อควรระวัง (P-Statements)',

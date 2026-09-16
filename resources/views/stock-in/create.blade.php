@@ -1,7 +1,7 @@
 <x-layout>
     <div class="max-w-3xl">
         <div class="mb-5">
-            <a href="{{ $selectedItem ? route('items.show', $selectedItem) : route('items.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('items.back_to_list') }}</a>
+            <a href="{{ $selectedItem ? route('items.show', $selectedItem) : route('stock-in.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('items.back_to_list') }}</a>
             <h1 class="font-display text-xl font-bold mt-1">
                 {{ __('stock.title_stock_in') }}
             </h1>

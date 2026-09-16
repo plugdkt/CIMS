@@ -142,6 +142,66 @@
         </div>
 
         <div class="bg-surface border border-border rounded-xl p-6 mt-6">
+            <h2 class="font-display text-base font-bold mb-3">{{ __('items.inventory_section_title') }}</h2>
+            @if ($containers->isNotEmpty())
+                <div class="overflow-x-auto" tabindex="0">
+                    <table class="w-full text-sm">
+                        <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
+                            <tr>
+                                <th class="px-3 py-2 font-semibold whitespace-nowrap">{{ __('stock.col_barcode') }}</th>
+                                <th class="px-3 py-2 font-semibold">{{ __('stock.col_location') }}</th>
+                                <th class="px-3 py-2 font-semibold whitespace-nowrap">{{ __('stock.col_remaining') }}</th>
+                                <th class="px-3 py-2 font-semibold whitespace-nowrap">{{ __('stock.col_expiry') }}</th>
+                                <th class="px-3 py-2 font-semibold whitespace-nowrap">{{ __('stock.col_container_status') }}</th>
+                                <th class="px-3 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border">
+                            @foreach ($containers as $container)
+                                <tr>
+                                    <td class="px-3 py-2 align-top font-mono text-xs text-ink-muted whitespace-nowrap">{{ $container->barcode }}</td>
+                                    <td class="px-3 py-2 align-top text-xs text-ink-muted">{{ $container->location?->name ?? '—' }}</td>
+                                    <td class="px-3 py-2 align-top whitespace-nowrap text-xs">
+                                        <span class="font-semibold text-ink text-sm">{{ rtrim(rtrim((string) $container->remaining_qty_base, '0'), '.') }}</span>
+                                        <span class="text-ink-muted ml-0.5">{{ $item->baseUnit?->code }}</span>
+                                    </td>
+                                    <td class="px-3 py-2 align-top whitespace-nowrap text-xs">
+                                        @if ($container->expiry_date)
+                                            @php
+                                                $daysLeft = now()->startOfDay()->diffInDays($container->expiry_date, false);
+                                                $expiryClass = match (true) {
+                                                    $daysLeft < 0 => 'text-danger-ink font-semibold',
+                                                    $daysLeft <= 30 => 'text-warning-ink font-semibold',
+                                                    default => 'text-ink-muted',
+                                                };
+                                            @endphp
+                                            <span class="{{ $expiryClass }}">{{ $container->expiry_date->format('d/m/Y') }}</span>
+                                        @else
+                                            <span class="text-ink-faint">{{ __('stock.no_expiry') }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-2 align-top whitespace-nowrap">
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-semibold {{ $container->status === 'SEALED' ? 'bg-neutral-soft text-neutral-ink' : 'bg-accent-soft text-accent-soft-ink' }}">
+                                            {{ $container->status === 'SEALED' ? __('stock.status_sealed') : __('stock.status_in_use') }}
+                                        </span>
+                                    </td>
+                                    <td class="px-3 py-2 align-top text-right whitespace-nowrap">
+                                        <a href="{{ route('stock-in.labels', ['size' => '40x25', 'ids' => (string) $container->id]) }}" target="_blank"
+                                           class="text-xs font-semibold text-accent hover:text-accent-strong">
+                                            {{ __('stock.print_label') }}
+                                        </a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <p class="text-sm text-ink-muted">{{ __('items.inventory_empty') }}</p>
+            @endif
+        </div>
+
+        <div class="bg-surface border border-border rounded-xl p-6 mt-6">
             <h2 class="font-display text-base font-bold mb-3">{{ __('items.ghs_section_title') }}</h2>
             @if (! empty($item->ghs_codes))
                 <div class="flex flex-wrap gap-4">

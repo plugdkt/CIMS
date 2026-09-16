@@ -17,6 +17,12 @@ use Illuminate\Database\Seeder;
  * ADMIN never gets a ledger.* write permission (§3: "ไม่มีสิทธิ์แตะ Ledger"); it does
  * get ledger.verify, which FR-LG-06 explicitly grants to AUDITOR/ADMIN as a read-only
  * integrity check, not a write.
+ *
+ * ADMIN also gets item.view (added for the Lab Inventory feature, docs/
+ * lab_inventory_handover_spec.md) — that page's own lab-picker is explicitly meant to
+ * let ADMIN browse every branch's stock, which needs the same read gate the item
+ * catalog/detail pages already use. User-approved 2026-09-16, since ADMIN previously
+ * had no way to view /items or /items/{id} at all.
  */
 final class PermissionSeeder extends Seeder
 {
@@ -66,7 +72,7 @@ final class PermissionSeeder extends Seeder
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
-            'ADMIN' => ['user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view'],
+            'ADMIN' => ['user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
             'AUDITOR' => [
                 'requisition.view_all', 'ledger.view', 'ledger.verify', 'item.view',
                 'audit.view', 'report.view',

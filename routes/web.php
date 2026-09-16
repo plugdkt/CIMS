@@ -31,6 +31,7 @@ use App\Http\Controllers\RequisitionReturnController;
 use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTakeController;
 use App\Livewire\Admin\UserRoleManager;
+use App\Livewire\Inventory\LabInventoryTable;
 use Illuminate\Support\Facades\Route;
 
 // §7.9: DashboardController itself returns the guest "welcome" view when not logged in.
@@ -146,9 +147,10 @@ Route::middleware('auth')->prefix('goods-receipts')->name('goods-receipts.')->gr
     Route::get('/{goods_receipt}/labels/{size}', [GoodsReceiptController::class, 'labels'])->name('labels');
 });
 
-// Working Stock: เติมสต็อก/รับเข้าคลังย่อย และพิมพ์สติกเกอร์บาร์โค้ด
+// Working Stock: เติมสต็อก/รับเข้าคลังย่อย, แสดงสต็อกคงคลังย่อย, และพิมพ์สติกเกอร์บาร์โค้ด
 Route::middleware('auth')->prefix('stock-in')->name('stock-in.')->group(function () {
-    Route::get('/', [StockInController::class, 'create'])->name('create');
+    Route::get('/', LabInventoryTable::class)->name('index');
+    Route::get('/create', [StockInController::class, 'create'])->name('create');
     Route::post('/', [StockInController::class, 'store'])->name('store');
     Route::get('/labels/{size}', [StockInController::class, 'labels'])->name('labels');
 });

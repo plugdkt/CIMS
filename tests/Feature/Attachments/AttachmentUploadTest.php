@@ -180,7 +180,10 @@ test('SCIENTIST (item.view) can download, but a user with no item permission can
     $viewer = scientist();
     $this->actingAs($viewer)->get(route('attachments.download', $attachment))->assertOk();
 
+    // Every seeded role holds item.view (ADMIN included, since 2026-09-16 — see
+    // PermissionSeeder), so a genuinely permission-less-but-role-having user needs a
+    // throwaway role instead of relying on any real role staying item.view-less.
     $noPermission = User::factory()->create();
-    $noPermission->roles()->attach(Role::where('code', 'ADMIN')->firstOrFail()); // ADMIN has no item.view
+    $noPermission->roles()->attach(Role::create(['code' => 'NO_ITEM_VIEW_TEST', 'name_th' => 'ทดสอบไม่มีสิทธิ์']));
     $this->actingAs($noPermission)->get(route('attachments.download', $attachment))->assertStatus(403);
 });

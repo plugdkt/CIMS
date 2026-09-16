@@ -1107,4 +1107,58 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   AI block after other content is correctly skipped by the default scope) — all against real reproduction
   fixtures, not just the fixed code.
 
+## Post-launch — Lab inventory list ("สต็อกคงคลังย่อยของฉัน", 2026-09-16)
+
+Built per `docs/lab_inventory_handover_spec.md` (a handover doc the server-side team wrote after
+adding `physical_state`/`grade` — see that commit history). Implemented directly by this session at
+the user's explicit request, an exception to the "server team implements, this session reviews"
+default this session otherwise follows now.
+
+- **New `stock-in.index` page (`App\Livewire\Inventory\LabInventoryTable`)** lists every `SEALED`/
+  `IN_USE` container with `remaining_qty_base > 0`, scoped to the viewer's own `lab_id` — barcode,
+  item name/code/grade/physical-state badge, storage location, remaining qty, expiry (colored
+  warning within 30 days, red once past), container status, and a per-row "print label" link reusing
+  the existing `ContainerLabelPdfService` route. Search (name/code/barcode), a location filter, and
+  a "+ เติมสต็อก" button (shown only to users who already pass the same stock-in permission check the
+  sidebar link itself used) round it out. New `ContainerPolicy` (`viewAny`/`view` gated on `item.view`,
+  matching the item catalog's own read gate) backs the page's authorization.
+- **`/stock-in` now serves this list; the old create form moved to `/stock-in/create`** — a route-name
+  change only (`stock-in.create`/`stock-in.store`/`stock-in.labels` keep their names and behavior
+  unchanged), so every existing `route('stock-in.create')`/`route('stock-in.store')` call site and
+  test kept working with zero edits. The sidebar's "รับเข้าคลังย่อย" link now points at the list (label
+  changed to "คลังสารเคมีของฉัน (สต็อกคงคลัง)") and is gated on `can('viewAny', Container::class)`
+  instead of the old write-only permission check, matching every other inventory nav item's own
+  convention of linking to a list page, not a create form.
+- **Item detail page (`/items/{id}`) gained a "รายการคงคลังในห้องปฏิบัติการ" card** — the same
+  container list, scoped the same way, for just that one item — so opening an item shows at a glance
+  how many containers of it exist in your lab, where, and their expiry, without a separate lookup.
+- **Only ADMIN/AUDITOR get a lab picker; everyone else's own `lab_id` always wins over the URL** —
+  same "never widened via the query string" rule `ReportController::labIdFor()` already established
+  for the §7.8 reports, reused here rather than inventing a second convention for the same problem.
+- **Found and fixed a real bug before it shipped**: the first draft computed "no lab_id chosen" and
+  "not privileged" as the same `null` value, which meant a user with no `lab_id` assigned yet would
+  see *every* lab's inventory instead of none (the intended "no filter" meaning of `null` only makes
+  sense for a privileged ADMIN/AUDITOR who chose not to filter). Fixed by tracking "unassigned" as its
+  own explicit condition in both the list page and the item-detail card, forcing an empty result
+  (`whereRaw('1 = 0')`) instead. Caught during review before writing any test, then covered by a
+  regression test proving an unassigned user's list is empty, not everyone else's stock.
+- **Found and fixed a real, pre-existing permission gap while implementing this**: `ADMIN` had no
+  `item.view` permission at all (`PermissionSeeder`'s original grants were `user.manage`/
+  `unit.manage`/`lab.manage`/`ledger.verify`/`audit.view` only) — meaning ADMIN could never open
+  `/items` or `/items/{id}` even before this feature existed, unrelated to lab inventory specifically.
+  Since the handover spec explicitly wants ADMIN to pick any lab on this new page, asked the user
+  directly: broaden ADMIN's permissions vs. use AUDITOR (who already has `item.view`) as the
+  cross-lab role instead. User-approved 2026-09-16: grant ADMIN `item.view` (`PermissionSeeder`,
+  `syncWithoutDetaching` — safe to re-run, only adds grants, never removes). This surfaced one
+  existing test that depended on the old gap as its fixture for "a user with no relevant permission"
+  (`AttachmentUploadTest.php`, comment literally said "ADMIN has no item.view") — fixed by giving that
+  test its own throwaway zero-permission role instead of relying on any real role staying
+  `item.view`-less, which is more robust going forward regardless of future grant changes.
+- Verified: 10 new tests (`LabInventoryTableTest.php` — 403/redirect gates, own-lab visibility,
+  EMPTY/zero-remaining exclusion, cross-lab isolation, the unassigned-user-sees-nothing fix, ADMIN's
+  lab picker on both the list and the item-detail card, search), full suite green (468 tests, up from
+  458), Pint clean (357 files), PHPStan level 8 clean (0 errors), `composer audit` clean. Re-ran
+  `php artisan db:seed --class=PermissionSeeder` against the real dev database so the permission
+  change takes effect immediately, not just in the test suite's own fresh migrations.
+
 

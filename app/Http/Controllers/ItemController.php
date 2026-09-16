@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Chemicals\Services\ChemicalSyncService;
 use App\Http\Requests\ItemRequest;
+use App\Models\Container;
 use App\Models\Item;
 use App\Models\ItemCategory;
 use App\Models\Unit;
@@ -40,13 +41,34 @@ final class ItemController extends Controller
         return redirect()->route('items.index')->with('status', __('items.saved'));
     }
 
-    public function show(Item $item): View
+    public function show(Item $item, Request $request): View
     {
         $this->authorize('view', $item);
+        $this->authorize('viewAny', Container::class);
+
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $privileged = $user->hasRole('ADMIN') || $user->hasRole('AUDITOR');
+        $labId = $privileged ? null : $user->lab_id;
+        // A non-privileged viewer with no lab_id has nothing to scope by — show
+        // nothing, never every lab's containers (privileged is the only case that
+        // legitimately means "no filter, show every lab").
+        $unassigned = ! $privileged && $labId === null;
+
+        $containers = Container::query()
+            ->where('item_id', $item->id)
+            ->whereIn('status', ['SEALED', 'IN_USE'])
+            ->where('remaining_qty_base', '>', 0)
+            ->when($unassigned, fn ($query) => $query->whereRaw('1 = 0'))
+            ->when(! $unassigned && $labId !== null, fn ($query) => $query->whereHas('location', fn ($q) => $q->where('lab_id', $labId)))
+            ->with('location')
+            ->orderByRaw('expiry_date IS NULL, expiry_date ASC')
+            ->get();
 
         return view('items.show', [
             'item' => $item,
             'sdsAttachments' => $item->attachments()->where('doc_type', 'SDS')->orderByDesc('version')->get(),
+            'containers' => $containers,
         ]);
     }
 

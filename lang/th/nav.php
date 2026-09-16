@@ -6,7 +6,7 @@ return [
     'chemical_lookup' => 'ค้นข้อมูลสารเคมี (PubChem)',
     'locations' => 'ผังจัดเก็บ',
     'group_inventory' => 'คลังสินค้า',
-    'stock_in' => 'รับเข้าคลังย่อย (เติมสต็อก)',
+    'stock_in' => 'คลังสารเคมีของฉัน (สต็อกคงคลัง)',
     'goods_receipts' => 'ใบรับของ (GRN)',
     'requisitions' => 'ใบขอเบิก',
     'stock_takes' => 'ตรวจนับสต๊อก',
