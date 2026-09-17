@@ -65,6 +65,24 @@ test('each result carries the item\'s own base unit id and dimension, for the un
         ->assertJsonFragment(['baseUnitId' => $item->base_unit_id, 'dimension' => 'MASS']);
 });
 
+test('the requisition show page embeds the units list safely inside the x-data attribute', function () {
+    // Regression guard for a real bug: @json() alone leaves literal, unescaped quotes in its
+    // output (its HEX_* options only escape quote characters *inside string content*, not
+    // JSON's own required structural quotes) — that broke the surrounding double-quoted
+    // x-data attribute wide open in a real browser, spilling the rest of the JS expression
+    // and the <form>'s remaining attributes as visible page text. Js::from() (used in the
+    // view now) wraps the payload in JSON.parse('...') with every quote hex-escaped, which
+    // is safe. A literal `"id":"` substring in the response means that regressed.
+    $student = studentUser();
+    $requisition = makeRequisition($student);
+
+    $response = $this->actingAs($student)->get(route('requisitions.show', $requisition));
+
+    $response->assertOk();
+    expect($response->getContent())->not->toContain('"id":"');
+    $response->assertSee('JSON.parse(', false);
+});
+
 test('adding a line item for an item with no stock in the requisition\'s own lab is rejected', function () {
     [$student, $ownLab] = studentUserWithLab();
     $requisition = makeRequisition($student, ['lab_id' => $ownLab->id]);

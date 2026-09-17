@@ -1202,3 +1202,31 @@ at all — every lab's items showed up regardless of what that branch actually s
   POST rejected, response carries `baseUnitId`/`dimension`), full suite green (474 tests, up from 468),
   Pint clean (358 files), PHPStan level 8 clean (0 errors), `composer audit` clean.
 
+## Fix — Item picker broke the whole add-line form in a real browser (2026-09-17)
+
+**User-reported, with a screenshot**: opening a requisition and going to add a line showed raw
+JavaScript source text spilled across the page above the form fields, right where the add-line
+form was supposed to start.
+
+- **Root cause**: `units: @json($units->map(...))` inside the `x-data="..."` attribute
+  (introduced by the same-day item-picker work above). `@json()`'s `JSON_HEX_*` options only
+  escape a quote character that appears *inside a string's content* — they cannot remove JSON's
+  own structural quotes (`"key":"value"`), which are unavoidable in valid JSON. So the rendered
+  attribute contained real `"` characters, which closed the double-quoted `x-data="..."`
+  attribute early. The browser's parser then read the rest of the JS expression as if it were
+  more tag attributes, until it hit the first literal `>` inside the JS itself
+  (`this.activeIndex >= 0` in `chooseActive()`) — which it took as the tag's closing bracket,
+  dumping everything after as plain visible page text until the next real `>`. None of this was
+  caught by any Feature test because they only assert status codes/JSON bodies, never that the
+  rendered HTML is well-formed — a class of bug only a real browser (or a targeted content
+  check) surfaces.
+- **Fix**: switched to `{{ \Illuminate\Support\Js::from(...) }}` — Laravel's own primitive for
+  embedding arbitrary data into an HTML attribute/JS context safely (wraps the payload as
+  `JSON.parse('...')` with every quote hex-escaped, including the structural ones). No visible
+  behavior change; the picker's browse/search/unit-matching behavior added earlier today is
+  unaffected.
+- Added a regression test asserting the rendered page never contains a literal `"id":"` sequence
+  (the tell-tale sign of unescaped JSON leaking into the attribute) and does contain
+  `JSON.parse(`. Verified live by re-rendering the view directly and diffing the raw HTML before
+  and after. Full suite green (475 tests), Pint clean, PHPStan level 8 clean.
+

@@ -139,7 +139,12 @@
                       x-data="{
                           balance: null, unit: null, itemId: '', unitId: '', itemDimension: null,
                           query: '', results: [], open: false, activeIndex: -1,
-                          units: @json($units->map(fn ($u) => ['id' => (string) $u->id, 'code' => $u->code, 'dimension' => $u->dimension])),
+                          {{-- @json() alone leaves literal quotes in the JSON (its HEX_* options only
+                               escape quote characters inside string *content*, not JSON's own required
+                               structural quotes) — those broke this double-quoted x-data attribute wide
+                               open, spilling the rest of the expression as visible page text. Js::from()
+                               is the safe primitive for embedding arbitrary data in an HTML attribute. --}}
+                          units: {{ \Illuminate\Support\Js::from($units->map(fn ($u) => ['id' => (string) $u->id, 'code' => $u->code, 'dimension' => $u->dimension])) }},
                           async loadBalance(ulid) {
                               if (!ulid) { this.balance = null; return; }
                               const res = await fetch(`{{ url('requisitions/items') }}/${ulid}/balance`);
