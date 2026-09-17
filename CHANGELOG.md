@@ -1254,3 +1254,35 @@ keep internally but unnecessarily noisy to show a requester.
   all). Full suite green (476 tests, up from 474), Pint clean (358 files), PHPStan level 8
   clean.
 
+## Post-launch — Container labels: QR code instead of barcode, bigger label text (2026-09-17)
+
+User-requested: the lab doesn't own a 2D scanner yet but is buying one, and wants to switch the
+printed label's symbol to a QR code ahead of that purchase; the person managing labels day-to-day
+is older and asked for larger label text.
+
+- **`ContainerLabelPdfService` now uses `QrCodeGenerator`** (already built for F-01's verify
+  corner, T-023/T-037 — reused here, not rebuilt) instead of `BarcodeGenerator`/Code 128.
+  `containers.barcode` itself is untouched (still the same plain string column, same value used
+  everywhere else — scanning, issuing, stock take); only the printed symbol on the label changed.
+  Since `BarcodeGenerator` had no other consumer left anywhere in the app, deleted it and its
+  dedicated unit test rather than leave dead code behind.
+- **Label text sizes increased**: item name 7pt → 9pt, code text 6pt → 8pt, lot/expiry 6pt → 7pt.
+  The QR's own physical size (`qr_size` in mm, added per label size in `SIZES`) was hand-picked
+  to leave enough room for the now-bigger text stacked below it without either one getting
+  cramped — 12mm for the 40×25mm label, 17mm for 50×30mm. The QR's own SVG is also generated at
+  a matching pixel size (96 CSS px/inch, 25.4mm/inch) as a safeguard in case mPDF doesn't scale
+  an embedded SVG down from its native size to fit a smaller container — belt-and-suspenders
+  with the CSS width/height on the wrapping div.
+- Verified visually, not just by test assertion: rendered a real label PDF for two throwaway
+  containers, converted it to a high-res PNG (`pdftoppm`, installed as one-time container
+  tooling — same throwaway-tooling precedent as T-025's font build, not a runtime dependency)
+  and inspected it directly. Both label sizes render cleanly — QR fully inside the dashed label
+  border, text readable and clearly larger, nothing clipped or overlapping into the next label.
+  Existing tests (`ContainerLabelPdfServiceTest`, `QrCodeGeneratorTest`) still pass unchanged,
+  since neither asserts on the SVG's internal content.
+- Verified piecemeal at first (an unrelated, already-flagged server-side fatal-redeclare bug —
+  see `docs/qa_finding_2026-09-17_test_suite_fatal_redeclare.md` — blocked a single full-suite
+  run at the time), then re-verified with `vendor/bin/pest` end to end once the server side
+  fixed that bug and this branch merged it: 473 tests green, Pint clean (356 files), PHPStan
+  level 8 clean (0 errors).
+
