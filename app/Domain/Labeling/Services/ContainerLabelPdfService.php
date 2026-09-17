@@ -7,9 +7,9 @@ namespace App\Domain\Labeling\Services;
 use App\Models\Container;
 use App\Models\GoodsReceipt;
 use App\Models\StockLedger;
+use App\Domain\Reporting\Services\MpdfFactory;
 use Illuminate\Database\Eloquent\Collection;
 use InvalidArgumentException;
-use Mpdf\Mpdf;
 use Mpdf\Output\Destination;
 
 /** FR-RC-04: barcode labels at 40×25mm and 50×30mm, several per A4 page. */
@@ -59,7 +59,7 @@ final class ContainerLabelPdfService
 
         $spec = self::SIZES[$size];
 
-        $mpdf = new Mpdf([
+        $mpdf = MpdfFactory::make([
             'format' => 'A4',
             'margin_left' => 5,
             'margin_right' => 5,

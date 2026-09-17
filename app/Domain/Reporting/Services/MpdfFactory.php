@@ -20,10 +20,16 @@ final class MpdfFactory
     /** @param  array<string, mixed>  $config */
     public static function make(array $config = []): Mpdf
     {
+        $tempDir = storage_path('framework/cache/mpdf');
+        if (! is_dir($tempDir)) {
+            mkdir($tempDir, 0775, true);
+        }
+
         $fontDirs = (new ConfigVariables())->getDefaults()['fontDir'];
         $fontData = (new FontVariables())->getDefaults()['fontdata'];
 
         return new Mpdf(array_merge([
+            'tempDir' => $tempDir,
             'fontDir' => array_merge($fontDirs, [resource_path('fonts/pdf')]),
             'fontdata' => $fontData + [
                 'sarabun' => [

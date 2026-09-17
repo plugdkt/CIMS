@@ -206,3 +206,35 @@ if (! function_exists('studentUserWithLab')) {
         return [$student, $lab];
     }
 }
+
+if (! function_exists('submittedRequisition')) {
+    function submittedRequisition(\App\Models\User $requester, array $overrides = []): \App\Models\Requisition
+    {
+        $requisition = makeRequisition($requester, $overrides);
+        $item = makeItem();
+        $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+        $requisition->items()->create([
+            'line_no' => 1,
+            'item_id' => $item->id,
+            'qty_requested' => '5.000000',
+            'unit_id' => $g->id,
+            'qty_requested_base' => '5.000000',
+        ]);
+        $requisition->update(['status' => 'SUBMITTED', 'submitted_at' => now()]);
+
+        return $requisition->fresh();
+    }
+}
+
+if (! function_exists('makeDraftGrn')) {
+    function makeDraftGrn(array $overrides = []): \App\Models\GoodsReceipt
+    {
+        return \App\Models\GoodsReceipt::create(array_merge([
+            'doc_no' => 'GRN-2569-'.fake()->unique()->numerify('#####'),
+            'receipt_date' => now()->toDateString(),
+            'lab_id' => makeLab()->id,
+            'status' => 'DRAFT',
+            'received_by' => \App\Models\User::factory()->create()->id,
+        ], $overrides));
+    }
+}
