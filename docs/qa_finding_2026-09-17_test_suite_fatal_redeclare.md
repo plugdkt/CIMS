@@ -1,7 +1,6 @@
 # QA Finding: `vendor/bin/pest` (full suite) fatals immediately — `Cannot redeclare`
 
-**สถานะ:** ยังไม่ถูกแก้ (Unresolved) — เกิดจาก commit `c2daed0`
-("fix(pdf): configure writable tempDir in MpdfFactory to prevent IIS cache permission error")
+**สถานะ:** แก้ไขเรียบร้อยแล้ว (Resolved) — ลบนิยามซ้ำของ `submittedRequisition` และ `makeDraftGrn` ออกจากไฟล์เทสเฉพาะจุด โดยใช้ฟังก์ชันกลางจาก `tests/Pest.php` แทนเรียบร้อยแล้ว
 
 ---
 

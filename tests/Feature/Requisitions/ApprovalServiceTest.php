@@ -2,30 +2,13 @@
 
 use App\Domain\Requisition\Exceptions\InvalidApprovalDecisionException;
 use App\Domain\Requisition\Services\ApprovalService;
-use App\Models\Requisition;
 use App\Models\RequisitionApproval;
-use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function submittedRequisition(User $requester, array $overrides = []): Requisition
-{
-    $requisition = makeRequisition($requester, $overrides);
-    $item = makeItem();
-    $g = Unit::where('code', 'g')->firstOrFail();
-    $requisition->items()->create([
-        'line_no' => 1,
-        'item_id' => $item->id,
-        'qty_requested' => '5.000000',
-        'unit_id' => $g->id,
-        'qty_requested_base' => '5.000000',
-    ]);
-    $requisition->update(['status' => 'SUBMITTED', 'submitted_at' => now()]);
 
-    return $requisition->fresh();
-}
 
 test('the requisition\'s own advisor can approve a SUBMITTED STUDENT requisition', function () {
     $student = studentUser();

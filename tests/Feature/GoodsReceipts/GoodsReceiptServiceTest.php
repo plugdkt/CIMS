@@ -5,7 +5,6 @@ use App\Domain\Inventory\Exceptions\MissingDensityException;
 use App\Domain\Inventory\Services\GoodsReceiptService;
 use App\Domain\Inventory\Services\LedgerHasher;
 use App\Models\Container;
-use App\Models\GoodsReceipt;
 use App\Models\Lab;
 use App\Models\StockLedger;
 use App\Models\Unit;
@@ -25,16 +24,7 @@ if (! function_exists('makeLab')) {
     }
 }
 
-function makeDraftGrn(array $overrides = []): GoodsReceipt
-{
-    return GoodsReceipt::create(array_merge([
-        'doc_no' => 'GRN-2569-'.fake()->unique()->numerify('#####'),
-        'receipt_date' => now()->toDateString(),
-        'lab_id' => makeLab()->id,
-        'status' => 'DRAFT',
-        'received_by' => User::factory()->create()->id,
-    ], $overrides));
-}
+
 
 test('calculateLineTotalBase converts container_count x qty_per_container into the item base unit', function () {
     $service = app(GoodsReceiptService::class);
