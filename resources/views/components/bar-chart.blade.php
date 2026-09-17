@@ -1,4 +1,4 @@
-@props(['bars' => [], 'label' => ''])
+@props(['bars' => [], 'label' => '', 'suffix' => ''])
 
 @php
     $maxValue = max(1, collect($bars)->max('value') ?? 0);
@@ -15,13 +15,13 @@
                 $x = $i * ($barWidth + 8) + 8;
                 $barHeight = (int) round(($bar['value'] / $maxValue) * 90);
                 $y = 110 - $barHeight;
-                $displayValue = rtrim(rtrim((string) $bar['value'], '0'), '.');
+                $displayValue = rtrim(rtrim((string) $bar['value'], '0'), '.').$suffix;
             @endphp
             <g>
                 <title>{{ $bar['label'] }}: {{ $displayValue }}</title>
                 <rect x="{{ $x }}" y="{{ $y }}" width="{{ $barWidth }}" height="{{ max(1, $barHeight) }}" rx="2" fill="#6d28d9"></rect>
                 <text x="{{ $x + $barWidth / 2 }}" y="{{ max(10, $y - 3) }}" text-anchor="middle" font-size="8" fill="currentColor">{{ $displayValue }}</text>
-                <text x="{{ $x + $barWidth / 2 }}" y="128" text-anchor="middle" font-size="7" fill="currentColor" class="text-ink-faint">{{ \Illuminate\Support\Str::limit($bar['label'], 8, '') }}</text>
+                <text x="{{ $x + $barWidth / 2 }}" y="128" text-anchor="middle" font-size="7" fill="currentColor" class="text-ink-faint">{{ \Illuminate\Support\Str::limit($bar['label'], 10, '…') }}</text>
             </g>
         @endforeach
     </svg>

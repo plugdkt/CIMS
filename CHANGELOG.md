@@ -1397,3 +1397,24 @@ to go restock it from the central warehouse into this system.
   chart). Full suite green (489 tests, up from 482), Pint clean (360 files), PHPStan level 8
   clean (0 errors), `composer audit` clean.
 
+## Fix — Chart bars showed bare numbers with no unit or context (2026-09-17)
+
+**User-reported, with a screenshot** of the live site: the item-stock-summary chart showed
+two bars labeled "17.5" and "1" with truncated item names below them ("Normal s") — no axis,
+no unit, no caption anywhere explaining what the number meant.
+
+- **`<x-bar-chart>` gained a `suffix` prop**, appended to every bar's value label (e.g. `%` for
+  a ratio chart, ` ครั้ง`/` ภาชนะ`/` รายการ` for count-based ones) — `17.5` becomes `17.5%`.
+- **Every tab's chart now has an explicit caption above it** (`reports.chart_caption_*` lang
+  keys) stating in plain Thai exactly what the bars measure — e.g. item stock summary:
+  "% ของสต็อกที่ใช้ไปแล้วในแต่ละสาร (8 อันดับที่ใกล้หมดที่สุด — ยิ่งเปอร์เซ็นต์สูง ยิ่งใกล้หมด)".
+  The generic "กราฟสรุป" heading stays, now with this per-tab subtitle underneath it, wired
+  through a `$chartMeta` lookup in the view (caption + suffix per tab key) rather than one
+  shared, meaning-free label for every report.
+- **X-axis item-name truncation loosened slightly (8 → 10 chars) and now ends in `…`**, so a
+  cut-off label like "เอทานอลบ" at least visibly signals it's incomplete — full name is still
+  in the SVG's own `<title>` (hover) and, unabridged, in the table row right below the chart.
+- Verified: extended the existing below-reorder dashboard test to assert both the new caption
+  text and a `%` suffix actually render. Full suite green (489 tests), Pint clean, PHPStan
+  level 8 clean.
+

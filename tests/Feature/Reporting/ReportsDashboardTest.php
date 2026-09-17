@@ -118,6 +118,10 @@ test('the below-reorder tab live-filters by lab, and a LAB_MANAGER never sees th
     $response->assertOk()->assertSee('สารสาขา A')->assertSee('สารสาขา B');
     // The summary chart actually rendered real SVG bars, not just the "no data" placeholder.
     $response->assertSee('<svg', false)->assertDontSee(__('reports.chart_no_data'));
+    // A bare number ("17.5") with no axis or unit told a real user nothing — regression
+    // guard for that: every chart now has a caption explaining what it measures, and a
+    // % suffix on this specific chart's bar values (it's a ratio, not a raw quantity).
+    $response->assertSee(__('reports.chart_caption_below_reorder'))->assertSee('%', false);
 
     $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'below_reorder', 'labId' => $labA->id]))
         ->assertOk()->assertSee('สารสาขา A')->assertDontSee('สารสาขา B');
