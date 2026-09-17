@@ -221,6 +221,7 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
 // FR-8 / §7.8 — every report not already served by F-01/F-03; gated on report.view.
 Route::middleware('auth')->prefix('reports')->name('reports.')->group(function () {
     Route::get('/', ReportsDashboard::class)->name('index');
+    Route::get('/item-stock-summary/excel', [ReportController::class, 'itemStockSummaryExcel'])->name('item-stock-summary.excel');
     Route::get('/usage-summary/excel', [ReportController::class, 'usageSummaryExcel'])->name('usage-summary.excel');
     Route::get('/expiring-stock/excel', [ReportController::class, 'expiringStockExcel'])->name('expiring-stock.excel');
     Route::get('/below-reorder-point/excel', [ReportController::class, 'belowReorderPointExcel'])->name('below-reorder-point.excel');

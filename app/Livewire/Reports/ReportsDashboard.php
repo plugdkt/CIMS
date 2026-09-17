@@ -10,6 +10,7 @@ use App\Domain\Reporting\Exports\BelowReorderPointExport;
 use App\Domain\Reporting\Exports\ControlledSubstancesExport;
 use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
+use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
 use App\Models\Container;
@@ -43,15 +44,21 @@ final class ReportsDashboard extends Component
 
     /** @var array<int, string> */
     private const TABS = [
-        'usage_summary', 'expiring_stock', 'below_reorder', 'dead_stock',
+        'item_stock_summary', 'usage_summary', 'expiring_stock', 'below_reorder', 'dead_stock',
         'controlled_substances', 'stock_take_variance',
     ];
 
     #[Url]
-    public string $tab = 'usage_summary';
+    public string $tab = 'item_stock_summary';
 
     #[Url]
     public ?int $labId = null;
+
+    #[Url]
+    public string $itemStockFrom = '';
+
+    #[Url]
+    public string $itemStockTo = '';
 
     #[Url]
     public string $usageRequesterName = '';
@@ -88,7 +95,7 @@ final class ReportsDashboard extends Component
         $this->authorize('report.view');
 
         if (! in_array($this->tab, self::TABS, true)) {
-            $this->tab = 'usage_summary';
+            $this->tab = 'item_stock_summary';
         }
     }
 
@@ -113,6 +120,7 @@ final class ReportsDashboard extends Component
         $effectiveLabId = $restrictedLabId ?? $this->labId;
 
         [$rows, $total, $chart] = match ($this->tab) {
+            'item_stock_summary' => $this->itemStockSummaryData($effectiveLabId),
             'usage_summary' => $this->usageSummaryData($effectiveLabId),
             'expiring_stock' => $this->expiringStockData($effectiveLabId),
             'below_reorder' => $this->belowReorderData($effectiveLabId),
@@ -132,6 +140,41 @@ final class ReportsDashboard extends Component
                 : StockTake::orderByDesc('id')->limit(50)->get(),
             'restrictedLabId' => $restrictedLabId,
         ]);
+    }
+
+    /** @return array{0: Collection<int, array{item: Item, used_qty_base: string, remaining_base: string}>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    private function itemStockSummaryData(?int $labId): array
+    {
+        $filter = new DateRangeFilter(
+            dateFrom: $this->itemStockFrom ?: null,
+            dateTo: $this->itemStockTo ?: null,
+        );
+        $export = new ItemStockSummaryExport($filter, $labId);
+
+        $results = $export->results()->map(fn (Item $item) => [
+            'item' => $item,
+            'used_qty_base' => $export->usedQuantity($item),
+            'remaining_base' => $export->remainingBalance($item),
+        ]);
+
+        // A ratio (used ÷ (used + remaining)), not a raw quantity, so items with
+        // different units stay comparable on one chart — the item closest to running
+        // out (highest fraction of its tracked stock already consumed) shows first.
+        $chart = $results
+            ->map(function (array $row) {
+                $used = (float) $row['used_qty_base'];
+                $remaining = (float) $row['remaining_base'];
+                $denominator = $used + $remaining;
+                $percent = $denominator <= 0.0 ? 0.0 : round(($used / $denominator) * 100, 1);
+
+                return ['label' => $row['item']->name_th, 'value' => $percent];
+            })
+            ->sortByDesc('value')
+            ->take(8)
+            ->values()
+            ->all();
+
+        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
     }
 
     /** @return array{0: Collection<int, IssueTransaction>, 1: int, 2: array<int, array{label: string, value: float}>} */

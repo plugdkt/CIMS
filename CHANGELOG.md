@@ -1365,3 +1365,35 @@ stays available, reflecting whatever's currently filtered.
   (482 tests, up from 474), Pint clean (358 files), PHPStan level 8 clean (0 errors), `composer
   audit` clean.
 
+## Post-launch — New default tab: per-item stock/usage summary (2026-09-17)
+
+User-requested: a scientist logging in should immediately see, per chemical, how much has
+been used and how much is left — so the one closest to running out is obvious, and they know
+to go restock it from the central warehouse into this system.
+
+- **New report + Export class, `ItemStockSummaryExport`** — every active item with at least
+  one real `stock_ledger` row, showing total issued in a given period (defaults to all-time if
+  no date range is set) alongside its current balance, **sorted lowest-balance-first** so the
+  item nearest zero is the one at the top. Same lab-scoping convention as `BelowReorderPointExport`
+  (balance is global per item — spec's schema has no per-lab split — the lab filter narrows to
+  items with a container physically in that lab). Ships both an Excel download
+  (`reports.item-stock-summary.excel`) and the new dashboard tab, same `results()` pattern as
+  every other report added this feature cycle.
+- **Set as the dashboard's new default/first tab** (`item_stock_summary`, ahead of usage
+  summary) — this is the "walk in and see it immediately" view the request asked for, not
+  something a scientist has to know to click into.
+- **Chart is % of tracked stock already consumed** (`used ÷ (used + remaining) × 100`), not a
+  raw quantity — same "items in different units can't be summed or compared directly"
+  reasoning as every other chart in this dashboard (see `below_reorder`'s reorder-point-ratio
+  chart) — ranked highest-consumed-fraction-first, i.e. closest to depletion.
+- **Real PHPStan gotcha hit again**: `Item::$baseUnit` nullsafe access (`?->code ?? ''`)
+  triggered `nullsafe.neverNull` even though `items.base_unit_id` is genuinely nullable (the
+  working-stock merge's own change) — same unreliable chained-relation inference CLAUDE.md
+  already documents. Fixed with the documented workaround: assign to a local variable, narrow
+  with an explicit `if`, not `?->`/`??`.
+- Verified: 5 new Export tests (`ItemStockSummaryExportTest.php` — used/remaining values,
+  no-ledger-history items excluded, lowest-balance-first sort, date-range-scoped usage, lab
+  filter) + 2 new dashboard tests (default tab, live per-item table with a real rendered
+  chart). Full suite green (489 tests, up from 482), Pint clean (360 files), PHPStan level 8
+  clean (0 errors), `composer audit` clean.
+

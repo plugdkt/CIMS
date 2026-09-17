@@ -13,6 +13,48 @@ uses(RefreshDatabase::class);
 // the whole suite with "Cannot redeclare", the same class of bug as
 // docs/qa_finding_2026-09-17_test_suite_fatal_redeclare.md).
 
+test('the reports index defaults to the item stock summary tab', function () {
+    $scientist = scientistUser();
+
+    $this->actingAs($scientist)->get(route('reports.index'))
+        ->assertOk()
+        ->assertSee(__('reports.item_stock_summary_title'));
+});
+
+test('the item stock summary tab shows used/remaining per item, lowest balance first, with a real chart', function () {
+    $high = makeItem(['name_th' => 'สารคงเหลือเยอะทดสอบ']);
+    StockLedger::create([
+        'item_id' => $high->id, 'txn_date' => now()->toDateString(), 'txn_type' => 'RECEIVE',
+        'qty_in_base' => '500', 'qty_out_base' => '0', 'balance_base' => '500.000000',
+        'display_unit_id' => Unit::where('code', 'g')->value('id'), 'created_by' => User::factory()->create()->id,
+        'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('f', 64),
+    ]);
+
+    $low = makeItem(['name_th' => 'สารใกล้หมดทดสอบ']);
+    StockLedger::create([
+        'item_id' => $low->id, 'txn_date' => now()->toDateString(), 'txn_type' => 'RECEIVE',
+        'qty_in_base' => '100', 'qty_out_base' => '0', 'balance_base' => '100.000000',
+        'display_unit_id' => Unit::where('code', 'g')->value('id'), 'created_by' => User::factory()->create()->id,
+        'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('g', 64),
+    ]);
+    StockLedger::create([
+        'item_id' => $low->id, 'txn_date' => now()->toDateString(), 'txn_type' => 'ISSUE',
+        'qty_in_base' => '0', 'qty_out_base' => '95', 'balance_base' => '5.000000',
+        'display_unit_id' => Unit::where('code', 'g')->value('id'), 'created_by' => User::factory()->create()->id,
+        'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('h', 64),
+    ]);
+
+    $scientist = scientistUser();
+    $response = $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'item_stock_summary']));
+
+    $response->assertOk()
+        ->assertSeeInOrder(['สารใกล้หมดทดสอบ', 'สารคงเหลือเยอะทดสอบ'])
+        ->assertSee('95')
+        ->assertSee('5 ')
+        ->assertSee('<svg', false)
+        ->assertDontSee(__('reports.chart_no_data'));
+});
+
 test('the usage summary tab live-filters by requester name', function () {
     $staff = staffUser(['full_name' => 'สมชาย ใจดี']);
     issueOneLine(approvedRequisition($staff)->fresh(['items']));

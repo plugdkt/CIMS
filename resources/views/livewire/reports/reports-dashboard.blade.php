@@ -6,6 +6,7 @@
 
     @php
         $tabs = [
+            'item_stock_summary' => __('reports.item_stock_summary_title'),
             'usage_summary' => __('reports.usage_summary_title'),
             'expiring_stock' => __('reports.expiring_stock_title'),
             'below_reorder' => __('reports.below_reorder_title'),
@@ -27,6 +28,26 @@
     {{-- Filters — live, no submit button --}}
     <div class="bg-surface border border-border rounded-xl p-5 mb-5">
         @switch($tab)
+            @case('item_stock_summary')
+                <p class="text-xs text-ink-muted mb-3">{{ __('reports.item_stock_summary_desc') }}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input type="date" wire:model.live="itemStockFrom" aria-label="{{ __('reports.field_from') }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" wire:model.live="itemStockTo" aria-label="{{ __('reports.field_to') }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    @if ($restrictedLabId === null)
+                        <select wire:model.live="labId" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            <option value="">{{ __('reports.all_labs') }}</option>
+                            @foreach ($labs as $lab)
+                                <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <p class="text-xs text-ink-faint self-center">{{ __('reports.restricted_to_own_lab') }}</p>
+                    @endif
+                </div>
+                @break
+
             @case('usage_summary')
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <input type="text" wire:model.live.debounce.400ms="usageRequesterName" placeholder="{{ __('reports.field_requester') }}"
@@ -116,6 +137,10 @@
     {{-- Export — same download routes as before, reflecting the current filters --}}
     <div class="flex flex-wrap gap-2 mb-5">
         @switch($tab)
+            @case('item_stock_summary')
+                <a href="{{ route('reports.item-stock-summary.excel', ['from' => $itemStockFrom, 'to' => $itemStockTo, 'lab_id' => $labId]) }}"
+                   class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">{{ __('reports.download_excel') }}</a>
+                @break
             @case('usage_summary')
                 <a href="{{ route('reports.usage-summary.excel', ['requester_name' => $usageRequesterName, 'purpose_detail' => $usagePurposeDetail, 'faculty' => $usageFaculty, 'from' => $usageFrom, 'to' => $usageTo, 'lab_id' => $labId]) }}"
                    class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">{{ __('reports.download_excel') }}</a>
@@ -167,6 +192,30 @@
                 <div class="overflow-x-auto" tabindex="0">
                     <table class="w-full text-xs">
                         @switch($tab)
+                            @case('item_stock_summary')
+                                <thead class="text-left text-ink-faint uppercase tracking-wide">
+                                    <tr>
+                                        <th class="py-1 pr-3">{{ __('reports.col_item_code') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_item') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_used_qty') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_current_balance') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    @foreach ($rows as $row)
+                                        @php $item = $row['item']; @endphp
+                                        <tr>
+                                            <td class="py-1 pr-3 font-mono">{{ $item->item_code }}</td>
+                                            <td class="py-1 pr-3">{{ $item->name_th }}</td>
+                                            <td class="py-1 pr-3">{{ rtrim(rtrim((string) $row['used_qty_base'], '0'), '.') }} {{ $item->baseUnit?->code }}</td>
+                                            <td class="py-1 pr-3 {{ (float) $row['remaining_base'] <= 0.0 ? 'text-danger font-semibold' : '' }}">
+                                                {{ rtrim(rtrim((string) $row['remaining_base'], '0'), '.') }} {{ $item->baseUnit?->code }}
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                                @break
+
                             @case('usage_summary')
                                 <thead class="text-left text-ink-faint uppercase tracking-wide">
                                     <tr>

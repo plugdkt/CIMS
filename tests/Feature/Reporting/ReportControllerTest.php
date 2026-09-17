@@ -21,6 +21,7 @@ test('every Excel export route is reachable by a SCIENTIST and returns a file', 
     $scientist = scientistUser();
 
     foreach ([
+        'reports.item-stock-summary.excel',
         'reports.usage-summary.excel',
         'reports.expiring-stock.excel',
         'reports.below-reorder-point.excel',

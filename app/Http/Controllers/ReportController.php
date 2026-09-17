@@ -10,6 +10,7 @@ use App\Domain\Reporting\Exports\BelowReorderPointExport;
 use App\Domain\Reporting\Exports\ControlledSubstancesExport;
 use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
+use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
 use App\Domain\Reporting\Services\ControlledSubstancesPdfService;
@@ -43,6 +44,16 @@ final class ReportController extends Controller
         );
 
         return Excel::download(new UsageSummaryExport($filter), 'usage-summary.xlsx');
+    }
+
+    public function itemStockSummaryExcel(Request $request): BinaryFileResponse
+    {
+        $this->authorize('report.view');
+
+        return Excel::download(
+            new ItemStockSummaryExport($this->dateRangeFrom($request), $this->labIdFor($request)),
+            'item-stock-summary.xlsx',
+        );
     }
 
     public function expiringStockExcel(Request $request): BinaryFileResponse

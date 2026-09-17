@@ -17,6 +17,8 @@ return [
     'all_labs' => 'ทุกสาขาวิชา',
     'restricted_to_own_lab' => 'จำกัดเฉพาะสาขาวิชาของคุณ',
 
+    'item_stock_summary_title' => 'คงเหลือ/การใช้รายสาร',
+    'item_stock_summary_desc' => 'สารเคมีแต่ละตัวใช้ไปเท่าไหร่ คงเหลือเท่าไหร่ เรียงจากคงเหลือน้อยที่สุดก่อน',
     'usage_summary_title' => 'สรุปการใช้',
     'usage_summary_desc' => 'รายการเบิกจ่าย กรองตามผู้เบิก/โครงการ/รายวิชา/คณะ/ช่วงเวลา',
     'expiring_stock_title' => 'สารใกล้หมดอายุ',
@@ -46,6 +48,7 @@ return [
     'col_lab' => 'สาขาวิชา',
     'col_status' => 'สถานะภาชนะ',
     'col_current_balance' => 'คงเหลือปัจจุบัน',
+    'col_used_qty' => 'ใช้ไป',
     'col_reorder_point' => 'จุดสั่งซื้อ',
     'col_last_movement' => 'เคลื่อนไหวล่าสุด',
     'col_control_class' => 'ประเภทการควบคุม',
