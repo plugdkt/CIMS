@@ -28,50 +28,40 @@ final class DeadStockExport implements FromCollection, WithHeadings, WithTitle
     /** @return Collection<int, array<int, string>> */
     public function collection(): Collection
     {
+        return $this->results()->map(fn (Container $row) => $this->rowToArray($row));
+    }
+
+    /**
+     * The raw filtered rows, shared with the on-screen dashboard (App\Livewire\Reports\ReportsDashboard).
+     *
+     * @return Collection<int, Container>
+     */
+    public function results(): Collection
+    {
         $cutoff = now()->subMonths(12);
 
-        $containers = Container::query()
+        return Container::query()
             ->whereIn('status', ['SEALED', 'IN_USE', 'QUARANTINE'])
             ->where('remaining_qty_base', '>', 0)
             ->when($this->labId !== null, fn ($q) => $q->whereHas('location', fn ($l) => $l->where('lab_id', $this->labId)))
             ->whereDoesntHave('stockLedgerRows', fn ($q) => $q->where('txn_date', '>=', $cutoff->toDateString()))
             ->with(['item', 'location.lab'])
             ->get();
-
-        return $containers->map(fn (Container $row) => $this->rowToArray($row));
     }
 
     /** @return array<int, string> */
     private function rowToArray(Container $row): array
     {
         $item = $row->item()->firstOrFail();
-        $labName = $this->labNameFor($row);
         $lastMovement = StockLedger::where('container_id', $row->id)->orderByDesc('txn_date')->value('txn_date');
 
         return [
             CsvInjectionGuard::sanitize($item->name_th),
             CsvInjectionGuard::sanitize($row->barcode),
-            CsvInjectionGuard::sanitize($labName),
+            CsvInjectionGuard::sanitize($row->labNameOrEmpty()),
             (string) $row->remaining_qty_base,
             $lastMovement !== null ? Carbon::parse($lastMovement)->format('d/m/Y') : (string) __('reports.never_moved'),
         ];
-    }
-
-    /**
-     * `location_id`/`locations.lab_id` are both nullable, so this genuinely can be empty
-     * — written as an explicit `if` (not `?->`/`??`) since PHPStan's nullsafe inference
-     * for chained relation access is unreliable in either direction (see CLAUDE.md).
-     */
-    private function labNameFor(Container $container): string
-    {
-        $location = $container->location()->first();
-        if ($location === null) {
-            return '';
-        }
-
-        $lab = $location->lab()->first();
-
-        return $lab === null ? '' : $lab->name_th;
     }
 
     /** @return array<int, string> */

@@ -238,3 +238,16 @@ if (! function_exists('makeDraftGrn')) {
         ], $overrides));
     }
 }
+
+if (! function_exists('issueOneLine')) {
+    function issueOneLine(\App\Models\Requisition $requisition, string $qty = '10.000000'): void
+    {
+        $line = $requisition->items->first();
+        $container = stockedContainer($line->item_id, '100.000000', staffUser());
+        $scientist = scientistUser();
+        $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+
+        app(\App\Domain\Requisition\Services\IssueService::class)
+            ->issue($line, $container, $qty, $g, $scientist, $requisition->requester, 'sig-hash');
+    }
+}

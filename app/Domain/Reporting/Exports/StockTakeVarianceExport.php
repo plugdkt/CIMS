@@ -22,9 +22,17 @@ final class StockTakeVarianceExport implements FromCollection, WithHeadings, Wit
     /** @return Collection<int, array<int, string>> */
     public function collection(): Collection
     {
-        $lines = $this->stockTake->lines()->with(['container.item', 'countedBy'])->get();
+        return $this->results()->map(fn (StockTakeLine $line) => $this->rowToArray($line));
+    }
 
-        return $lines->map(fn (StockTakeLine $line) => $this->rowToArray($line));
+    /**
+     * The raw lines, shared with the on-screen dashboard (App\Livewire\Reports\ReportsDashboard).
+     *
+     * @return Collection<int, StockTakeLine>
+     */
+    public function results(): Collection
+    {
+        return $this->stockTake->lines()->with(['container.item', 'countedBy'])->get();
     }
 
     /** @return array<int, string> */

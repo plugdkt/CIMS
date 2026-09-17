@@ -66,4 +66,21 @@ class Container extends Model
     {
         return $this->hasMany(StockLedger::class, 'container_id');
     }
+
+    /**
+     * `location_id`/`locations.lab_id` are both nullable, so this genuinely can be empty
+     * — written as an explicit `if` (not `?->`/`??`) since PHPStan's nullsafe inference
+     * for chained relation access is unreliable in either direction (see CLAUDE.md).
+     */
+    public function labNameOrEmpty(): string
+    {
+        $location = $this->location()->first();
+        if ($location === null) {
+            return '';
+        }
+
+        $lab = $location->lab()->first();
+
+        return $lab === null ? '' : $lab->name_th;
+    }
 }

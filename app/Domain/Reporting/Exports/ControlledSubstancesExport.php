@@ -22,9 +22,17 @@ final class ControlledSubstancesExport implements FromCollection, WithHeadings, 
     /** @return Collection<int, array<int, string>> */
     public function collection(): Collection
     {
-        $rows = $this->query()->with(['item', 'creator'])->orderBy('txn_date')->get();
+        return $this->results()->map(fn (StockLedger $row) => $this->rowToArray($row));
+    }
 
-        return $rows->map(fn (StockLedger $row) => $this->rowToArray($row));
+    /**
+     * The raw filtered rows, shared with the on-screen dashboard (App\Livewire\Reports\ReportsDashboard).
+     *
+     * @return Collection<int, StockLedger>
+     */
+    public function results(): Collection
+    {
+        return $this->query()->with(['item', 'creator'])->orderBy('txn_date')->get();
     }
 
     /** @return \Illuminate\Database\Eloquent\Builder<StockLedger> */

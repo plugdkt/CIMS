@@ -22,7 +22,17 @@ final class UsageSummaryExport implements FromCollection, WithHeadings, WithTitl
     /** @return Collection<int, array<int, string>> */
     public function collection(): Collection
     {
-        $rows = IssueTransaction::query()
+        return $this->results()->map(fn (IssueTransaction $row) => $this->rowToArray($row));
+    }
+
+    /**
+     * The raw filtered rows, shared with the on-screen dashboard (App\Livewire\Reports\ReportsDashboard).
+     *
+     * @return Collection<int, IssueTransaction>
+     */
+    public function results(): Collection
+    {
+        return IssueTransaction::query()
             ->with(['requisitionItem.requisition.requester', 'requisitionItem.item'])
             ->whereHas('requisitionItem.requisition', function ($q) {
                 if ($this->filter->requesterName !== null && $this->filter->requesterName !== '') {
@@ -42,8 +52,6 @@ final class UsageSummaryExport implements FromCollection, WithHeadings, WithTitl
             ->when($this->filter->dateTo, fn ($q, $to) => $q->whereDate('issued_at', '<=', $to))
             ->orderBy('issued_at')
             ->get();
-
-        return $rows->map(fn (IssueTransaction $row) => $this->rowToArray($row));
     }
 
     /** @return array<int, string> */

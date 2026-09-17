@@ -29,7 +29,17 @@ final class BelowReorderPointExport implements FromCollection, WithHeadings, Wit
     /** @return Collection<int, array<int, string>> */
     public function collection(): Collection
     {
-        $items = Item::query()
+        return $this->results()->map(fn (Item $item) => $this->rowToArray($item));
+    }
+
+    /**
+     * The raw filtered rows, shared with the on-screen dashboard (App\Livewire\Reports\ReportsDashboard).
+     *
+     * @return Collection<int, Item>
+     */
+    public function results(): Collection
+    {
+        return Item::query()
             ->where('is_active', true)
             ->where('reorder_point_base', '>', 0)
             ->when($this->labId !== null, fn ($q) => $q->whereHas(
@@ -42,9 +52,8 @@ final class BelowReorderPointExport implements FromCollection, WithHeadings, Wit
                 $balance = StockLedger::where('item_id', $item->id)->orderByDesc('id')->value('balance_base') ?? '0.000000';
 
                 return bccomp($balance, $item->reorder_point_base, 6) < 0;
-            });
-
-        return $items->map(fn (Item $item) => $this->rowToArray($item));
+            })
+            ->values();
     }
 
     /** @return array<int, string> */

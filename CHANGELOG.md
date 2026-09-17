@@ -1312,3 +1312,56 @@ decimals" complaint (`.000000` everywhere) that FR-RQ-05's balance already got f
   `"500.000000"` for a container stocked with exactly that amount. Full suite green (474 tests,
   up from 473), Pint clean (356 files), PHPStan level 8 clean.
 
+## Post-launch — Reports page becomes a live on-screen dashboard (2026-09-17)
+
+User-requested: view every §7.8 report directly on the page (table + a summary chart),
+live-filtered with no submit button, instead of only ever downloading a file blind. Export
+stays available, reflecting whatever's currently filtered.
+
+- **`ReportController::index()` (a plain filter-forms-only page) is replaced by a new Livewire
+  component, `App\Livewire\Reports\ReportsDashboard`** — one page, six tabs (usage summary,
+  expiring stock, below reorder point, dead stock, controlled substances, stock take variance),
+  each with its own live filters (`#[Url]`-backed properties, `wire:model.live[.debounce]`, no
+  submit button), an on-screen table (capped at 100 rows — "แสดง N จาก M รายการ — Export เพื่อ
+  ดูข้อมูลทั้งหมด" for anything larger), and a small hand-rolled inline-SVG bar chart (same
+  viewBox/style convention as the home dashboard's existing "monthly issuance" chart — no new
+  JS library, same CSP reasoning already recorded for that one). Export buttons are unchanged
+  `<a href>` links to the same download routes as before, built from the dashboard's current
+  filter state.
+- **Zero duplicate query logic**: every Export class (`UsageSummaryExport`,
+  `ExpiringStockExport`, `BelowReorderPointExport`, `DeadStockExport`,
+  `ControlledSubstancesExport`, `StockTakeVarianceExport`) gained a public `results()` method —
+  the same Eloquent query `collection()` already ran, just returning the raw models instead of
+  CSV-ready arrays. The dashboard calls the exact same `results()` a download would use, so a
+  filter behaves identically on-screen and in the exported file, and any future change to a
+  report's query only has one place to change. `Container::labNameOrEmpty()` was pulled out of
+  two Export classes' private, byte-identical `labNameFor()` helpers into the model itself, now
+  a third consumer (the dashboard) needed the exact same lookup.
+- **Every chart is a genuinely unit-agnostic aggregate, not a made-up number**: usage summary
+  ranks items by issue-transaction *count* (same reasoning as the home dashboard's own top-items
+  chart — summing quantities across items in different units would be meaningless); expiring
+  stock counts containers per expiry month; below-reorder charts each item's balance as a
+  *percentage* of its own reorder point (a ratio, so items in different units stay comparable,
+  lowest/most-urgent first); dead stock counts containers per lab; controlled substances counts
+  ledger rows per transaction type; stock take variance buckets lines into เกิน/ขาด/ตรง/ยังไม่ได้นับ.
+- **Lab-scoping is unchanged in substance, just relocated**: a LAB_MANAGER's own `lab_id` still
+  always overrides the query string (the exact same rule `ReportController::labIdFor()`
+  enforced, reimplemented as `ReportsDashboard::restrictedLabId()`), and the lab `<select>` is
+  hidden entirely for a LAB_MANAGER (same `restricted_to_own_lab` message as before). The stock
+  take tab additionally resets a rejected `stockTakeUlid` back to "no round selected" rather
+  than silently showing an empty table, so a LAB_MANAGER guessing another branch's ulid gets the
+  same prompt as picking nothing, not a hint that the round exists.
+- **`expiring-stock`/`controlled-substances` now expose a lab filter in the UI** for the first
+  time — the underlying Export classes already accepted a `labId` (and `ReportController` always
+  resolved one via `labIdFor()`), it just had no `<select>` on the old page; this closes that gap
+  rather than leave two of the five lab-filterable reports UI-inconsistent with the other three.
+- Verified: 8 new tests (`ReportsDashboardTest.php` — live filtering per tab, LAB_MANAGER lab-
+  and stock-take-scoping, a real chart rendering actual SVG bars, 403 without `report.view`) plus
+  all 37 pre-existing report tests updated for the `results()` refactor and still green. Also
+  centralized a second stray unguarded test helper (`issueOneLine()`, previously only in
+  `UsageSummaryExportTest.php`) into `tests/Pest.php` — same class of fatal-redeclare risk as
+  `docs/qa_finding_2026-09-17_test_suite_fatal_redeclare.md`, caught here before it shipped by
+  running the new test file in isolation, not just as part of the full suite. Full suite green
+  (482 tests, up from 474), Pint clean (358 files), PHPStan level 8 clean (0 errors), `composer
+  audit` clean.
+

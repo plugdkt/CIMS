@@ -65,4 +65,14 @@ return [
 
     'never_moved' => 'ไม่เคยเคลื่อนไหว',
     'not_counted' => 'ยังไม่ได้นับ',
+
+    'variance_over' => 'เกิน',
+    'variance_under' => 'ขาด',
+    'variance_match' => 'ตรง',
+
+    'chart_title' => 'กราฟสรุป',
+    'chart_no_data' => 'ยังไม่มีข้อมูลสำหรับกราฟ',
+    'table_title' => 'ตารางข้อมูล',
+    'showing_of_total' => 'แสดง :shown จาก :total รายการ — Export เพื่อดูข้อมูลทั้งหมด',
+    'select_stock_take_first' => 'กรุณาเลือกรอบตรวจนับก่อน',
 ];

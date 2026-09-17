@@ -2,22 +2,9 @@
 
 use App\Domain\Reporting\DTO\UsageSummaryFilter;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
-use App\Domain\Requisition\Services\IssueService;
-use App\Models\Requisition;
-use App\Models\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
-
-function issueOneLine(Requisition $requisition, string $qty = '10.000000'): void
-{
-    $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '100.000000', staffUser());
-    $scientist = scientistUser();
-    $g = Unit::where('code', 'g')->firstOrFail();
-
-    app(IssueService::class)->issue($line, $container, $qty, $g, $scientist, $requisition->requester, 'sig-hash');
-}
 
 test('§7.8 usage summary lists every issue transaction with the requester/faculty/purpose', function () {
     $staff = staffUser(['faculty' => 'วิทยาศาสตร์การแพทย์']);

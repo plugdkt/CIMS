@@ -14,10 +14,8 @@ use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
 use App\Domain\Reporting\Services\ControlledSubstancesPdfService;
 use App\Domain\Reporting\Services\StockTakeVariancePdfService;
-use App\Models\Lab;
 use App\Models\StockTake;
 use App\Models\User;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -31,23 +29,6 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 final class ReportController extends Controller
 {
-    public function index(): View
-    {
-        $this->authorize('report.view');
-
-        /** @var User $user */
-        $user = auth()->user();
-        $restrictedLabId = $user->hasRole('LAB_MANAGER') ? $user->lab_id : null;
-
-        return view('reports.index', [
-            'labs' => Lab::where('is_active', true)->orderBy('name_th')->get(),
-            'stockTakes' => $restrictedLabId !== null
-                ? StockTake::where('lab_id', $restrictedLabId)->orderByDesc('id')->limit(50)->get()
-                : StockTake::orderByDesc('id')->limit(50)->get(),
-            'restrictedLabId' => $restrictedLabId,
-        ]);
-    }
-
     public function usageSummaryExcel(Request $request): BinaryFileResponse
     {
         $this->authorize('report.view');
