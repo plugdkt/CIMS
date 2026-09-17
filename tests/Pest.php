@@ -181,3 +181,28 @@ if (! function_exists('stockedContainer')) {
         return $container->fresh();
     }
 }
+
+if (! function_exists('stockItemInLab')) {
+    /** The add-line endpoint requires the item to actually have stock in the requisition's own lab. */
+    function stockItemInLab(int $itemId, int $labId): void
+    {
+        $location = makeLocationForLab(\App\Models\Lab::findOrFail($labId));
+        makeContainer([
+            'item_id' => $itemId,
+            'location_id' => $location->id,
+            'status' => 'SEALED',
+            'remaining_qty_base' => '1000.000000',
+        ]);
+    }
+}
+
+if (! function_exists('studentUserWithLab')) {
+    /** @return array{\App\Models\User, \App\Models\Lab} */
+    function studentUserWithLab(): array
+    {
+        $lab = makeLab();
+        $student = studentUser(['lab_id' => $lab->id]);
+
+        return [$student, $lab];
+    }
+}
