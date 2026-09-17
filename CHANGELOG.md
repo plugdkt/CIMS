@@ -1230,3 +1230,27 @@ form was supposed to start.
   `JSON.parse(`. Verified live by re-rendering the view directly and diffing the raw HTML before
   and after. Full suite green (475 tests), Pint clean, PHPStan level 8 clean.
 
+## Fix — Trim trailing zeros from displayed quantities (2026-09-17)
+
+User-reported: the FR-RQ-05 real-time balance next to the item picker showed `1000.000000 mL` —
+the full `DECIMAL(18,6)` precision the column is stored at (AGENT RULE #1), which is correct to
+keep internally but unnecessarily noisy to show a requester.
+
+- **`RequisitionController::itemBalance()`** now trims the JSON `balance` value with
+  `rtrim(rtrim($balance, '0'), '.')` before returning it — `1000.000000` → `1000`,
+  `42.500000` → `42.5` — the same trim-trailing-zeros convention already used for the
+  container "คงเหลือ" column (`LabInventoryTable`/`items.show`, added with the Lab Inventory
+  feature). Display only; the stored/computed value and every calculation that reads it are
+  untouched.
+- **The requisition lines table's "จำนวนที่ขอ" column** (`requisitions/show.blade.php`, right
+  below the item picker on the same page) gets the same trim, for the same reason — it's the
+  other raw `DECIMAL(18,6)` value visible in that immediate context.
+- Scoped narrowly to what was reported: other raw-decimal displays elsewhere (GRN, disposals,
+  adjustments, the issue/return page, ledger/report exports) are untouched for now — some of
+  those (F-01/F-03, the ledger export) are formal/audit documents where full precision may be
+  the intended behavior, not an oversight, so they weren't assumed to need the same treatment.
+- Verified: updated the existing FR-RQ-05 balance test's expected value (`42.500000` →
+  `42.5`) and added a whole-number case (`1000.000000` → `1000`, no trailing decimal point at
+  all). Full suite green (476 tests, up from 474), Pint clean (358 files), PHPStan level 8
+  clean.
+

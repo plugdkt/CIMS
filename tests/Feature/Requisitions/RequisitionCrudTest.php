@@ -249,7 +249,7 @@ test('a requester with view_own cannot open another requester\'s requisition, bu
     $this->actingAs($scientist)->get(route('requisitions.show', $requisition))->assertStatus(200);
 });
 
-test('the item balance endpoint returns the current ledger balance for FR-RQ-05', function () {
+test('the item balance endpoint returns the current ledger balance, trailing zeros trimmed for display', function () {
     $student = studentUser();
     $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);
     $unit = Unit::where('code', 'g')->firstOrFail();
@@ -270,7 +270,31 @@ test('the item balance endpoint returns the current ledger balance for FR-RQ-05'
 
     $this->actingAs($student)->getJson(route('requisitions.items.balance', $item))
         ->assertOk()
-        ->assertJson(['balance' => '42.500000', 'unit' => 'g']);
+        ->assertJson(['balance' => '42.5', 'unit' => 'g']);
+});
+
+test('the item balance endpoint trims a whole-number balance down to no decimal point at all', function () {
+    $student = studentUser();
+    $item = makeItem(['base_unit_id' => Unit::where('code', 'mL')->value('id')]);
+    $unit = Unit::where('code', 'mL')->firstOrFail();
+
+    StockLedger::create([
+        'item_id' => $item->id,
+        'txn_date' => now()->toDateString(),
+        'txn_type' => 'OPENING',
+        'qty_in_base' => '0',
+        'qty_out_base' => '0',
+        'balance_base' => '1000.000000',
+        'display_unit_id' => $unit->id,
+        'created_by' => $student->id,
+        'created_at' => now(),
+        'prev_row_hash' => null,
+        'row_hash' => str_repeat('a', 64),
+    ]);
+
+    $this->actingAs($student)->getJson(route('requisitions.items.balance', $item))
+        ->assertOk()
+        ->assertJson(['balance' => '1000', 'unit' => 'mL']);
 });
 
 if (! function_exists('makeRequisition')) {

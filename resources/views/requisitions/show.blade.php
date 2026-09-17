@@ -112,7 +112,7 @@
                                             @endif
                                         </div>
                                     </td>
-                                    <td class="px-3 py-2 align-top">{{ $line->qty_requested }} {{ $line->unit?->code }}</td>
+                                    <td class="px-3 py-2 align-top">{{ rtrim(rtrim((string) $line->qty_requested, '0'), '.') }} {{ $line->unit?->code }}</td>
                                     <td class="px-3 py-2 align-top">{{ $line->reference_doc ?: '—' }}</td>
                                     <td class="px-3 py-2 align-top text-right">
                                         @if ($canEdit)

@@ -195,8 +195,11 @@ final class RequisitionController extends Controller
 
         $balance = StockLedger::where('item_id', $item->id)->orderByDesc('id')->value('balance_base') ?? '0.000000';
 
+        // Display only — trims the DECIMAL(18,6) column's trailing zeros (e.g. "1000.000000"
+        // -> "1000"). Same convention already used for the container "คงเหลือ" column
+        // (LabInventoryTable / items.show); the stored/computed value itself is untouched.
         return response()->json([
-            'balance' => $balance,
+            'balance' => rtrim(rtrim($balance, '0'), '.'),
             'unit' => $item->baseUnit?->code,
         ]);
     }
