@@ -160,6 +160,7 @@ Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(
     Route::get('/', \App\Livewire\Requisitions\RequisitionTable::class)->name('index');
     Route::get('/create', [RequisitionController::class, 'create'])->name('create');
     Route::post('/', [RequisitionController::class, 'store'])->name('store');
+    Route::get('/items/search', [RequisitionController::class, 'itemSearch'])->name('items.search');
     Route::get('/items/{item}/balance', [RequisitionController::class, 'itemBalance'])->name('items.balance');
     Route::get('/{requisition}', [RequisitionController::class, 'show'])->name('show');
     Route::get('/{requisition}/pdf', [RequisitionController::class, 'pdf'])->name('pdf');

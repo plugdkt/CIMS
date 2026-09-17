@@ -4,11 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\Container;
 use App\Models\Requisition;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
-/** FR-RQ-04: one requisition line = one item + how much, in what unit. */
+/**
+ * FR-RQ-04: one requisition line = one item + how much, in what unit.
+ *
+ * `item_id` also has to actually have stock in the requisition's own lab — the
+ * add-line picker (a type-to-search box, not a full-catalog <select>) already only
+ * offers matches scoped that way, but `withValidator()` below is the real gate:
+ * without it, a direct POST could still name an item this branch never stocked.
+ */
 final class RequisitionItemRequest extends FormRequest
 {
     public function authorize(): bool
@@ -29,6 +38,30 @@ final class RequisitionItemRequest extends FormRequest
             'reference_doc' => ['nullable', 'string', 'max:255'],
             'remark' => ['nullable', 'string', 'max:255'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $itemId = $this->input('item_id');
+            if (! is_numeric($itemId)) {
+                return;
+            }
+
+            /** @var Requisition $requisition */
+            $requisition = $this->route('requisition');
+
+            $hasStockInOwnLab = Container::query()
+                ->where('item_id', (int) $itemId)
+                ->whereIn('status', ['SEALED', 'IN_USE'])
+                ->where('remaining_qty_base', '>', 0)
+                ->whereHas('location', fn ($q) => $q->where('lab_id', $requisition->lab_id))
+                ->exists();
+
+            if (! $hasStockInOwnLab) {
+                $validator->errors()->add('item_id', __('requisitions.validation.item_not_in_lab_stock'));
+            }
+        });
     }
 
     /** @return array<string, string> */

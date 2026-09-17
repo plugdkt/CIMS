@@ -9,6 +9,7 @@ return [
     'col_name' => 'ชื่อรายการ',
     'col_cas' => 'เลข CAS',
     'col_grade' => 'เกรด',
+    'grade_label' => 'เกรด: :grade',
     'col_physical_state' => 'สถานะกายภาพ',
     'col_package_size' => 'ขนาดบรรจุ',
     'col_category' => 'หมวดหมู่',

@@ -30,6 +30,20 @@ if (! function_exists('studentUser')) {
     }
 }
 
+if (! function_exists('stockItemInLab')) {
+    /** The add-line endpoint now requires the item to actually have stock in the requisition's own lab. */
+    function stockItemInLab(int $itemId, int $labId): void
+    {
+        $location = makeLocationForLab(\App\Models\Lab::findOrFail($labId));
+        makeContainer([
+            'item_id' => $itemId,
+            'location_id' => $location->id,
+            'status' => 'SEALED',
+            'remaining_qty_base' => '1000.000000',
+        ]);
+    }
+}
+
 if (! function_exists('staffUser')) {
     function staffUser(array $overrides = []): User
     {
@@ -133,6 +147,7 @@ test('adding a line item computes qty_requested_base in the item base unit (FR-R
     $requisition = makeRequisition($student);
     $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);
     $kg = Unit::where('code', 'kg')->firstOrFail();
+    stockItemInLab($item->id, $requisition->lab_id);
 
     $this->actingAs($student)->post(route('requisitions.items.store', $requisition), [
         'item_id' => $item->id,
@@ -155,6 +170,7 @@ test('adding a line item crosses dimensions using the item density', function ()
         'density_g_per_ml' => '0.789',
     ]);
     $mL = Unit::where('code', 'mL')->firstOrFail();
+    stockItemInLab($item->id, $requisition->lab_id);
 
     $this->actingAs($student)->post(route('requisitions.items.store', $requisition), [
         'item_id' => $item->id,
@@ -171,6 +187,7 @@ test('a line item can be removed while the requisition is still DRAFT', function
     $requisition = makeRequisition($student);
     $item = makeItem();
     $g = Unit::where('code', 'g')->firstOrFail();
+    stockItemInLab($item->id, $requisition->lab_id);
 
     $this->actingAs($student)->post(route('requisitions.items.store', $requisition), [
         'item_id' => $item->id,
@@ -199,6 +216,7 @@ test('submitting a requisition with at least one line moves it to SUBMITTED (BR-
     $requisition = makeRequisition($student);
     $item = makeItem();
     $g = Unit::where('code', 'g')->firstOrFail();
+    stockItemInLab($item->id, $requisition->lab_id);
     $this->actingAs($student)->post(route('requisitions.items.store', $requisition), [
         'item_id' => $item->id,
         'qty_requested' => '5',
@@ -224,6 +242,7 @@ test('a DRAFT or SUBMITTED requisition can be cancelled by its own requester (BR
     $submitted = makeRequisition($student);
     $item = makeItem();
     $g = Unit::where('code', 'g')->firstOrFail();
+    stockItemInLab($item->id, $submitted->lab_id);
     $this->actingAs($student)->post(route('requisitions.items.store', $submitted), [
         'item_id' => $item->id, 'qty_requested' => '5', 'unit_id' => $g->id,
     ]);

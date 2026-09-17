@@ -136,31 +136,66 @@
 
             @if ($canEdit)
                 <form method="POST" action="{{ route('requisitions.items.store', $requisition) }}"
-                      x-data="{ balance: null, unit: null,
-                                async loadBalance(ulid) {
-                                    if (!ulid) { this.balance = null; return; }
-                                    const res = await fetch(`{{ url('requisitions/items') }}/${ulid}/balance`);
-                                    const data = await res.json();
-                                    this.balance = data.balance; this.unit = data.unit;
-                                } }"
+                      x-data="{
+                          balance: null, unit: null, itemId: '', query: '', results: [], open: false, activeIndex: -1,
+                          async loadBalance(ulid) {
+                              if (!ulid) { this.balance = null; return; }
+                              const res = await fetch(`{{ url('requisitions/items') }}/${ulid}/balance`);
+                              const data = await res.json();
+                              this.balance = data.balance; this.unit = data.unit;
+                          },
+                          async search() {
+                              this.itemId = ''; this.balance = null;
+                              const term = this.query.trim();
+                              if (term === '') { this.results = []; this.open = false; return; }
+                              const res = await fetch(`{{ route('requisitions.items.search') }}?q=${encodeURIComponent(term)}`);
+                              this.results = await res.json();
+                              this.open = true;
+                              this.activeIndex = -1;
+                          },
+                          selectItem(item) {
+                              this.itemId = item.id; this.query = item.label;
+                              this.results = []; this.open = false; this.activeIndex = -1;
+                              this.loadBalance(item.ulid);
+                          },
+                          moveActive(delta) {
+                              if (!this.open || this.results.length === 0) return;
+                              this.activeIndex = (this.activeIndex + delta + this.results.length) % this.results.length;
+                          },
+                          chooseActive() {
+                              if (this.activeIndex >= 0 && this.results[this.activeIndex]) {
+                                  this.selectItem(this.results[this.activeIndex]);
+                              }
+                          },
+                      }"
                       class="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-border pt-4">
                     @csrf
-                    <div class="sm:col-span-3">
-                        <label class="block text-xs font-medium mb-1" for="item_id">{{ __('requisitions.field_item') }}</label>
-                        <select name="item_id" id="item_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
-                                @change="loadBalance($event.target.selectedOptions[0].dataset.ulid)">
-                            <option value="">{{ __('items.select_placeholder') }}</option>
-                            @foreach ($items as $item)
-                                @php
-                                    $extraInfo = array_filter([
-                                        $item->item_code,
-                                        $item->grade ? 'เกรด: '.$item->grade : null,
-                                        $item->physical_state ? __('items.state_'.$item->physical_state) : null,
-                                    ]);
-                                @endphp
-                                <option value="{{ $item->id }}" data-ulid="{{ $item->ulid }}">{{ $item->name_th }} ({{ implode(' | ', $extraInfo) }})</option>
-                            @endforeach
-                        </select>
+                    <div class="sm:col-span-3 relative">
+                        <label class="block text-xs font-medium mb-1" for="item_search">{{ __('requisitions.field_item') }}</label>
+                        <input type="hidden" name="item_id" :value="itemId">
+                        <input type="text" id="item_search" autocomplete="off" x-model="query"
+                               @input.debounce.300ms="search()"
+                               @keydown.arrow-down.prevent="moveActive(1)"
+                               @keydown.arrow-up.prevent="moveActive(-1)"
+                               @keydown.enter.prevent="chooseActive()"
+                               @keydown.escape="open = false"
+                               @focus="open = results.length > 0"
+                               @click.outside="open = false"
+                               role="combobox" aria-expanded="open" aria-controls="item-search-listbox" aria-autocomplete="list"
+                               :aria-activedescendant="activeIndex >= 0 ? `item-search-option-${activeIndex}` : null"
+                               placeholder="{{ __('requisitions.field_item_search_placeholder') }}"
+                               class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <ul x-show="open" id="item-search-listbox" role="listbox"
+                            class="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto rounded-lg border border-border bg-surface shadow-lg text-sm" tabindex="0">
+                            <template x-for="(item, index) in results" :key="item.id">
+                                <li :id="`item-search-option-${index}`" role="option" :aria-selected="index === activeIndex"
+                                    @click="selectItem(item)" @mouseenter="activeIndex = index"
+                                    class="px-3 py-2 cursor-pointer"
+                                    :class="index === activeIndex ? 'bg-accent-soft text-accent-strong' : 'hover:bg-surface-alt'"
+                                    x-text="item.label"></li>
+                            </template>
+                            <li x-show="results.length === 0" class="px-3 py-2 text-ink-muted">{{ __('requisitions.item_search_no_results') }}</li>
+                        </ul>
                         {{-- FR-RQ-05: current balance next to the selected item, real-time. --}}
                         <p class="text-xs text-ink-muted mt-1" x-show="balance !== null">
                             {{ __('requisitions.current_balance') }}: <span x-text="balance"></span> <span x-text="unit"></span>

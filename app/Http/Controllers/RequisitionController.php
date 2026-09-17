@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
 final class RequisitionController extends Controller
@@ -81,10 +82,55 @@ final class RequisitionController extends Controller
 
         return view('requisitions.show', [
             'requisition' => $requisition->load(['lab', 'requester', 'advisor', 'items.item', 'items.unit']),
-            'items' => Item::where('is_active', true)->orderBy('name_th')->get(),
             'units' => Unit::orderBy('sort_order')->get(),
             'canEdit' => auth()->user()?->can('update', $requisition) ?? false,
         ]);
+    }
+
+    /**
+     * Type-to-search item picker for the add-line form — the catalog is thousands of
+     * rows, too many for a plain <select>. Scoped to items with real stock (SEALED/
+     * IN_USE, qty > 0) in the requester's own lab, same "own branch only" rule the
+     * rest of the multi-branch feature already enforces elsewhere — there's nothing
+     * useful to request against an item this lab has never stocked.
+     */
+    public function itemSearch(Request $request): JsonResponse
+    {
+        $this->authorize('viewAny', Item::class);
+
+        /** @var User $user */
+        $user = $request->user();
+        $term = trim((string) $request->query('q', ''));
+
+        if ($term === '' || $user->lab_id === null) {
+            return response()->json([]);
+        }
+
+        $items = Item::query()
+            ->where('is_active', true)
+            ->whereHas('containers', function ($query) use ($user) {
+                $query->whereIn('status', ['SEALED', 'IN_USE'])
+                    ->where('remaining_qty_base', '>', 0)
+                    ->whereHas('location', fn ($q) => $q->where('lab_id', $user->lab_id));
+            })
+            ->where(function ($query) use ($term) {
+                $query->where('name_th', 'like', "%{$term}%")
+                    ->orWhere('name_en', 'like', "%{$term}%")
+                    ->orWhere('item_code', 'like', "%{$term}%");
+            })
+            ->orderBy('name_th')
+            ->limit(20)
+            ->get(['id', 'ulid', 'item_code', 'name_th', 'grade', 'physical_state']);
+
+        return response()->json($items->map(fn (Item $item) => [
+            'id' => $item->id,
+            'ulid' => $item->ulid,
+            'label' => trim($item->name_th.' ('.implode(' | ', array_filter([
+                $item->item_code,
+                $item->grade ? (string) __('items.grade_label', ['grade' => $item->grade]) : null,
+                $item->physical_state ? (string) __('items.state_'.$item->physical_state) : null,
+            ])).')'),
+        ]));
     }
 
     public function update(RequisitionRequest $request, Requisition $requisition): RedirectResponse

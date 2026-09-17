@@ -1161,4 +1161,32 @@ default this session otherwise follows now.
   `php artisan db:seed --class=PermissionSeeder` against the real dev database so the permission
   change takes effect immediately, not just in the test suite's own fresh migrations.
 
+## Post-launch — Requisition item picker: type-to-search, own-lab only (2026-09-17)
+
+User-reported: the requisition add-line form's item `<select>` listed the entire (thousands-of-rows)
+item catalog, unusable to scroll through by hand, and it wasn't scoped to the requester's own branch
+at all — every lab's items showed up regardless of what that branch actually stocks.
+
+- **New endpoint `GET /requisitions/items/search`** (`RequisitionController::itemSearch()`) — matches
+  by `name_th`/`name_en`/`item_code` (same `LIKE` approach as the item catalog's own search, FR-MD-07),
+  limited to 20 results, and scoped to items with at least one container that's SEALED/IN_USE with
+  `remaining_qty_base > 0` in a location under the requester's own `lab_id`. An empty query or a
+  requester with no `lab_id` yet both return `[]` rather than the whole catalog.
+- **The add-line form's `<select name="item_id">` is now a type-to-search combobox** (hand-rolled
+  Alpine.js + `fetch()`, no third-party library — same CSP constraint and "simplest tool" precedent as
+  the signature pad/complete-profile page) — debounced 300ms, arrow-key navigation, Enter to choose,
+  a hidden `item_id` input carries the actual selection. Picking a result still triggers the existing
+  FR-RQ-05 real-time balance lookup, unchanged.
+- **Server-side gate, not just a nicer picker**: `RequisitionItemRequest::withValidator()` now rejects
+  an `item_id` with no stock in the requisition's own `lab_id`, independent of the UI — a direct POST
+  naming an item only ever stocked in a different branch is rejected with a validation error, the same
+  "own branch only" rule the rest of the multi-branch feature (stock-in, location edit, disposal/
+  adjustment approval) already enforces. This changed real behavior for 5 existing tests in
+  `RequisitionCrudTest.php` that posted an `item_id` with no container fixture at all — fixed by
+  stocking the item into the requisition's own lab first (new `stockItemInLab()` test helper) rather
+  than relaxing the check.
+- Verified: 4 new tests (`RequisitionItemSearchTest.php` — own-lab-only results, `item_code` match,
+  empty-query/no-lab-assigned both return nothing, cross-lab `item_id` POST rejected), full suite
+  green (472 tests, up from 468), Pint clean (358 files), PHPStan level 8 clean (0 errors), `composer
+  audit` clean.
 
