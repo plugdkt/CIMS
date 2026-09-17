@@ -17,9 +17,10 @@
 
         // What each bar's number actually means — shown as a caption above the chart
         // and appended to every bar's value label, since "17.5" alone (no axis, no
-        // unit) told a real user nothing about what they were looking at.
+        // unit) told a real user nothing about what they were looking at. No entry for
+        // item_stock_summary — user-requested: a plain list (with a per-row low-stock
+        // flag instead) reads clearer there than a chart.
         $chartMeta = [
-            'item_stock_summary' => ['caption' => __('reports.chart_caption_item_stock_summary'), 'suffix' => '%'],
             'usage_summary' => ['caption' => __('reports.chart_caption_usage_summary'), 'suffix' => ' '.__('reports.chart_unit_times')],
             'expiring_stock' => ['caption' => __('reports.chart_caption_expiring_stock'), 'suffix' => ' '.__('reports.chart_unit_containers')],
             'below_reorder' => ['caption' => __('reports.chart_caption_below_reorder'), 'suffix' => '%'],
@@ -190,12 +191,14 @@
     @if ($tab === 'stock_take_variance' && ! $stockTakeUlid)
         <p class="text-sm text-ink-muted">{{ __('reports.select_stock_take_first') }}</p>
     @else
-        {{-- Chart --}}
-        <div class="bg-surface border border-border rounded-xl p-5 mb-5">
-            <h2 class="font-semibold text-sm mb-1">{{ __('reports.chart_title') }}</h2>
-            <p class="text-xs text-ink-muted mb-3">{{ $chartMeta[$tab]['caption'] }}</p>
-            <x-bar-chart :bars="$chart" :label="$tabs[$tab]" :suffix="$chartMeta[$tab]['suffix']" />
-        </div>
+        @unless ($tab === 'item_stock_summary')
+            {{-- Chart --}}
+            <div class="bg-surface border border-border rounded-xl p-5 mb-5">
+                <h2 class="font-semibold text-sm mb-1">{{ __('reports.chart_title') }}</h2>
+                <p class="text-xs text-ink-muted mb-3">{{ $chartMeta[$tab]['caption'] }}</p>
+                <x-bar-chart :bars="$chart" :label="$tabs[$tab]" :suffix="$chartMeta[$tab]['suffix']" />
+            </div>
+        @endunless
 
         {{-- Table --}}
         <div class="bg-surface border border-border rounded-xl p-5">
@@ -213,6 +216,7 @@
                                         <th class="py-1 pr-3">{{ __('reports.col_item') }}</th>
                                         <th class="py-1 pr-3">{{ __('reports.col_used_qty') }}</th>
                                         <th class="py-1 pr-3">{{ __('reports.col_current_balance') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_stock_status') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
@@ -224,6 +228,13 @@
                                             <td class="py-1 pr-3">{{ rtrim(rtrim((string) $row['used_qty_base'], '0'), '.') }} {{ $item->baseUnit?->code }}</td>
                                             <td class="py-1 pr-3 {{ (float) $row['remaining_base'] <= 0.0 ? 'text-danger font-semibold' : '' }}">
                                                 {{ rtrim(rtrim((string) $row['remaining_base'], '0'), '.') }} {{ $item->baseUnit?->code }}
+                                            </td>
+                                            <td class="py-1 pr-3">
+                                                @if ($row['low_stock'])
+                                                    <span class="inline-flex items-center gap-1 text-danger font-semibold whitespace-nowrap">
+                                                        ⚠️ {{ __('reports.low_stock_warning', ['percent' => rtrim(rtrim((string) $row['remaining_percent'], '0'), '.')]) }}
+                                                    </span>
+                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach

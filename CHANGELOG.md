@@ -1418,3 +1418,25 @@ no unit, no caption anywhere explaining what the number meant.
   text and a `%` suffix actually render. Full suite green (489 tests), Pint clean, PHPStan
   level 8 clean.
 
+## Post-launch — Item stock summary: drop the chart, add a per-row low-stock warning (2026-09-17)
+
+User-requested follow-up: for this one tab specifically, a plain list of used/remaining is
+clearer than a chart — and instead, flag whichever item is actually close to running out,
+computed from its own remaining percentage, right on its own row.
+
+- **No chart on the `item_stock_summary` tab anymore** — the chart card is skipped entirely
+  for this tab (every other tab's chart is untouched). `ReportsDashboard::itemStockSummaryData()`
+  no longer builds a top-8 ranking; it isn't needed once nothing renders it.
+- **Each row now carries its own `remaining_percent`** (`remaining ÷ (used + remaining) × 100`
+  — the same ratio the old chart used, just kept per-item instead of aggregated) and a
+  `low_stock` flag, true at or under a new `LOW_STOCK_REMAINING_PERCENT` threshold (20%,
+  user-requested starting point — a documented class constant, easy to retune, not a magic
+  number buried in Blade). A new "สถานะ" column shows "⚠️ ใกล้หมด (เหลืออีก N%)" only for
+  flagged rows — silent otherwise, matching this app's existing convention of only showing a
+  badge for the exceptional case (FEFO-recommended, expired-warning, etc.), not a "you're
+  fine" badge on every row.
+- Verified: updated the tab's existing dashboard test — a 100-received/0-used item (100%
+  remaining) shows no chart and no warning; a 100-received/95-issued item (5% remaining, under
+  the 20% threshold) shows "ใกล้หมด (เหลืออีก 5%)". Full suite green (489 tests), Pint clean
+  (360 files), PHPStan level 8 clean (0 errors).
+

@@ -142,7 +142,14 @@ final class ReportsDashboard extends Component
         ]);
     }
 
-    /** @return array{0: Collection<int, array{item: Item, used_qty_base: string, remaining_base: string}>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /**
+     * A row is flagged "low stock" once its remaining share of (used + remaining) drops
+     * to this percentage or below — e.g. 20 means "80% of what came in during the period
+     * is already gone." User-requested starting point; ask before assuming it should move.
+     */
+    private const LOW_STOCK_REMAINING_PERCENT = 20.0;
+
+    /** @return array{0: Collection<int, array{item: Item, used_qty_base: string, remaining_base: string, remaining_percent: float|null, low_stock: bool}>, 1: int, 2: array<int, array{label: string, value: float}>} */
     private function itemStockSummaryData(?int $labId): array
     {
         $filter = new DateRangeFilter(
@@ -151,30 +158,26 @@ final class ReportsDashboard extends Component
         );
         $export = new ItemStockSummaryExport($filter, $labId);
 
-        $results = $export->results()->map(fn (Item $item) => [
-            'item' => $item,
-            'used_qty_base' => $export->usedQuantity($item),
-            'remaining_base' => $export->remainingBalance($item),
-        ]);
+        // No chart here (user-requested: a plain list is clearer than a chart for this
+        // one) — instead each row gets its own remaining-percent and a low-stock flag,
+        // so the item about to run out is marked directly where it's read, not inferred
+        // from a bar's height.
+        $results = $export->results()->map(function (Item $item) use ($export) {
+            $used = $export->usedQuantity($item);
+            $remaining = $export->remainingBalance($item);
+            $denominator = (float) $used + (float) $remaining;
+            $remainingPercent = $denominator <= 0.0 ? null : round(((float) $remaining / $denominator) * 100, 1);
 
-        // A ratio (used ÷ (used + remaining)), not a raw quantity, so items with
-        // different units stay comparable on one chart — the item closest to running
-        // out (highest fraction of its tracked stock already consumed) shows first.
-        $chart = $results
-            ->map(function (array $row) {
-                $used = (float) $row['used_qty_base'];
-                $remaining = (float) $row['remaining_base'];
-                $denominator = $used + $remaining;
-                $percent = $denominator <= 0.0 ? 0.0 : round(($used / $denominator) * 100, 1);
+            return [
+                'item' => $item,
+                'used_qty_base' => $used,
+                'remaining_base' => $remaining,
+                'remaining_percent' => $remainingPercent,
+                'low_stock' => $remainingPercent !== null && $remainingPercent <= self::LOW_STOCK_REMAINING_PERCENT,
+            ];
+        });
 
-                return ['label' => $row['item']->name_th, 'value' => $percent];
-            })
-            ->sortByDesc('value')
-            ->take(8)
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count(), []];
     }
 
     /** @return array{0: Collection<int, IssueTransaction>, 1: int, 2: array<int, array{label: string, value: float}>} */

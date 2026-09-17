@@ -50,9 +50,11 @@ test('the item stock summary tab shows used/remaining per item, lowest balance f
     $response->assertOk()
         ->assertSeeInOrder(['สารใกล้หมดทดสอบ', 'สารคงเหลือเยอะทดสอบ'])
         ->assertSee('95')
-        ->assertSee('5 ')
-        ->assertSee('<svg', false)
-        ->assertDontSee(__('reports.chart_no_data'));
+        ->assertSee('5 ');
+    // User-requested: no chart on this tab, a low-stock item (5 of 100 = 5% remaining,
+    // at/under the 20% threshold) gets a warning badge naming its own remaining %.
+    $response->assertDontSee(__('reports.chart_title'));
+    $response->assertSee(__('reports.low_stock_warning', ['percent' => '5']));
 });
 
 test('the usage summary tab live-filters by requester name', function () {
