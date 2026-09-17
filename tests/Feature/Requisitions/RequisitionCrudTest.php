@@ -30,20 +30,6 @@ if (! function_exists('studentUser')) {
     }
 }
 
-if (! function_exists('stockItemInLab')) {
-    /** The add-line endpoint now requires the item to actually have stock in the requisition's own lab. */
-    function stockItemInLab(int $itemId, int $labId): void
-    {
-        $location = makeLocationForLab(\App\Models\Lab::findOrFail($labId));
-        makeContainer([
-            'item_id' => $itemId,
-            'location_id' => $location->id,
-            'status' => 'SEALED',
-            'remaining_qty_base' => '1000.000000',
-        ]);
-    }
-}
-
 if (! function_exists('staffUser')) {
     function staffUser(array $overrides = []): User
     {

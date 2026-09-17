@@ -1169,9 +1169,9 @@ at all — every lab's items showed up regardless of what that branch actually s
 
 - **New endpoint `GET /requisitions/items/search`** (`RequisitionController::itemSearch()`) — matches
   by `name_th`/`name_en`/`item_code` (same `LIKE` approach as the item catalog's own search, FR-MD-07),
-  limited to 20 results, and scoped to items with at least one container that's SEALED/IN_USE with
-  `remaining_qty_base > 0` in a location under the requester's own `lab_id`. An empty query or a
-  requester with no `lab_id` yet both return `[]` rather than the whole catalog.
+  scoped to items with at least one container that's SEALED/IN_USE with `remaining_qty_base > 0` in a
+  location under the requester's own `lab_id`. A requester with no `lab_id` yet gets `[]` regardless of
+  the query.
 - **The add-line form's `<select name="item_id">` is now a type-to-search combobox** (hand-rolled
   Alpine.js + `fetch()`, no third-party library — same CSP constraint and "simplest tool" precedent as
   the signature pad/complete-profile page) — debounced 300ms, arrow-key navigation, Enter to choose,
@@ -1185,8 +1185,20 @@ at all — every lab's items showed up regardless of what that branch actually s
   `RequisitionCrudTest.php` that posted an `item_id` with no container fixture at all — fixed by
   stocking the item into the requisition's own lab first (new `stockItemInLab()` test helper) rather
   than relaxing the check.
-- Verified: 4 new tests (`RequisitionItemSearchTest.php` — own-lab-only results, `item_code` match,
-  empty-query/no-lab-assigned both return nothing, cross-lab `item_id` POST rejected), full suite
-  green (472 tests, up from 468), Pint clean (358 files), PHPStan level 8 clean (0 errors), `composer
-  audit` clean.
+- **User-requested follow-up, same day: "both" modes, not type-only** — an empty `q` now browses the
+  requester's own lab stock (capped at 50, vs. 20 for a narrowed search) instead of returning `[]`, so
+  a requester who can't recall an item's exact name can still find it by focusing the field and looking,
+  not just by typing. Opening the field always (re-)fetches on focus.
+- **User-requested follow-up: the unit dropdown now matches the picked item, instead of listing every
+  unit in the system regardless of dimension.** Each search result now carries the item's own
+  `base_unit_id` and its dimension (MASS/VOLUME/COUNT); selecting an item defaults the unit `<select>`
+  to that unit and restricts the visible options to the same dimension (still lets a requester ask in
+  `kg` for a `g`-based item, same as before — just no longer offers `mL`/`pcs` for a by-mass item to
+  begin with). Client-side only: `unit_id`'s server-side validation is unchanged, so the existing
+  density-based cross-dimension path (`UnitConverter::toItemBase()`, T-031) still works for any caller
+  that posts one directly.
+- Verified: 7 new tests (`RequisitionItemSearchTest.php` — own-lab-only results, `item_code` match,
+  empty-query browse-own-lab, no-lab-assigned returns nothing regardless of query, cross-lab `item_id`
+  POST rejected, response carries `baseUnitId`/`dimension`), full suite green (474 tests, up from 468),
+  Pint clean (358 files), PHPStan level 8 clean (0 errors), `composer audit` clean.
 

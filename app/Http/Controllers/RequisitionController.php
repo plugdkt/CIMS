@@ -93,6 +93,10 @@ final class RequisitionController extends Controller
      * IN_USE, qty > 0) in the requester's own lab, same "own branch only" rule the
      * rest of the multi-branch feature already enforces elsewhere — there's nothing
      * useful to request against an item this lab has never stocked.
+     *
+     * An empty `q` is also a valid call (not just "nothing typed yet") — it browses
+     * the requester's own lab stock instead of narrowing it, so a requester who can't
+     * recall an item's exact name can still find it by looking, not just by typing.
      */
     public function itemSearch(Request $request): JsonResponse
     {
@@ -102,7 +106,7 @@ final class RequisitionController extends Controller
         $user = $request->user();
         $term = trim((string) $request->query('q', ''));
 
-        if ($term === '' || $user->lab_id === null) {
+        if ($user->lab_id === null) {
             return response()->json([]);
         }
 
@@ -113,14 +117,17 @@ final class RequisitionController extends Controller
                     ->where('remaining_qty_base', '>', 0)
                     ->whereHas('location', fn ($q) => $q->where('lab_id', $user->lab_id));
             })
-            ->where(function ($query) use ($term) {
-                $query->where('name_th', 'like', "%{$term}%")
-                    ->orWhere('name_en', 'like', "%{$term}%")
-                    ->orWhere('item_code', 'like', "%{$term}%");
+            ->when($term !== '', function ($query) use ($term) {
+                $query->where(function ($q) use ($term) {
+                    $q->where('name_th', 'like', "%{$term}%")
+                        ->orWhere('name_en', 'like', "%{$term}%")
+                        ->orWhere('item_code', 'like', "%{$term}%");
+                });
             })
+            ->with('baseUnit')
             ->orderBy('name_th')
-            ->limit(20)
-            ->get(['id', 'ulid', 'item_code', 'name_th', 'grade', 'physical_state']);
+            ->limit($term === '' ? 50 : 20)
+            ->get(['id', 'ulid', 'item_code', 'name_th', 'grade', 'physical_state', 'base_unit_id']);
 
         return response()->json($items->map(fn (Item $item) => [
             'id' => $item->id,
@@ -130,6 +137,8 @@ final class RequisitionController extends Controller
                 $item->grade ? (string) __('items.grade_label', ['grade' => $item->grade]) : null,
                 $item->physical_state ? (string) __('items.state_'.$item->physical_state) : null,
             ])).')'),
+            'baseUnitId' => $item->base_unit_id,
+            'dimension' => $item->baseUnit?->dimension,
         ]));
     }
 

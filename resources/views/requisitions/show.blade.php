@@ -137,7 +137,9 @@
             @if ($canEdit)
                 <form method="POST" action="{{ route('requisitions.items.store', $requisition) }}"
                       x-data="{
-                          balance: null, unit: null, itemId: '', query: '', results: [], open: false, activeIndex: -1,
+                          balance: null, unit: null, itemId: '', unitId: '', itemDimension: null,
+                          query: '', results: [], open: false, activeIndex: -1,
+                          units: @json($units->map(fn ($u) => ['id' => (string) $u->id, 'code' => $u->code, 'dimension' => $u->dimension])),
                           async loadBalance(ulid) {
                               if (!ulid) { this.balance = null; return; }
                               const res = await fetch(`{{ url('requisitions/items') }}/${ulid}/balance`);
@@ -147,7 +149,6 @@
                           async search() {
                               this.itemId = ''; this.balance = null;
                               const term = this.query.trim();
-                              if (term === '') { this.results = []; this.open = false; return; }
                               const res = await fetch(`{{ route('requisitions.items.search') }}?q=${encodeURIComponent(term)}`);
                               this.results = await res.json();
                               this.open = true;
@@ -156,6 +157,11 @@
                           selectItem(item) {
                               this.itemId = item.id; this.query = item.label;
                               this.results = []; this.open = false; this.activeIndex = -1;
+                              // Default to (and restrict) the unit dropdown to this item's own
+                              // dimension — asking in kg instead of g is fine, asking in mL for a
+                              // by-mass item isn't a choice a requester should have to reason about.
+                              this.itemDimension = item.dimension;
+                              this.unitId = item.baseUnitId !== null ? String(item.baseUnitId) : '';
                               this.loadBalance(item.ulid);
                           },
                           moveActive(delta) {
@@ -166,6 +172,9 @@
                               if (this.activeIndex >= 0 && this.results[this.activeIndex]) {
                                   this.selectItem(this.results[this.activeIndex]);
                               }
+                          },
+                          visibleUnits() {
+                              return this.itemDimension === null ? this.units : this.units.filter(u => u.dimension === this.itemDimension);
                           },
                       }"
                       class="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-border pt-4">
@@ -179,7 +188,7 @@
                                @keydown.arrow-up.prevent="moveActive(-1)"
                                @keydown.enter.prevent="chooseActive()"
                                @keydown.escape="open = false"
-                               @focus="open = results.length > 0"
+                               @focus="search()"
                                @click.outside="open = false"
                                role="combobox" aria-expanded="open" aria-controls="item-search-listbox" aria-autocomplete="list"
                                :aria-activedescendant="activeIndex >= 0 ? `item-search-option-${activeIndex}` : null"
@@ -207,11 +216,11 @@
                     </div>
                     <div>
                         <label class="block text-xs font-medium mb-1" for="unit_id">{{ __('requisitions.field_unit') }}</label>
-                        <select name="unit_id" id="unit_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        <select name="unit_id" id="unit_id" x-model="unitId" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             <option value="">{{ __('items.select_placeholder') }}</option>
-                            @foreach ($units as $unit)
-                                <option value="{{ $unit->id }}">{{ $unit->code }}</option>
-                            @endforeach
+                            <template x-for="u in visibleUnits()" :key="u.id">
+                                <option :value="u.id" x-text="u.code"></option>
+                            </template>
                         </select>
                     </div>
                     <div>

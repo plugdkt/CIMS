@@ -5,16 +5,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-if (! function_exists('studentUserWithLab')) {
-    function studentUserWithLab(): array
-    {
-        $lab = makeLab();
-        $student = studentUser(['lab_id' => $lab->id]);
-
-        return [$student, $lab];
-    }
-}
-
 test('the item search endpoint only returns items with stock in the requester\'s own lab', function () {
     [$student, $ownLab] = studentUserWithLab();
     $otherLab = makeLab();
@@ -43,17 +33,36 @@ test('the item search endpoint matches by item_code too', function () {
         ->assertJsonFragment(['id' => $item->id]);
 });
 
-test('the item search endpoint returns nothing for an empty query or a requester with no lab', function () {
-    [$student] = studentUserWithLab();
+test('an empty query browses the requester\'s own lab stock instead of returning nothing', function () {
+    [$student, $ownLab] = studentUserWithLab();
     $item = makeItem();
-    stockItemInLab($item->id, makeLab()->id);
+    stockItemInLab($item->id, $ownLab->id);
 
     $this->actingAs($student)->getJson(route('requisitions.items.search', ['q' => '']))
-        ->assertOk()->assertJson([]);
+        ->assertOk()
+        ->assertJsonFragment(['id' => $item->id]);
+});
+
+test('a requester with no lab assigned gets nothing back regardless of the query', function () {
+    $item = makeItem();
+    stockItemInLab($item->id, makeLab()->id);
 
     $unassigned = studentUser(['lab_id' => null]);
     $this->actingAs($unassigned)->getJson(route('requisitions.items.search', ['q' => $item->name_th]))
         ->assertOk()->assertJson([]);
+    $this->actingAs($unassigned)->getJson(route('requisitions.items.search', ['q' => '']))
+        ->assertOk()->assertJson([]);
+});
+
+test('each result carries the item\'s own base unit id and dimension, for the unit dropdown to match it', function () {
+    [$student, $ownLab] = studentUserWithLab();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $item = makeItem(['item_code' => 'CHM-88888', 'base_unit_id' => $g->id]);
+    stockItemInLab($item->id, $ownLab->id);
+
+    $this->actingAs($student)->getJson(route('requisitions.items.search', ['q' => 'CHM-88888']))
+        ->assertOk()
+        ->assertJsonFragment(['baseUnitId' => $item->base_unit_id, 'dimension' => 'MASS']);
 });
 
 test('adding a line item for an item with no stock in the requisition\'s own lab is rejected', function () {
