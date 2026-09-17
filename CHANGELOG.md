@@ -1286,3 +1286,29 @@ is older and asked for larger label text.
   fixed that bug and this branch merged it: 473 tests green, Pint clean (356 files), PHPStan
   level 8 clean (0 errors).
 
+## Post-launch — Issue page: click a container to select it, trim its displayed quantities (2026-09-17)
+
+User-requested, from a screenshot of the dispensing page: pick which container to issue from by
+clicking a row instead of only typing/scanning its barcode by hand, and the same "too many
+decimals" complaint (`.000000` everywhere) that FR-RQ-05's balance already got fixed for.
+
+- **Each container row in the FEFO table is now clickable** (row click or its own radio button)
+  and sets the same `barcode` field a real barcode scanner still types into — the field is now
+  `x-model`-bound to a shared `selectedBarcode` Alpine property (initialized to the FEFO-
+  recommended container, same as before) instead of a static server-rendered `value`. Scanning
+  still works exactly as before since the scanner just types into the same focused input; the
+  radio is a convenience for picking a *different* container without re-scanning or hand-typing
+  its barcode.
+- **Every raw `DECIMAL(18,6)` quantity on this page is now trimmed for display** (same
+  `rtrim(rtrim($v, '0'), '.')` convention as the FR-RQ-05 balance/lines-table fix): the line's
+  requested/issued/remaining summary line, each container row's "คงเหลือในภาชนะ", and the return
+  section's "คืนได้สูงสุด". The underlying values (what's stored, what's validated, what's
+  written to `stock_ledger`) are completely untouched — display only.
+- Verified visually via a direct render (not just Pest assertions), checking every `x-data="..."`
+  attribute in the rendered HTML for embedded literal quotes — the same class of check that
+  caught the earlier `@json()` bug — both attributes came back clean (0 literal `"` inside).
+  Added a regression test asserting the page renders the `x-model="selectedBarcode"` binding,
+  the FEFO-recommended container's barcode as the initial selection, and never shows a raw
+  `"500.000000"` for a container stocked with exactly that amount. Full suite green (474 tests,
+  up from 473), Pint clean (356 files), PHPStan level 8 clean.
+

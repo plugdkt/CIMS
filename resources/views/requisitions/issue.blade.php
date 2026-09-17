@@ -51,50 +51,59 @@
                         @endif
                     </div>
                     <span class="text-xs text-ink-muted">
-                        {{ __('requisitions.field_qty_requested') }} {{ $line->qty_requested_base }}
-                        / {{ __('requisitions.issued_so_far') }} {{ $line->qty_issued_base }}
-                        ({{ __('requisitions.remaining') }} {{ $row['remaining_base'] }})
+                        {{ __('requisitions.field_qty_requested') }} {{ rtrim(rtrim((string) $line->qty_requested_base, '0'), '.') }}
+                        / {{ __('requisitions.issued_so_far') }} {{ rtrim(rtrim((string) $line->qty_issued_base, '0'), '.') }}
+                        ({{ __('requisitions.remaining') }} {{ rtrim(rtrim((string) $row['remaining_base'], '0'), '.') }})
                     </span>
                 </div>
 
                 @if ($row['remaining_base'] <= 0)
                     <p class="text-sm text-success-ink">{{ __('requisitions.line_fully_issued') }}</p>
                 @else
-                    <div class="mb-3 overflow-x-auto" tabindex="0">
-                        <table class="w-full text-xs">
-                            <thead class="text-left text-ink-faint uppercase tracking-wide">
-                                <tr>
-                                    <th class="py-1 pr-3">{{ __('requisitions.col_barcode') }}</th>
-                                    <th class="py-1 pr-3">{{ __('requisitions.col_container_status') }}</th>
-                                    <th class="py-1 pr-3">{{ __('requisitions.col_expiry') }}</th>
-                                    <th class="py-1 pr-3">{{ __('requisitions.col_remaining_qty') }}</th>
-                                    <th class="py-1"></th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border">
-                                @forelse ($row['containers'] as $i => $container)
-                                    <tr class="{{ $selector->isExpired($container) ? 'text-danger-ink' : '' }}">
-                                        <td class="py-1 pr-3 font-mono">{{ $container->barcode }}</td>
-                                        <td class="py-1 pr-3">{{ $container->status }}</td>
-                                        <td class="py-1 pr-3">
-                                            {{ $container->expiry_date?->format('d/m/Y') ?: '—' }}
-                                            @if ($selector->isExpired($container))
-                                                <strong>{{ __('requisitions.expired_warning') }}</strong>
-                                            @endif
-                                        </td>
-                                        <td class="py-1 pr-3">{{ $container->remaining_qty_base }}</td>
-                                        <td class="py-1">
-                                            @if ($i === 0 && ! $selector->isExpired($container))
-                                                <span class="text-accent font-semibold">{{ __('requisitions.fefo_recommended') }}</span>
-                                            @endif
-                                        </td>
+                    <div class="mb-3"
+                         x-data="{ selectedBarcode: '{{ $row['containers']->first()?->barcode }}' }">
+                        <div class="overflow-x-auto mb-3" tabindex="0">
+                            <table class="w-full text-xs">
+                                <thead class="text-left text-ink-faint uppercase tracking-wide">
+                                    <tr>
+                                        <th class="py-1 pr-3"></th>
+                                        <th class="py-1 pr-3">{{ __('requisitions.col_barcode') }}</th>
+                                        <th class="py-1 pr-3">{{ __('requisitions.col_container_status') }}</th>
+                                        <th class="py-1 pr-3">{{ __('requisitions.col_expiry') }}</th>
+                                        <th class="py-1 pr-3">{{ __('requisitions.col_remaining_qty') }}</th>
+                                        <th class="py-1"></th>
                                     </tr>
-                                @empty
-                                    <tr><td colspan="5" class="py-2 text-ink-muted">{{ __('requisitions.no_containers_available') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    @forelse ($row['containers'] as $i => $container)
+                                        <tr class="cursor-pointer hover:bg-surface-alt {{ $selector->isExpired($container) ? 'text-danger-ink' : '' }}"
+                                            @click="selectedBarcode = '{{ $container->barcode }}'">
+                                            <td class="py-1 pr-1">
+                                                <input type="radio" :checked="selectedBarcode === '{{ $container->barcode }}'"
+                                                       @click="selectedBarcode = '{{ $container->barcode }}'"
+                                                       aria-label="{{ __('requisitions.select_container_to_issue') }}">
+                                            </td>
+                                            <td class="py-1 pr-3 font-mono">{{ $container->barcode }}</td>
+                                            <td class="py-1 pr-3">{{ $container->status }}</td>
+                                            <td class="py-1 pr-3">
+                                                {{ $container->expiry_date?->format('d/m/Y') ?: '—' }}
+                                                @if ($selector->isExpired($container))
+                                                    <strong>{{ __('requisitions.expired_warning') }}</strong>
+                                                @endif
+                                            </td>
+                                            <td class="py-1 pr-3">{{ rtrim(rtrim((string) $container->remaining_qty_base, '0'), '.') }}</td>
+                                            <td class="py-1">
+                                                @if ($i === 0 && ! $selector->isExpired($container))
+                                                    <span class="text-accent font-semibold">{{ __('requisitions.fefo_recommended') }}</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr><td colspan="6" class="py-2 text-ink-muted">{{ __('requisitions.no_containers_available') }}</td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
 
                     <form method="POST" action="{{ route('requisitions.items.issue', [$requisition, $line]) }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3"
                           x-data="{
@@ -151,7 +160,7 @@
                         <input type="hidden" name="signature_image" x-ref="signatureImageInput">
                         <div>
                             <label class="block text-xs font-medium mb-1" for="barcode-{{ $line->id }}">{{ __('requisitions.field_barcode') }}</label>
-                            <input type="text" name="barcode" id="barcode-{{ $line->id }}" value="{{ $row['containers']->first()?->barcode }}"
+                            <input type="text" name="barcode" id="barcode-{{ $line->id }}" x-model="selectedBarcode"
                                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm font-mono">
                         </div>
                         <div>
@@ -220,13 +229,14 @@
                             </button>
                         </div>
                     </form>
+                    </div>
                 @endif
 
                 @if ($canReturn && $row['returnable_base'] > 0)
                     <div class="border-t border-border mt-4 pt-4">
                         <h3 class="text-sm font-semibold mb-2">
                             {{ __('requisitions.return_title') }}
-                            <span class="text-xs text-ink-muted font-normal">({{ __('requisitions.returnable') }} {{ $row['returnable_base'] }})</span>
+                            <span class="text-xs text-ink-muted font-normal">({{ __('requisitions.returnable') }} {{ rtrim(rtrim((string) $row['returnable_base'], '0'), '.') }})</span>
                         </h3>
                         <form method="POST" action="{{ route('requisitions.items.return', [$requisition, $line]) }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                             @csrf

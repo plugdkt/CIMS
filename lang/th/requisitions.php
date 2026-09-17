@@ -98,6 +98,7 @@ return [
     'remaining' => 'คงเหลือที่ต้องจ่าย',
     'line_fully_issued' => 'จ่ายครบตามที่ขอแล้ว',
     'col_barcode' => 'บาร์โค้ด',
+    'select_container_to_issue' => 'เลือกภาชนะนี้เพื่อจ่าย',
     'col_container_status' => 'สถานะภาชนะ',
     'col_expiry' => 'วันหมดอายุ',
     'col_remaining_qty' => 'คงเหลือในภาชนะ',

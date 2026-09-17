@@ -112,6 +112,27 @@ test('neither a signature nor an OTP is rejected by validation', function () {
     ])->assertSessionHasErrors(['signature_image', 'otp_code']);
 });
 
+test('the issue page lets a scientist click a container row to select it, and trims trailing zeros from displayed quantities', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '20.000000');
+    $line = $requisition->items->first();
+    $container = stockedContainer($line->item_id, '500.000000', $staff);
+    $scientist = scientistUser();
+
+    $response = $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition));
+
+    $response->assertOk();
+    // A click-to-select radio per container row, wired to the same barcode field a
+    // physical scanner still types into (x-model, not a plain static `value`).
+    $response->assertSee('x-model="selectedBarcode"', false);
+    $response->assertSee("selectedBarcode: '{$container->barcode}'", false);
+    $response->assertSee(__('requisitions.select_container_to_issue'));
+    // Quantities are DECIMAL(18,6) internally but shouldn't show all six decimals —
+    // "500.000000" should never appear in the rendered page, only the trimmed "500".
+    expect($response->getContent())->not->toContain('500.000000');
+    $response->assertSee('500', false);
+});
+
 test('an unknown barcode is rejected with a validation error', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');
