@@ -49,6 +49,12 @@ final class RequisitionPolicy extends Policy
             && $requisition->status === 'DRAFT';
     }
 
+    public function submit(User $user, Requisition $requisition): bool
+    {
+        return $this->hasPermission($user, 'requisition.create')
+            && $requisition->requester_id === $user->id;
+    }
+
     /** BR-01: DRAFT | SUBMITTED can be cancelled by the requester who owns it. */
     public function cancel(User $user, Requisition $requisition): bool
     {

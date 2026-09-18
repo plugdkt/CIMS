@@ -8,6 +8,7 @@ use App\Mail\ReceiverOtpMail;
 use App\Models\Requisition;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -26,7 +27,13 @@ final class ReceiverOtpService
         $code = (string) random_int(100000, 999999);
         Cache::put($this->cacheKey($receiver, $requisition), $code, now()->addMinutes(self::TTL_MINUTES));
 
-        Mail::to($receiver->email)->send(new ReceiverOtpMail($requisition, $code));
+        if (! empty($receiver->email) && filter_var($receiver->email, FILTER_VALIDATE_EMAIL) !== false) {
+            try {
+                Mail::to($receiver->email)->send(new ReceiverOtpMail($requisition, $code));
+            } catch (\Throwable $e) {
+                Log::warning("Failed to send receiver OTP email to user {$receiver->id}: {$e->getMessage()}");
+            }
+        }
     }
 
     public function verify(User $receiver, Requisition $requisition, string $code): bool

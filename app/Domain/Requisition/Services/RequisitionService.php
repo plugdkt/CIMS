@@ -13,6 +13,7 @@ use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
@@ -97,13 +98,21 @@ final class RequisitionService
 
     private function mailAdvisor(Requisition $requisition, User $advisor): void
     {
+        if (empty($advisor->email) || filter_var($advisor->email, FILTER_VALIDATE_EMAIL) === false) {
+            return;
+        }
+
         $signedUrl = URL::temporarySignedRoute(
             'requisitions.approve.signed',
             now()->addHours(72),
             ['requisition' => $requisition->ulid],
         );
 
-        Mail::to($advisor->email)->send(new AdvisorApprovalMail($requisition, $signedUrl));
+        try {
+            Mail::to($advisor->email)->send(new AdvisorApprovalMail($requisition, $signedUrl));
+        } catch (\Throwable $e) {
+            Log::warning("Failed to send advisor approval email for {$requisition->doc_no}: {$e->getMessage()}");
+        }
     }
 
     /** FR-NT-03: a requisition just became actionable by a scientist — notify every SCIENTIST. */

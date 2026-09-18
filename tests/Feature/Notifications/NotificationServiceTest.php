@@ -42,6 +42,27 @@ test('emailOnly sends an email but writes no notification row', function () {
     Mail::assertQueued(NotificationMail::class, fn ($mail) => $mail->hasTo($user->email));
 });
 
+test('notifyInAppAndEmail writes in-app notification but skips email when user email is empty', function () {
+    Mail::fake();
+    $user = User::factory()->create(['email' => '']);
+
+    $notification = app(NotificationService::class)->notifyInAppAndEmail($user, 'test.type', 'หัวข้อ', 'เนื้อหา', '/somewhere');
+
+    expect(Notification::count())->toBe(1);
+    expect($notification->user_id)->toBe($user->id);
+    Mail::assertNothingQueued();
+});
+
+test('emailOnly skips email when user email is empty', function () {
+    Mail::fake();
+    $user = User::factory()->create(['email' => '']);
+
+    app(NotificationService::class)->emailOnly($user, 'หัวข้อ', 'เนื้อหา', null);
+
+    expect(Notification::count())->toBe(0);
+    Mail::assertNothingQueued();
+});
+
 test('usersWithAnyPermission returns active users holding at least one of the given permissions, deduplicated', function () {
     $labManager = labManagerUser(); // item.manage, ledger.adjust, ...
     $scientist = scientistUser(); // disposal.request, ...

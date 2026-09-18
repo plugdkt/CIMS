@@ -8,6 +8,7 @@ use App\Mail\NotificationMail;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 /**
@@ -33,14 +34,26 @@ final class NotificationService
     {
         $notification = $this->notifyInApp($user, $type, $title, $body, $linkUrl);
 
-        Mail::to($user->email)->send(new NotificationMail($title, $body, $linkUrl));
+        if (! empty($user->email) && filter_var($user->email, FILTER_VALIDATE_EMAIL) !== false) {
+            try {
+                Mail::to($user->email)->send(new NotificationMail($title, $body, $linkUrl));
+            } catch (\Throwable $e) {
+                Log::warning("Failed to send notification email to {$user->email}: {$e->getMessage()}");
+            }
+        }
 
         return $notification;
     }
 
     public function emailOnly(User $user, string $title, ?string $body, ?string $linkUrl): void
     {
-        Mail::to($user->email)->send(new NotificationMail($title, $body, $linkUrl));
+        if (! empty($user->email) && filter_var($user->email, FILTER_VALIDATE_EMAIL) !== false) {
+            try {
+                Mail::to($user->email)->send(new NotificationMail($title, $body, $linkUrl));
+            } catch (\Throwable $e) {
+                Log::warning("Failed to send notification email to {$user->email}: {$e->getMessage()}");
+            }
+        }
     }
 
     /**
