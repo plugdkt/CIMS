@@ -1569,4 +1569,14 @@ instead, which is what this feature imports.
   treated as unscoped/see-everything). This lab-assignment import is a prerequisite for
   that change (real SCIENTIST accounts need a real `lab_id` before the restriction can be
   meaningful) but the restriction itself has not been implemented yet.
+- **Import Faculty Personnel from MEDSCI ACC (`users:import-msc-acc`)**:
+  - Added Artisan command `users:import-msc-acc` to import all faculty personnel directly from the `account_medsci` database (SSO system database).
+  - Maps divisions (`id_div`) to CMIS Labs (001-006: สำนักงานธุรการ, จุลชีววิทยา, ชีวเคมี, กายวิภาคศาสตร์, สรีรวิทยา, โภชนาการ).
+  - Performs intelligent deduplication when identical usernames exist across multiple divisions, prioritizing specific academic departments over generic administrative office entries and retaining valid email addresses.
+  - Generates fallback email (`{username}@up.ac.th`) for entries without valid email addresses.
+  - Automatically assigns initial roles according to position: `SCIENTIST` for scientists, `STAFF` + `ADVISOR` for lecturers/deans/program chairs, and `STAFF` for other staff members.
+  - Preserves existing accounts and their roles/lab configurations (e.g. `wittaya.su` super admin status and `apisit.ph`).
+  - Executed live against `account_medsci`: 106 new users imported, 2 existing users updated, giving CMIS a total of 108 faculty personnel ready with roles and lab assignments across all 6 departments.
+  - Verified: `ImportMscAccUsersCommandTest` (4 tests, 31 assertions covering database connection failure handling, `--dry-run` preview mode, deduplication, role assignment, lab mapping, fallback email synthesis, existing-user preservation, and `AuditLog` logging). Pint clean, PHPStan level 8 clean (0 errors).
+
 
