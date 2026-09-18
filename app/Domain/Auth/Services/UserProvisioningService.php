@@ -22,9 +22,18 @@ final class UserProvisioningService
         $isNewUser = $user === null;
 
         if ($isNewUser) {
-            $user = new User(['sso_subject' => $data->subject]);
-            $user->ulid = (string) Str::ulid();
-            $user->is_active = true;
+            // A bulk import (php artisan users:import-lab-assignments) may have
+            // already pre-created this username's account — lab_id set, but
+            // sso_subject still null, since a `users` row otherwise can't exist
+            // ahead of a real SSO login at all (no admin "create user" flow).
+            // Claim that row instead of creating a duplicate one for the same
+            // person; every field it doesn't already carry (ulid, is_active) is
+            // filled in exactly like a genuinely new row.
+            $user = User::where('username', $data->username)->whereNull('sso_subject')->first()
+                ?? new User();
+            $user->sso_subject = $data->subject;
+            $user->ulid ??= (string) Str::ulid();
+            $user->is_active ??= true;
         }
 
         $user->username = $data->username;

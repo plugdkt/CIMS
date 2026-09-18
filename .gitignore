@@ -35,3 +35,8 @@ Thumbs.db
 # is a large one-off working copy, not meant to be committed.
 /download.csv
 /storage/download.csv
+
+# Raw HR/roster exports for users:import-lab-assignments — real personal data
+# (names/usernames/emails), never committed. The command persists only the
+# derived username->lab_id mapping into the database, never the source file.
+/storage/app/_staff_imports/

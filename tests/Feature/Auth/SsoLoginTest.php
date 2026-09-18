@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Lab;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -101,4 +102,45 @@ test('an authenticated user with no role gets HTTP 403 on any route except pendi
 
     $this->actingAs($user)->get('/')->assertStatus(403);
     $this->actingAs($user)->get(route('account.pending-role'))->assertOk();
+});
+
+test('a pre-created account (from users:import-lab-assignments) is claimed, not duplicated, on its first real login', function () {
+    $lab = Lab::create(['code' => 'LAB-PHYSIO', 'name_th' => 'สรีรวิทยา', 'is_active' => true]);
+    $preCreated = User::create([
+        'ulid' => (string) \Illuminate\Support\Str::ulid(),
+        'sso_subject' => null,
+        'username' => 'newperson',
+        'email' => 'newperson@up.ac.th',
+        'full_name' => 'บุคคล ใหม่',
+        'pos_name' => 'นักวิทยาศาสตร์',
+        'div_name' => 'สรีรวิทยา',
+        'lab_id' => $lab->id,
+        'is_active' => true,
+    ]);
+
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess([
+        'user_id' => 6161, 'username' => 'newperson', 'name' => 'สมชาย ใจดี (จริง)',
+        'pos_name' => 'อาจารย์', 'div_name' => 'ภาควิชาสรีรวิทยา', 'email' => 'newperson@up.ac.th',
+    ]);
+
+    $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    // Same row (same id), not a second account for the same person.
+    expect(User::where('username', 'newperson')->count())->toBe(1);
+    $user = $preCreated->fresh();
+    expect($user->sso_subject)->toBe('6161');
+    expect($user->lab_id)->toBe($lab->id); // the pre-assigned branch survives the real login
+    expect($user->full_name)->toBe('สมชาย ใจดี (จริง)'); // SSO payload overwrote the placeholder
+    expect($user->pos_name)->toBe('อาจารย์');
+});
+
+test('a username with no pre-created account still gets a genuinely new one on first login, as before', function () {
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess(['user_id' => 6363, 'username' => 'trulynew']);
+
+    $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    $user = User::where('sso_subject', '6363')->firstOrFail();
+    expect($user->lab_id)->toBeNull();
 });

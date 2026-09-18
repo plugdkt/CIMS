@@ -1467,3 +1467,90 @@ summary chart until now.
   that no tab has one). Full suite green (489 tests), Pint clean (360 files), PHPStan level 8
   clean (0 errors), `composer audit` clean.
 
+## Post-launch — Bulk lab (branch) assignment from a real HR roster export (2026-09-18)
+
+The user wanted a way to set `users.lab_id` for real staff without hand-picking it one
+person at a time in `/admin/users`, and asked whether it could be pulled automatically
+from the MEDSCI ACC SSO. Investigated first: the SSO's verify-API response carries only
+six fields (`user_id`, `username`, `name`, `pos_name`, `div_name`, `email` — confirmed
+against `SsoUserData`, `SsoLoginTest`'s fixture, and both integration guides) — `div_name`
+is the closest candidate but is free-text Thai ("ภาควิชาเคมี" etc.), not a stable code, and
+there is no faculty/department code in the payload at all. Concluded automatic SSO-based
+mapping isn't reliable right now — user-acknowledged, then supplied an actual HR export
+(CSV: ลำดับ, ชื่อ-นามสกุล, ชื่อผู้ใช้งาน (UP Account), ฝ่ายงาน/สังกัด, ตำแหน่งงาน, อีเมล)
+instead, which is what this feature imports.
+
+- **New `php artisan users:import-lab-assignments <path>`** (`app/Console/Commands/
+  ImportLabAssignmentsCommand.php`) maps `ฝ่ายงาน/สังกัด` (department) to an internal
+  `labs` record via a fixed, hand-confirmed table (`DEPARTMENT_LAB_CODES`) — only 5 real
+  academic departments were in the actual export (กายวิภาคศาสตร์, จุลชีววิทยาและปรสิตวิทยา,
+  ชีวเคมี, สรีรวิทยา, โภชนาการ), so this is an explicit list, not a generic slugger.
+  User-confirmed 2026-09-18: **sets only `lab_id`, never a CMIS role** — a job-title string
+  ("อาจารย์"/"นักวิทยาศาสตร์"/"คณบดี"/etc.) doesn't reliably map to a CMIS permission, and
+  role assignment stays an explicit ADMIN action via `/admin/users`. Also user-confirmed:
+  **"สำนักงานธุรการ" (administrative office — where the ADMIN account `wittaya.su` itself
+  is listed) is real staff but has no physical chemical inventory, so it's deliberately
+  excluded** — any department not in the fixed map is skipped and reported by name, never
+  silently guessed at or auto-created as a new Lab.
+- **Idempotent**: an existing `users` row only gets `lab_id` set if it's currently
+  `null` — this command never overwrites a lab an ADMIN already assigned by hand.
+  Re-running against the same file a second time changes nothing further (`Lab::
+  firstOrCreate` by `code`; a username that already has a `users` row, pre-created or
+  real, is never duplicated).
+- **User-confirmed follow-up decision (2026-09-18): don't wait for a first login at
+  all — pre-create the real `users` row outright**, with `lab_id` already set, so the
+  branch is usable the moment an ADMIN grants that person a role, not only after they
+  first log in. This meant relaxing a real constraint: `users.sso_subject` was `NOT
+  NULL` (every row assumed to be born from a real SSO login, BR-11) — a new migration
+  (`2026_09_18_000001_make_users_sso_subject_nullable.php`) makes it nullable (still
+  `unique()` — MariaDB allows unlimited `NULL`s in a unique index, so many un-claimed
+  pre-created rows coexist safely). A pre-created row's SSO-owned fields (`full_name`/
+  `email`/`pos_name`/`div_name`) are filled from the same CSV columns as placeholders
+  only — `is_active` defaults `true`, no role is attached (still roleless/deny-by-
+  default per BR-11, same as any brand-new account).
+- **`UserProvisioningService::provision()` now claims a pre-created row instead of
+  creating a duplicate one**: when no `users` row matches the SSO payload's
+  `sso_subject` (i.e. this looks like a first login), it now also checks for an
+  existing row with the same `username` and a still-`null` `sso_subject` before
+  falling back to `new User()`. If found, that row is claimed — `sso_subject` is set
+  for the first time, every SSO-owned field is overwritten with the real payload (the
+  placeholder values the import guessed are gone, "SSO payload always wins" per this
+  class's own doc comment, unchanged), and the pre-assigned `lab_id` survives untouched
+  since nothing in `provision()` ever touches `lab_id`. A username with no pre-created
+  row still gets a genuinely new one, exactly as before this change.
+- **The raw HR export CSV is never committed to this repo** — it's real personal data
+  (names/usernames/emails), so the command takes a filesystem `path` argument instead of
+  a tracked fixture file, and persists only what the resulting `users`/`labs` rows
+  actually need, nothing else from the source file. A missing email (`-` in the export)
+  is not stored literally — `users.email` is `unique()`, so multiple `-` placeholders
+  would collide; a synthesized `{username}@up.ac.th` placeholder is used instead
+  (matching the real address pattern already visible for the rows that do have one),
+  overwritten by the authoritative SSO email on first real login regardless.
+  `.gitignore` gained `/storage/app/_staff_imports/` as the working-copy convention for
+  any future export like this one (mirrors the existing `/download.csv` chemicals-import
+  precedent) — the actual file used for the 2026-09-18 run was deleted from disk
+  immediately after each import run.
+- **Ran for real against the dev database** (not just tested): 5 new `Lab` records
+  created (กายวิภาคศาสตร์, จุลชีววิทยาและปรสิตวิทยา, ชีวเคมี, สรีรวิทยา, โภชนาการ), 97
+  real accounts pre-created with `lab_id` already set (19/28/22/17/11 respectively),
+  18 สำนักงานธุรการ rows correctly skipped (no Lab, no account), 0 already-existing
+  accounts matched (nobody in the 5 real departments had ever logged into CMIS before
+  this ran). Each of those 97 people can be granted a role in `/admin/users` right away
+  — their branch no longer waits on a first login.
+- Verified: `ImportLabAssignmentsCommandTest` (8 tests: existing-user assignment,
+  skip-if-already-has-a-lab, outright pre-creation for a new username with no role and
+  no `sso_subject`, placeholder-email synthesis, unknown-department skip, re-run
+  idempotency, in-file duplicate-username handling, missing-file failure) and two
+  `SsoLoginTest` cases (a pre-created account is claimed — not duplicated — on its real
+  first login, with `lab_id` surviving and placeholder fields overwritten by the real
+  SSO payload; a username with no pre-created row still gets a genuinely new account).
+  Full suite green (499 tests), Pint clean (363 files), PHPStan level 8 clean (0
+  errors), `composer audit` clean.
+- **Still open, flagged for the next step**: SCIENTIST is not yet lab-scoped the way
+  LAB_MANAGER is — the user separately asked for SCIENTIST to be restricted to their own
+  branch (cannot act across branches), with an explicit decision that a SCIENTIST with no
+  `lab_id` set should be **blocked** from lab-scoped actions until one is assigned (not
+  treated as unscoped/see-everything). This lab-assignment import is a prerequisite for
+  that change (real SCIENTIST accounts need a real `lab_id` before the restriction can be
+  meaningful) but the restriction itself has not been implemented yet.
+
