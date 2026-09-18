@@ -14,20 +14,6 @@
             'controlled_substances' => __('reports.controlled_substances_title'),
             'stock_take_variance' => __('reports.stock_take_variance_title'),
         ];
-
-        // What each bar's number actually means — shown as a caption above the chart
-        // and appended to every bar's value label, since "17.5" alone (no axis, no
-        // unit) told a real user nothing about what they were looking at. No entry for
-        // item_stock_summary — user-requested: a plain list (with a per-row low-stock
-        // flag instead) reads clearer there than a chart.
-        $chartMeta = [
-            'usage_summary' => ['caption' => __('reports.chart_caption_usage_summary'), 'suffix' => ' '.__('reports.chart_unit_times')],
-            'expiring_stock' => ['caption' => __('reports.chart_caption_expiring_stock'), 'suffix' => ' '.__('reports.chart_unit_containers')],
-            'below_reorder' => ['caption' => __('reports.chart_caption_below_reorder'), 'suffix' => '%'],
-            'dead_stock' => ['caption' => __('reports.chart_caption_dead_stock'), 'suffix' => ' '.__('reports.chart_unit_containers')],
-            'controlled_substances' => ['caption' => __('reports.chart_caption_controlled_substances'), 'suffix' => ' '.__('reports.chart_unit_rows')],
-            'stock_take_variance' => ['caption' => __('reports.chart_caption_stock_take_variance'), 'suffix' => ' '.__('reports.chart_unit_rows')],
-        ];
     @endphp
 
     <div class="flex flex-wrap gap-2 mb-5 border-b border-border pb-4">
@@ -191,15 +177,6 @@
     @if ($tab === 'stock_take_variance' && ! $stockTakeUlid)
         <p class="text-sm text-ink-muted">{{ __('reports.select_stock_take_first') }}</p>
     @else
-        @unless ($tab === 'item_stock_summary')
-            {{-- Chart --}}
-            <div class="bg-surface border border-border rounded-xl p-5 mb-5">
-                <h2 class="font-semibold text-sm mb-1">{{ __('reports.chart_title') }}</h2>
-                <p class="text-xs text-ink-muted mb-3">{{ $chartMeta[$tab]['caption'] }}</p>
-                <x-bar-chart :bars="$chart" :label="$tabs[$tab]" :suffix="$chartMeta[$tab]['suffix']" />
-            </div>
-        @endunless
-
         {{-- Table --}}
         <div class="bg-surface border border-border rounded-xl p-5">
             <h2 class="font-semibold text-sm mb-3">{{ __('reports.table_title') }}</h2>

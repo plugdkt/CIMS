@@ -1440,3 +1440,30 @@ computed from its own remaining percentage, right on its own row.
   the 20% threshold) shows "ใกล้หมด (เหลืออีก 5%)". Full suite green (489 tests), Pint clean
   (360 files), PHPStan level 8 clean (0 errors).
 
+## Post-launch — Reports dashboard: remove the summary chart from every tab (2026-09-18)
+
+User-requested follow-up to the item-stock-summary chart removal above ("ในหน้ารายงาน ผมว่าเอากราฟ
+ออกเลยดีกว่าครับ ไม่ค่อยชอบเท่าไหร่" — remove the chart from the reports page entirely, doesn't
+care for it) — extends that same removal to the other six tabs, which had kept their own
+summary chart until now.
+
+- **Every tab's chart card is gone** — `ReportsDashboard`'s six remaining per-tab data methods
+  (`usageSummaryData()`, `expiringStockData()`, `belowReorderData()`, `deadStockData()`,
+  `controlledSubstancesData()`, `stockTakeVarianceData()`) no longer compute a top-8 chart
+  array at all; each now returns just `[rows, total]` instead of `[rows, total, chart]`. The
+  Blade view's `@unless ($tab === 'item_stock_summary')` chart block and its `$chartMeta`
+  lookup array are removed outright — every tab now renders straight from filters to table,
+  same shape the item-stock-summary tab already had.
+- **Deleted `resources/views/components/bar-chart.blade.php`** (the hand-rolled inline-SVG bar
+  chart component) — confirmed via a repo-wide search it had no other consumer (the home
+  dashboard's own "monthly issuance" chart is a separate, unrelated inline SVG block, not this
+  component).
+- **Removed the now-orphaned `reports.chart_*` lang keys** (`chart_title`, `chart_no_data`,
+  `chart_unit_times`, `chart_unit_containers`, `chart_unit_rows`, and all six
+  `chart_caption_*` keys) from `lang/th/reports.php`. `lang/th/home.php`'s own unrelated
+  `chart_*` keys for the home dashboard are untouched.
+- Verified: updated `ReportsDashboardTest` (dropped the below-reorder tab's chart/SVG/caption
+  assertions; renamed the item-stock-summary test to stop calling out "with a real chart" now
+  that no tab has one). Full suite green (489 tests), Pint clean (360 files), PHPStan level 8
+  clean (0 errors), `composer audit` clean.
+

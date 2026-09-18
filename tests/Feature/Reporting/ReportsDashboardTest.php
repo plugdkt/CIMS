@@ -21,7 +21,7 @@ test('the reports index defaults to the item stock summary tab', function () {
         ->assertSee(__('reports.item_stock_summary_title'));
 });
 
-test('the item stock summary tab shows used/remaining per item, lowest balance first, with a real chart', function () {
+test('the item stock summary tab shows used/remaining per item, lowest balance first, with a low-stock warning', function () {
     $high = makeItem(['name_th' => 'สารคงเหลือเยอะทดสอบ']);
     StockLedger::create([
         'item_id' => $high->id, 'txn_date' => now()->toDateString(), 'txn_type' => 'RECEIVE',
@@ -51,9 +51,8 @@ test('the item stock summary tab shows used/remaining per item, lowest balance f
         ->assertSeeInOrder(['สารใกล้หมดทดสอบ', 'สารคงเหลือเยอะทดสอบ'])
         ->assertSee('95')
         ->assertSee('5 ');
-    // User-requested: no chart on this tab, a low-stock item (5 of 100 = 5% remaining,
-    // at/under the 20% threshold) gets a warning badge naming its own remaining %.
-    $response->assertDontSee(__('reports.chart_title'));
+    // User-requested: a low-stock item (5 of 100 = 5% remaining, at/under the 20%
+    // threshold) gets a warning badge naming its own remaining %.
     $response->assertSee(__('reports.low_stock_warning', ['percent' => '5']));
 });
 
@@ -118,12 +117,6 @@ test('the below-reorder tab live-filters by lab, and a LAB_MANAGER never sees th
     $scientist = scientistUser();
     $response = $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'below_reorder']));
     $response->assertOk()->assertSee('สารสาขา A')->assertSee('สารสาขา B');
-    // The summary chart actually rendered real SVG bars, not just the "no data" placeholder.
-    $response->assertSee('<svg', false)->assertDontSee(__('reports.chart_no_data'));
-    // A bare number ("17.5") with no axis or unit told a real user nothing — regression
-    // guard for that: every chart now has a caption explaining what it measures, and a
-    // % suffix on this specific chart's bar values (it's a ratio, not a raw quantity).
-    $response->assertSee(__('reports.chart_caption_below_reorder'))->assertSee('%', false);
 
     $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'below_reorder', 'labId' => $labA->id]))
         ->assertOk()->assertSee('สารสาขา A')->assertDontSee('สารสาขา B');

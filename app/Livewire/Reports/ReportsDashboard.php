@@ -29,11 +29,12 @@ use Livewire\Component;
 
 /**
  * FR-8 / §7.8: an on-screen version of every report the export-only page used to gate
- * behind a download — table + a small unit-agnostic summary chart, live-filtered
- * (no submit button), export links still point at the same unchanged download routes
- * so a filtered view can always be taken away as a real file. Every report keeps the
- * exact same query as its Export class (via that class's own `results()`, extracted
- * for this reuse) — this page never re-derives the filtering logic, only displays it.
+ * behind a download — a live-filtered table (no submit button; user-requested removal
+ * of the earlier summary-chart display), export links still point at the same
+ * unchanged download routes so a filtered view can always be taken away as a real
+ * file. Every report keeps the exact same query as its Export class (via that class's
+ * own `results()`, extracted for this reuse) — this page never re-derives the
+ * filtering logic, only displays it.
  *
  * On-screen tables are capped (`ROW_LIMIT`) for page weight; export is uncapped.
  */
@@ -119,7 +120,7 @@ final class ReportsDashboard extends Component
         $restrictedLabId = $this->restrictedLabId();
         $effectiveLabId = $restrictedLabId ?? $this->labId;
 
-        [$rows, $total, $chart] = match ($this->tab) {
+        [$rows, $total] = match ($this->tab) {
             'item_stock_summary' => $this->itemStockSummaryData($effectiveLabId),
             'usage_summary' => $this->usageSummaryData($effectiveLabId),
             'expiring_stock' => $this->expiringStockData($effectiveLabId),
@@ -127,13 +128,12 @@ final class ReportsDashboard extends Component
             'dead_stock' => $this->deadStockData($effectiveLabId),
             'controlled_substances' => $this->controlledSubstancesData($effectiveLabId),
             'stock_take_variance' => $this->stockTakeVarianceData($restrictedLabId),
-            default => [collect(), 0, []],
+            default => [collect(), 0],
         };
 
         return view('livewire.reports.reports-dashboard', [
             'rows' => $rows,
             'total' => $total,
-            'chart' => $chart,
             'labs' => Lab::where('is_active', true)->orderBy('name_th')->get(),
             'stockTakes' => $restrictedLabId !== null
                 ? StockTake::where('lab_id', $restrictedLabId)->orderByDesc('id')->limit(50)->get()
@@ -149,7 +149,7 @@ final class ReportsDashboard extends Component
      */
     private const LOW_STOCK_REMAINING_PERCENT = 20.0;
 
-    /** @return array{0: Collection<int, array{item: Item, used_qty_base: string, remaining_base: string, remaining_percent: float|null, low_stock: bool}>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, array{item: Item, used_qty_base: string, remaining_base: string, remaining_percent: float|null, low_stock: bool}>, 1: int} */
     private function itemStockSummaryData(?int $labId): array
     {
         $filter = new DateRangeFilter(
@@ -158,10 +158,8 @@ final class ReportsDashboard extends Component
         );
         $export = new ItemStockSummaryExport($filter, $labId);
 
-        // No chart here (user-requested: a plain list is clearer than a chart for this
-        // one) — instead each row gets its own remaining-percent and a low-stock flag,
-        // so the item about to run out is marked directly where it's read, not inferred
-        // from a bar's height.
+        // Each row gets its own remaining-percent and a low-stock flag, so the item
+        // about to run out is marked directly where it's read.
         $results = $export->results()->map(function (Item $item) use ($export) {
             $used = $export->usedQuantity($item);
             $remaining = $export->remainingBalance($item);
@@ -177,10 +175,10 @@ final class ReportsDashboard extends Component
             ];
         });
 
-        return [$results->take(self::ROW_LIMIT), $results->count(), []];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
-    /** @return array{0: Collection<int, IssueTransaction>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, IssueTransaction>, 1: int} */
     private function usageSummaryData(?int $labId): array
     {
         $filter = new UsageSummaryFilter(
@@ -194,21 +192,10 @@ final class ReportsDashboard extends Component
 
         $results = (new UsageSummaryExport($filter))->results();
 
-        // Items are measured in incompatible units (mg vs mL vs pcs), so ranking by
-        // issue-transaction frequency rather than summed quantity — same reasoning
-        // already used for the home dashboard's own "top items" chart.
-        $chart = $results
-            ->countBy(fn (IssueTransaction $row) => $row->requisitionItem?->item->name_th ?? '—')
-            ->sortDesc()
-            ->take(8)
-            ->map(fn ($count, $label) => ['label' => (string) $label, 'value' => (float) $count])
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
-    /** @return array{0: Collection<int, Container>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, Container>, 1: int} */
     private function expiringStockData(?int $labId): array
     {
         $filter = new DateRangeFilter(
@@ -218,48 +205,22 @@ final class ReportsDashboard extends Component
 
         $results = (new ExpiringStockExport($filter, $labId))->results();
 
-        $chart = $results
-            ->countBy(fn (Container $row) => $row->expiry_date?->format('Y-m') ?? '—')
-            ->sortKeys()
-            ->map(fn ($count, $label) => ['label' => (string) $label, 'value' => (float) $count])
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
-    /** @return array{0: Collection<int, array{item: Item, current_balance_base: string}>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, array{item: Item, current_balance_base: string}>, 1: int} */
     private function belowReorderData(?int $labId): array
     {
-        // Each item's current balance is looked up once here and carried alongside it
-        // (not as a dynamic Eloquent attribute — PHPStan can't type that) so neither
-        // the chart calculation below nor the table in the view re-queries stock_ledger.
         $results = (new BelowReorderPointExport($labId))->results()
             ->map(fn (Item $item) => [
                 'item' => $item,
                 'current_balance_base' => (string) (StockLedger::where('item_id', $item->id)->orderByDesc('id')->value('balance_base') ?? '0.000000'),
             ]);
 
-        // A ratio (balance ÷ reorder point), not a raw quantity, so items with
-        // different units stay comparable on one chart — lowest (most urgent) first.
-        $chart = $results
-            ->map(function (array $row) {
-                $item = $row['item'];
-                $percent = bccomp($item->reorder_point_base, '0', 6) === 0
-                    ? 0.0
-                    : round(((float) $row['current_balance_base'] / (float) $item->reorder_point_base) * 100, 1);
-
-                return ['label' => $item->name_th, 'value' => $percent];
-            })
-            ->sortBy('value')
-            ->take(8)
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
-    /** @return array{0: Collection<int, array{container: Container, last_movement_date: string|null}>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, array{container: Container, last_movement_date: string|null}>, 1: int} */
     private function deadStockData(?int $labId): array
     {
         $results = (new DeadStockExport($labId))->results()
@@ -270,18 +231,10 @@ final class ReportsDashboard extends Component
                 return ['container' => $row, 'last_movement_date' => $lastMovement];
             });
 
-        $chart = $results
-            ->countBy(fn (array $row) => $row['container']->labNameOrEmpty() ?: '—')
-            ->sortDesc()
-            ->take(8)
-            ->map(fn ($count, $label) => ['label' => (string) $label, 'value' => (float) $count])
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
-    /** @return array{0: Collection<int, StockLedger>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, StockLedger>, 1: int} */
     private function controlledSubstancesData(?int $labId): array
     {
         $filter = new DateRangeFilter(
@@ -291,21 +244,14 @@ final class ReportsDashboard extends Component
 
         $results = (new ControlledSubstancesExport($filter, $labId))->results();
 
-        $chart = $results
-            ->countBy(fn (StockLedger $row) => (string) __('ledger.txn_'.strtolower($row->txn_type)))
-            ->sortDesc()
-            ->map(fn ($count, $label) => ['label' => (string) $label, 'value' => (float) $count])
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
-    /** @return array{0: Collection<int, StockTakeLine>, 1: int, 2: array<int, array{label: string, value: float}>} */
+    /** @return array{0: Collection<int, StockTakeLine>, 1: int} */
     private function stockTakeVarianceData(?int $restrictedLabId): array
     {
         if ($this->stockTakeUlid === null) {
-            return [collect(), 0, []];
+            return [collect(), 0];
         }
 
         $stockTake = StockTake::where('ulid', $this->stockTakeUlid)->first();
@@ -316,35 +262,11 @@ final class ReportsDashboard extends Component
             // the same prompt as picking nothing at all, not a hint that it exists.
             $this->stockTakeUlid = null;
 
-            return [collect(), 0, []];
+            return [collect(), 0];
         }
 
         $results = (new StockTakeVarianceExport($stockTake))->results();
 
-        $buckets = [
-            'over' => (string) __('reports.variance_over'),
-            'under' => (string) __('reports.variance_under'),
-            'match' => (string) __('reports.variance_match'),
-            'not_counted' => (string) __('reports.not_counted'),
-        ];
-
-        $counts = $results->countBy(function (StockTakeLine $line) {
-            if ($line->counted_qty_base === null) {
-                return 'not_counted';
-            }
-
-            return match (true) {
-                bccomp($line->diff_base ?? '0', '0', 6) > 0 => 'over',
-                bccomp($line->diff_base ?? '0', '0', 6) < 0 => 'under',
-                default => 'match',
-            };
-        });
-
-        $chart = collect($buckets)
-            ->map(fn ($label, $key) => ['label' => (string) $label, 'value' => (float) ($counts[$key] ?? 0)])
-            ->values()
-            ->all();
-
-        return [$results->take(self::ROW_LIMIT), $results->count(), $chart];
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 }
