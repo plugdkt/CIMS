@@ -217,6 +217,14 @@ test('submitting a requisition with at least one line moves it to SUBMITTED (BR-
     expect($fresh->submitted_at)->not->toBeNull();
 });
 
+test('submitting an already SUBMITTED requisition safely redirects to show page without 403', function () {
+    $student = studentUser();
+    $requisition = makeRequisition($student, ['status' => 'SUBMITTED', 'submitted_at' => now()]);
+
+    $this->actingAs($student)->post(route('requisitions.submit', $requisition))
+        ->assertRedirect(route('requisitions.show', $requisition));
+});
+
 test('a DRAFT or SUBMITTED requisition can be cancelled by its own requester (BR-01)', function () {
     $student = studentUser();
     $draft = makeRequisition($student);

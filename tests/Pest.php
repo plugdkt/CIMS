@@ -52,6 +52,16 @@ if (! function_exists('scientistUser')) {
     }
 }
 
+if (! function_exists('adminUser')) {
+    function adminUser(array $overrides = []): \App\Models\User
+    {
+        $user = \App\Models\User::factory()->create($overrides);
+        $user->roles()->attach(\App\Models\Role::where('code', 'ADMIN')->firstOrFail());
+
+        return $user;
+    }
+}
+
 if (! function_exists('makeLab')) {
     function makeLab(array $overrides = []): \App\Models\Lab
     {

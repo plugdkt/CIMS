@@ -1467,3 +1467,20 @@ summary chart until now.
   that no tab has one). Full suite green (489 tests), Pint clean (360 files), PHPStan level 8
   clean (0 errors), `composer audit` clean.
 
+## Post-launch — Requisitions: handle recipient without email and prevent 403 on re-submit (2026-09-18)
+
+User-reported: submitting a requisition failed with Error 403 / 500 when active scientists had empty email
+addresses from SSO provisioning.
+
+- **Safe email validation and delivery**:
+  - `NotificationService::notifyInAppAndEmail()` and `emailOnly()` now validate `filter_var($email, FILTER_VALIDATE_EMAIL)`
+    and catch mail transport exceptions with a logged warning, so mail delivery failures never crash application transactions.
+  - `RequisitionService::mailAdvisor()` and `ReceiverOtpService::send()` similarly guard against empty/invalid email addresses.
+- **Idempotent requisition submit without 403**:
+  - Added dedicated `submit()` method to `RequisitionPolicy`.
+  - `RequisitionController::submit()` now safely redirects to the show page if the requisition is already submitted
+    rather than aborting with HTTP 403 if a user double-clicks or refreshes.
+- **Client-side double submit prevention**:
+  - `requisitions/show.blade.php` now disables the submit button immediately upon form submission via Alpine.js.
+
+

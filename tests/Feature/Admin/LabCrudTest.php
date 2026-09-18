@@ -1,19 +1,9 @@
 <?php
 
 use App\Models\Lab;
-use App\Models\Role;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
-
-function adminUser(): User
-{
-    $user = User::factory()->create();
-    $user->roles()->attach(Role::where('code', 'ADMIN')->firstOrFail());
-
-    return $user;
-}
 
 test('a non-admin gets 403 on the labs index', function () {
     $scientist = scientistUser();

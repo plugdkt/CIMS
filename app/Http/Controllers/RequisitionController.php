@@ -151,7 +151,11 @@ final class RequisitionController extends Controller
 
     public function submit(Requisition $requisition, RequisitionService $service): RedirectResponse
     {
-        $this->authorize('update', $requisition);
+        $this->authorize('submit', $requisition);
+
+        if ($requisition->status !== 'DRAFT') {
+            return redirect()->route('requisitions.show', $requisition);
+        }
 
         try {
             $service->submit($requisition);
