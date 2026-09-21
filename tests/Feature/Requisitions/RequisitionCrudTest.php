@@ -47,9 +47,22 @@ if (! function_exists('staffUser')) {
 }
 
 test('a user without requisition.create gets 403 on the create page', function () {
-    $manager = labManagerUser();
+    $user = User::factory()->create(); // user without any role
 
-    $this->actingAs($manager)->get(route('requisitions.create'))->assertStatus(403);
+    $this->actingAs($user)->get(route('requisitions.create'))->assertStatus(403);
+});
+
+test('SCIENTIST, LAB_MANAGER, and AUDITOR can create requisitions once profile is complete', function () {
+    $lab = makeLab();
+
+    $scientist = scientistUser(['lab_id' => $lab->id, 'profile_completed_at' => now(), 'person_type' => 'STAFF']);
+    $this->actingAs($scientist)->get(route('requisitions.create'))->assertOk();
+
+    $manager = labManagerUser(['lab_id' => $lab->id, 'profile_completed_at' => now(), 'person_type' => 'STAFF']);
+    $this->actingAs($manager)->get(route('requisitions.create'))->assertOk();
+
+    $auditor = auditorUser(['lab_id' => $lab->id, 'profile_completed_at' => now(), 'person_type' => 'STAFF']);
+    $this->actingAs($auditor)->get(route('requisitions.create'))->assertOk();
 });
 
 test('a STUDENT with an incomplete profile is redirected to complete-profile instead of creating a requisition (BR-11 point 4)', function () {

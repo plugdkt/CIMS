@@ -63,25 +63,25 @@ final class PermissionSeeder extends Seeder
         $grants = [
             'STUDENT' => ['requisition.create', 'requisition.view_own', 'item.view'],
             'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view'],
-            'ADVISOR' => ['requisition.approve_advisor', 'requisition.view_own', 'item.view'],
+            'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view'],
             'SCIENTIST' => [
-                'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue',
                 'receiving.manage', 'stocktake.manage', 'ledger.view', 'disposal.request',
                 'item.view', 'report.view',
             ],
             'LAB_MANAGER' => [
-                'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
-            'ADMIN' => ['user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
+            'ADMIN' => ['requisition.create', 'requisition.view_own', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
             // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the
             // spec-described read-only oversight role — it's now a second,
             // independently-assignable flavor of branch-scoped warehouse manager
             // (name_th "ผู้ดูแลคลัง"), so its grants mirror LAB_MANAGER's exactly.
             // See User::isBranchManager() for the scoping side of this change.
             'AUDITOR' => [
-                'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],

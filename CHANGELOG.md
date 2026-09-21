@@ -1932,4 +1932,18 @@ and "รายละเอียดสารเคมี" (`items.show`).
   - Verified: 2 new `RoleScopingTest` cases asserting AUDITOR only sees containers within their own branch in both
     `stock-in.index` and `items.show`; Pint clean; PHPStan clean.
 
+## Post-launch — Allow all roles (SCIENTIST, LAB_MANAGER, AUDITOR, ADMIN, ADVISOR) to create requisitions (2026-09-21)
+
+User-requested: "ปรับให้ทุกตำแหน่งเบิกของได้ด้วยครับ ตอนนี้เทสนักวิทย์กับผู้ดูแลเบิกของไม่ได้ ปุ่มไม่ขึ้น"
+Previously, only STUDENT and STAFF had `requisition.create` and `requisition.view_own` grants in `PermissionSeeder`.
+Personnel holding operational roles (such as SCIENTIST, LAB_MANAGER, AUDITOR/ผู้ดูแลคลัง, ADMIN) could not see the
+"+ สร้างใบขอเบิกใหม่" button and were rejected with HTTP 403 when navigating to `/requisitions/create`.
+
+- **`PermissionSeeder`**: Added `requisition.create` and `requisition.view_own` to `SCIENTIST`, `LAB_MANAGER`, `AUDITOR`,
+  `ADMIN`, and `ADVISOR` grants. Synchronized permissions in live database.
+- **`RequisitionCrudTest`**: Updated 403 test to use a roleless user and added test cases verifying SCIENTIST,
+  LAB_MANAGER, and AUDITOR can access the create requisition page.
+- Verified: Full suite compatibility; Pint clean.
+
+
 
