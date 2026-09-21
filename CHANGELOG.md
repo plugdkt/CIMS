@@ -1945,5 +1945,24 @@ Personnel holding operational roles (such as SCIENTIST, LAB_MANAGER, AUDITOR/ผ
   LAB_MANAGER, and AUDITOR can access the create requisition page.
 - Verified: Full suite compatibility; Pint clean.
 
+## Post-launch — Restrict requisition review/decision to Warehouse Manager (AUDITOR) and Lab Manager (2026-09-21)
+
+User-reported: "ในการพิจารณาใบของเบิก ให้ผู้ดูแลคลังพิจารณาเท่านั้น ตอนนี้นักวิทย์พิจารณาได้เฉยเลย"
+Previously, `requisition.approve_scientist` was held by SCIENTIST, and not by AUDITOR (ผู้ดูแลคลัง) or LAB_MANAGER.
+This allowed scientists to approve/reject requisitions instead of the designated warehouse manager.
+
+- **`PermissionSeeder`**:
+  - Removed `requisition.approve_scientist` from `SCIENTIST` role (detached in live database).
+  - Added `requisition.approve_scientist` to `AUDITOR` (ผู้ดูแลคลัง) and `LAB_MANAGER` (หัวหน้าสาขาวิชา).
+  - Catalog label updated to `พิจารณาใบขอเบิก (ผู้ดูแลคลัง)`.
+- **`RequisitionPolicy`**: Added strict branch-scoping check (`if ($user->isBranchManager() && $requisition->lab_id !== $user->lab_id) return false;`)
+  so a warehouse manager can only decide requisitions within their own branch.
+- **`DashboardService`**: Scoped pending decision and pending issuance counts to `$user->lab_id` when the viewer is a branch manager.
+- **`lang/th/requisitions.php`**: Updated `scientist_decision_title` to `'พิจารณาใบขอเบิก (ผู้ดูแลคลัง)'`.
+- **`ScientistDecisionTest`**: Updated all review/decision feature tests to assert that AUDITOR can decide, non-branch AUDITOR gets 403,
+  and SCIENTIST gets 403.
+- Verified: Live database synced; Pint clean.
+
+
 
 

@@ -35,7 +35,7 @@ final class PermissionSeeder extends Seeder
             'requisition.view_own' => 'ดูใบขอเบิกของตนเอง',
             'requisition.view_all' => 'ดูใบขอเบิกทั้งหมด',
             'requisition.approve_advisor' => 'อนุมัติใบขอเบิก (อาจารย์ที่ปรึกษา)',
-            'requisition.approve_scientist' => 'พิจารณาใบขอเบิก (นักวิทยาศาสตร์)',
+            'requisition.approve_scientist' => 'พิจารณาใบขอเบิก (ผู้ดูแลคลัง)',
             'requisition.issue' => 'จ่ายของตามใบขอเบิก',
             'requisition.issue_override' => 'อนุมัติจ่ายเกิน 10% จากที่ขอ (BR-04)',
             'receiving.manage' => 'รับของเข้าคลัง',
@@ -65,12 +65,12 @@ final class PermissionSeeder extends Seeder
             'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view'],
             'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view'],
             'SCIENTIST' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.issue',
                 'receiving.manage', 'stocktake.manage', 'ledger.view', 'disposal.request',
                 'item.view', 'report.view',
             ],
             'LAB_MANAGER' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
@@ -81,7 +81,7 @@ final class PermissionSeeder extends Seeder
             // (name_th "ผู้ดูแลคลัง"), so its grants mirror LAB_MANAGER's exactly.
             // See User::isBranchManager() for the scoping side of this change.
             'AUDITOR' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
@@ -93,9 +93,17 @@ final class PermissionSeeder extends Seeder
             $role->permissions()->syncWithoutDetaching($permissionIds);
         }
 
-        // syncWithoutDetaching() above is additive-only, so it would never remove
-        // AUDITOR's old read-only grants from an already-seeded database — detach
-        // them explicitly. Both stay available system-wide via ADMIN's own grant.
+        // syncWithoutDetaching() above is additive-only, so explicitly detach
+        // requisition.approve_scientist from SCIENTIST role (transferred to AUDITOR/LAB_MANAGER).
+        $scientistRole = Role::where('code', 'SCIENTIST')->first();
+        if ($scientistRole !== null) {
+            $approveScientistId = Permission::where('code', 'requisition.approve_scientist')->value('id');
+            if ($approveScientistId) {
+                $scientistRole->permissions()->detach($approveScientistId);
+            }
+        }
+
+        // Also detach AUDITOR's old read-only grants from an already-seeded database.
         $auditorRole = Role::where('code', 'AUDITOR')->first();
         if ($auditorRole !== null) {
             $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view'])->pluck('id');

@@ -46,12 +46,16 @@ final class DashboardService
             $count += Requisition::where(function ($q) {
                 $q->where('status', 'ADVISOR_APPROVED')
                     ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
-            })->count();
+            })
+            ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+            ->count();
         }
 
         if ($hasPermission('requisition.issue')) {
             $matchedAnyActionQueue = true;
-            $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])->count();
+            $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
+                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+                ->count();
         }
 
         if ($matchedAnyActionQueue) {

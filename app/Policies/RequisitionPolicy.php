@@ -80,6 +80,10 @@ final class RequisitionPolicy extends Policy
      */
     public function scientistDecide(User $user, Requisition $requisition): bool
     {
+        if ($user->isBranchManager() && $requisition->lab_id !== $user->lab_id) {
+            return false;
+        }
+
         return $this->hasPermission($user, 'requisition.approve_scientist')
             && in_array($requisition->status, ['SUBMITTED', 'ADVISOR_APPROVED'], true);
     }

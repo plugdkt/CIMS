@@ -79,8 +79,8 @@ return [
     'advisor_decision_title' => 'พิจารณาอนุมัติ (อาจารย์ที่ปรึกษา)',
     'advisor_decision_recorded' => 'บันทึกผลการพิจารณาเรียบร้อยแล้ว',
 
-    // FR-RQ-08: scientist review — distinct wording from the advisor's approve/reject
-    'scientist_decision_title' => 'พิจารณาใบขอเบิก (นักวิทยาศาสตร์)',
+    // FR-RQ-08: warehouse manager / lab manager review
+    'scientist_decision_title' => 'พิจารณาใบขอเบิก (ผู้ดูแลคลัง)',
     'scientist_approve_decision' => 'เห็นควรให้เบิก',
     'scientist_reject_decision' => 'ไม่เห็นควรให้เบิก',
     'scientist_decision_recorded' => 'บันทึกผลการพิจารณาเรียบร้อยแล้ว',
