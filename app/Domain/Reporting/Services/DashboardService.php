@@ -106,27 +106,50 @@ final class DashboardService
 
     /**
      * Ranked by issue frequency (transaction count), not summed quantity — items are
-     * measured in incompatible units (mg vs mL vs pcs), so a quantity total across
-     * different items wouldn't be a meaningful ranking. Grouped/counted in PHP (AGENT
-     * RULE #3 — no raw SQL), which is fine at this app's scale (issue_transactions is
-     * a low-write-volume table).
+     * measured in incompatible units (mg vs mL vs pcs), so a quantity total *across
+     * different items* wouldn't be a meaningful ranking. Each row's own `qty_issued`
+     * is a different thing (user-requested 2026-09-21) — it never sums *across* items,
+     * only across one item's own transactions (already all in that item's own base
+     * unit), so it carries none of the cross-item-unit risk the ranking metric avoids.
+     * Grouped/summed in PHP with BCMath (AGENT RULE #2/#3 — no float math on
+     * quantities, no raw SQL), which is fine at this app's scale (issue_transactions
+     * is a low-write-volume table).
      *
-     * @return Collection<int, array{item: Item, issue_count: int}>
+     * @return Collection<int, array{item: Item, issue_count: int, qty_issued: string}>
      */
     public function topIssuedItems(int $limit = 10): Collection
     {
-        $itemIdsByTransaction = IssueTransaction::where('issued_at', '>=', now()->subMonths(3))
+        /** @var array<int, array{count: int, qty: string}> $byItem */
+        $byItem = [];
+
+        IssueTransaction::where('issued_at', '>=', now()->subMonths(3))
             ->with('requisitionItem:id,item_id')
-            ->get()
-            ->map(fn (IssueTransaction $row) => $row->requisitionItem?->item_id)
-            ->filter();
+            ->get(['id', 'requisition_item_id', 'qty_issued_base'])
+            ->each(function (IssueTransaction $row) use (&$byItem) {
+                $itemId = $row->requisitionItem?->item_id;
+                if ($itemId === null) {
+                    return;
+                }
 
-        $counts = $itemIdsByTransaction->countBy()->sortDesc()->take($limit);
+                $existing = $byItem[$itemId] ?? ['count' => 0, 'qty' => '0.000000'];
+                /** @var numeric-string $existingQty */
+                $existingQty = $existing['qty'];
+                $byItem[$itemId] = [
+                    'count' => $existing['count'] + 1,
+                    'qty' => bcadd($existingQty, $row->qty_issued_base, 6),
+                ];
+            });
 
-        $items = Item::whereIn('id', $counts->keys())->get()->keyBy('id');
+        $top = collect($byItem)->sortByDesc('count')->take($limit);
 
-        return $counts
-            ->map(fn (int $issueCount, int $itemId) => ['item' => $items->get($itemId), 'issue_count' => $issueCount])
+        $items = Item::whereIn('id', $top->keys())->with('baseUnit')->get()->keyBy('id');
+
+        return $top
+            ->map(fn (array $data, int $itemId) => [
+                'item' => $items->get($itemId),
+                'issue_count' => $data['count'],
+                'qty_issued' => $data['qty'],
+            ])
             ->filter(fn (array $row) => $row['item'] !== null)
             ->values();
     }

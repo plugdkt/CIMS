@@ -84,9 +84,14 @@
                 @else
                     <ol class="space-y-2">
                         @foreach ($topItems as $row)
-                            <li class="flex items-center justify-between text-sm">
-                                <span class="truncate pr-2">{{ $loop->iteration }}. {{ $row['item']->name_th }}</span>
-                                <span class="text-ink-muted whitespace-nowrap">{{ $row['issue_count'] }} {{ __('home.issue_count_unit') }}</span>
+                            <li class="flex items-center justify-between text-sm gap-2">
+                                <span class="truncate">{{ $loop->iteration }}. {{ $row['item']->name_th }}</span>
+                                <span class="text-ink-muted whitespace-nowrap text-right">
+                                    {{ $row['issue_count'] }} {{ __('home.issue_count_unit') }}
+                                    <span class="text-ink-faint">
+                                        ({{ rtrim(rtrim((string) $row['qty_issued'], '0'), '.') }} {{ $row['item']->baseUnit?->code }})
+                                    </span>
+                                </span>
                             </li>
                         @endforeach
                     </ol>

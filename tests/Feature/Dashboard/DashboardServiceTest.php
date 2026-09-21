@@ -143,6 +143,8 @@ test('§7.9: top issued items are ranked by issue frequency within the last 3 mo
 
     expect($top->first()['item']->id)->toBe($popular->id);
     expect($top->first()['issue_count'])->toBe(3);
+    expect($top->first()['qty_issued'])->toBe('3.000000');
+    expect($top->last()['qty_issued'])->toBe('1.000000');
 });
 
 test('§7.9: an issue transaction older than 3 months does not count toward top items', function () {

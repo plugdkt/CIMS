@@ -1872,3 +1872,24 @@ link; the dashboard itself didn't.
   appears in the sidebar while viewing a completely different page (`/items`), not just on
   the dashboard itself. Full suite green (525 tests), Pint clean (368 files), PHPStan
   level 8 clean (0 errors), `composer audit` clean.
+
+## Post-launch — Dashboard's top-items list now shows quantity, not just a count (2026-09-21)
+
+User-requested (from a live production screenshot): "รายการที่ใช้มากที่สุด" only showed a
+transaction count ("3 ครั้ง") — no sense of how much was actually issued. Confirmed this
+doesn't conflict with this project's established "never sum a quantity across different
+items" rule (mg/mL/pcs are incompatible) — the *ranking* still stays frequency-based; the
+new number is each row's own item's own total, never combined with another item's.
+
+- `DashboardService::topIssuedItems()` now also sums `qty_issued_base` per item (BCMath,
+  AGENT RULE #2) across its own issue transactions in the trailing 3-month window, next to
+  the existing issue-frequency count — same ranking as before (by count, descending),
+  unchanged.
+- `home.blade.php`'s top-items list now shows e.g. "3 ครั้ง (3 g)" per row instead of just
+  "3 ครั้ง".
+- The monthly issuance chart (the other thing asked about) is kept as-is — user confirmed
+  it's likely useful for ADMIN/managers tracking workload statistics, not asked to change.
+- Verified: extended the existing `DashboardServiceTest` "top issued items" case to assert
+  the summed quantity for both the most- and least-frequent item. Full suite green
+  (525 tests), Pint clean (368 files), PHPStan level 8 clean (0 errors), `composer audit`
+  clean.
