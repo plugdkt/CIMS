@@ -1915,3 +1915,21 @@ upon logging in via UP SSO.
   - Verified: 3 new `SsoLoginTest` feature tests covering missing SSO email fallback, multiple empty-email
     SSO logins without collision, and email preservation for existing accounts; Pint clean; PHPStan clean.
 
+## Post-launch — AUDITOR (ผู้ดูแลคลัง) was not branch-scoped in LabInventoryTable and ItemController (2026-09-21)
+
+User-reported: User ID 18 (`surachet.ku`), holding the `AUDITOR` ("ผู้ดูแลคลัง") role for Lab 005 (สรีรวิทยา),
+was still able to see other branches' storage/chemical containers in "คลังสารเคมีของฉัน (สต็อกคงคลัง)" (`stock-in.index`)
+and "รายละเอียดสารเคมี" (`items.show`).
+
+- **Root Cause**: When AUDITOR was repurposed from a read-only oversight auditor to a branch-scoped warehouse manager
+  (matching LAB_MANAGER), `LabInventoryTable::canPickAnyLab()` and `ItemController::show()` still contained the legacy check
+  `$user->hasRole('ADMIN') || $user->hasRole('AUDITOR')`. This marked AUDITOR as cross-branch privileged, leaving `$labId` null
+  and displaying containers across all branches instead of restricting to `$user->lab_id`.
+- **Fix**:
+  - `LabInventoryTable::canPickAnyLab()`: Restrict to `$user->hasRole('ADMIN')` only. AUDITOR is now strictly scoped
+    to their own `lab_id` (matching LAB_MANAGER and SCIENTIST).
+  - `ItemController::show()`: Restrict privileged cross-branch container viewing to `$user->hasRole('ADMIN')` only.
+  - Verified: 2 new `RoleScopingTest` cases asserting AUDITOR only sees containers within their own branch in both
+    `stock-in.index` and `items.show`; Pint clean; PHPStan clean.
+
+

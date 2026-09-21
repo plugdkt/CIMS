@@ -76,3 +76,38 @@ test('an AUDITOR of a different branch gets 403 approving a disposal in another 
     $this->actingAs($ownAuditor)->post(route('disposals.approve', $disposal))
         ->assertRedirect(route('disposals.show', $disposal));
 });
+
+test('an AUDITOR is scoped to their own branch in stock-in.index and cannot see other branches stock', function () {
+    $labA = makeLab();
+    $labB = makeLab();
+    $auditorA = auditorUser(['lab_id' => $labA->id]);
+
+    $locA = makeLocationForLab($labA);
+    $locB = makeLocationForLab($labB);
+
+    $contA = makeContainer(['location_id' => $locA->id, 'status' => 'SEALED', 'remaining_qty_base' => '10.000000']);
+    $contB = makeContainer(['location_id' => $locB->id, 'status' => 'SEALED', 'remaining_qty_base' => '10.000000']);
+
+    $this->actingAs($auditorA)->get(route('stock-in.index'))
+        ->assertOk()
+        ->assertSee($contA->barcode)
+        ->assertDontSee($contB->barcode);
+});
+
+test('an AUDITOR is scoped to their own branch in items.show and cannot see other branches containers', function () {
+    $labA = makeLab();
+    $labB = makeLab();
+    $auditorA = auditorUser(['lab_id' => $labA->id]);
+
+    $item = makeItem();
+    $locA = makeLocationForLab($labA);
+    $locB = makeLocationForLab($labB);
+
+    $contA = makeContainer(['item_id' => $item->id, 'location_id' => $locA->id, 'status' => 'SEALED', 'remaining_qty_base' => '10.000000']);
+    $contB = makeContainer(['item_id' => $item->id, 'location_id' => $locB->id, 'status' => 'SEALED', 'remaining_qty_base' => '10.000000']);
+
+    $this->actingAs($auditorA)->get(route('items.show', $item))
+        ->assertOk()
+        ->assertSee($contA->barcode)
+        ->assertDontSee($contB->barcode);
+});

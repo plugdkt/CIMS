@@ -16,12 +16,12 @@ use Livewire\WithPagination;
 
 /**
  * "สต็อกคงคลังย่อยของฉัน" (docs/lab_inventory_handover_spec.md, งานที่ 1) — every SEALED/
- * IN_USE container with stock left, scoped to the viewer's own lab. Only ADMIN/AUDITOR
- * (who already see cross-lab data elsewhere, e.g. the §7.8 reports) get a lab picker;
+ * IN_USE container with stock left, scoped to the viewer's own lab. Only ADMIN
+ * (who already sees cross-lab data elsewhere, e.g. the §7.8 reports) gets a lab picker;
  * everyone else's own `lab_id` always wins over anything the URL carries — same
  * "never widened via the query string" rule `ReportController::labIdFor()` already
- * applies, so a LAB_MANAGER/SCIENTIST/STAFF can't see another branch's stock by hand-
- * editing the URL.
+ * applies, so a LAB_MANAGER/AUDITOR/SCIENTIST/STAFF can't see another branch's stock by
+ * hand-editing the URL.
  */
 #[Layout('components.layout')]
 final class LabInventoryTable extends Component
@@ -59,7 +59,7 @@ final class LabInventoryTable extends Component
 
     private function canPickAnyLab(User $user): bool
     {
-        return $user->hasRole('ADMIN') || $user->hasRole('AUDITOR');
+        return $user->hasRole('ADMIN');
     }
 
     public function render(): View

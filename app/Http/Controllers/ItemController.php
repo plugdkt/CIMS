@@ -48,7 +48,7 @@ final class ItemController extends Controller
 
         /** @var \App\Models\User $user */
         $user = $request->user();
-        $privileged = $user->hasRole('ADMIN') || $user->hasRole('AUDITOR');
+        $privileged = $user->hasRole('ADMIN');
         $labId = $privileged ? null : $user->lab_id;
         // A non-privileged viewer with no lab_id has nothing to scope by — show
         // nothing, never every lab's containers (privileged is the only case that
