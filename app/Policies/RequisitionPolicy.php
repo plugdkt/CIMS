@@ -24,7 +24,7 @@ final class RequisitionPolicy extends Policy
     public function view(User $user, Requisition $requisition): bool
     {
         if ($this->hasPermission($user, 'requisition.view_all')) {
-            if ($user->hasRole('ADMIN') || $user->hasRole('AUDITOR') || ! $user->hasRole('LAB_MANAGER')) {
+            if ($user->hasRole('ADMIN') || ! $user->isBranchManager()) {
                 return true;
             }
 

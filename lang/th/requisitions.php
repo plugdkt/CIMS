@@ -109,7 +109,7 @@ return [
     'field_qty_issued' => 'ปริมาณที่จ่ายจริง',
     'field_issue_remark' => 'หมายเหตุ',
     'field_issue_remark_hint' => 'จำเป็นถ้าจ่ายเกินจำนวนที่ขอ (BR-04)',
-    'field_overage_approver' => 'รหัสผู้อนุมัติ (หัวหน้าสาขาวิชา)',
+    'field_overage_approver' => 'รหัสผู้อนุมัติ (หัวหน้าสาขาวิชาหรือผู้ดูแลคลัง)',
     'field_overage_approver_hint' => 'จำเป็นถ้าจ่ายเกิน 10% จากที่ขอ (BR-04)',
     'record_issue' => 'บันทึกการจ่าย',
     'issue_recorded' => 'บันทึกการจ่ายเรียบร้อยแล้ว',

@@ -1653,4 +1653,49 @@ roster grew past a hundred real people (post `users:import-msc-acc`).
   entries up — unrelated to this change). Pint clean (363 files), PHPStan level 8 clean
   (0 errors), `composer audit` clean.
 
+## Post-launch — AUDITOR repurposed into a second branch-scoped warehouse manager (2026-09-21)
+
+User-reported confusion: "ผู้ดูแลระบบ" (ADMIN) sounds like it should be the one running the
+warehouse, but ADMIN deliberately never touches stock (§3: "ไม่มีสิทธิ์แตะ Ledger") — the role
+that actually does that is LAB_MANAGER ("หัวหน้าสาขาวิชา"). User-decided: repurpose the
+under-used AUDITOR role (spec's read-only oversight role) into "ผู้ดูแลคลัง", a second,
+independently-assignable flavor of branch-scoped warehouse manager — same operational grants
+and own-branch-only scoping as LAB_MANAGER, confirmed explicitly rather than assumed.
+
+- **`RoleSeeder`**: `AUDITOR`'s `name_th` changed from "ผู้ตรวจสอบ" to "ผู้ดูแลคลัง" — the role
+  `code` itself stays `AUDITOR` (renaming it would mean a data migration for every existing
+  `role_user`/audit-log row that references it by code, for zero real benefit).
+- **`PermissionSeeder`**: AUDITOR's grants now mirror LAB_MANAGER's exactly
+  (`requisition.view_all`, `requisition.issue_override`, `ledger.view`, `ledger.adjust`,
+  `disposal.approve`, `item.view`, `item.manage`, `location.manage`, `report.view`,
+  `lab.manage_members`) — its old read-only grants (`ledger.verify`, `audit.view`) are
+  explicitly `detach()`ed, since `syncWithoutDetaching()` is additive-only and would never
+  remove them from an already-seeded database otherwise. Both stay available system-wide via
+  ADMIN's own grant, so FR-LG-06's "AUDITOR/ADMIN" ledger.verify wording is now a deliberate,
+  documented deviation (ADMIN only), not an oversight.
+- **New `User::isBranchManager()`** (`hasRole('LAB_MANAGER') || hasRole('AUDITOR')`) —
+  every one of the 14 call sites across 12 files that used to gate branch-scoping on
+  `hasRole('LAB_MANAGER')` alone now calls this instead, so LAB_MANAGER and the repurposed
+  AUDITOR are always scoped identically: `RequisitionPolicy`, `DisposalPolicy`,
+  `LocationPolicy`, `LocationRequest`, `StockInRequest`, `StockInController`, `ItemLedger`,
+  `ReportsDashboard`, `RequisitionTable`, `LedgerExportController`, `ReportController` (×2),
+  `IssueService`, `AdjustmentService`. `LabMemberManager`/`LabPolicy::manageMembers` needed
+  no code change (already permission-gated on `lab.manage_members`, which AUDITOR now holds
+  too) — only their doc comments were updated to say so.
+- **User-facing error/label text updated for accuracy**: BR-04/BR-06 overage- and
+  adjustment-approver messages, and the `field_overage_approver`/`field_approved_by` labels
+  in `lang/th/requisitions.php`/`lang/th/adjustments.php`, now say "หัวหน้าสาขาวิชาหรือผู้ดูแลคลัง"
+  instead of naming only LAB_MANAGER's job title — both roles are equally valid approvers now.
+- **Real dev database updated for real**: re-ran `RoleSeeder`/`PermissionSeeder` against
+  `cmis` (not just the auto-seeded `cmis_testing`) — confirmed `AUDITOR`'s `name_th` and
+  permission set now match this change exactly.
+- Verified: new `RoleScopingTest` (5 tests) — `isBranchManager()`'s truth table across every
+  role; AUDITOR's grant set now equals LAB_MANAGER's exactly; AUDITOR lost its old grants
+  while ADMIN kept them; an AUDITOR only sees requisitions filed in their own branch (not
+  system-wide) exactly like a LAB_MANAGER; an AUDITOR of a different branch gets 403
+  approving a disposal elsewhere, mirroring the existing LAB_MANAGER branch-scoping test.
+  New `auditorUser()` Pest helper added alongside the existing `labManagerUser()`/
+  `scientistUser()`/`adminUser()` ones. Full suite green (508 tests), Pint clean (365 files),
+  PHPStan level 8 clean (0 errors), `composer audit` clean.
+
 

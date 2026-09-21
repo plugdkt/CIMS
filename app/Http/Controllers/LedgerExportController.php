@@ -114,7 +114,7 @@ final class LedgerExportController extends Controller
             txnType: $request->string('type')->value() ?: null,
             receiverName: $request->string('receiver')->value() ?: null,
             containerBarcode: $request->string('container')->value() ?: null,
-            labId: $user->hasRole('LAB_MANAGER') ? $user->lab_id : null,
+            labId: $user->isBranchManager() ? $user->lab_id : null,
         );
     }
 

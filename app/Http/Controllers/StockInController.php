@@ -35,7 +35,7 @@ final class StockInController extends Controller
 
         /** @var \App\Models\User $user */
         $user = $request->user();
-        $locations = $user->hasRole('LAB_MANAGER')
+        $locations = $user->isBranchManager()
             ? Location::where('lab_id', $user->lab_id)->orderBy('name')->get()
             : Location::orderBy('name')->get();
 

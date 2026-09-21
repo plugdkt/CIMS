@@ -30,10 +30,11 @@ final class LocationPolicy extends Policy
         return $this->hasPermission($user, 'location.manage') && $this->inOwnLab($user, $location);
     }
 
-    /** A LAB_MANAGER only manages locations in their own branch; other `location.manage`
-     *  holders (none scoped by lab today) see/edit every location, same as before. */
+    /** A branch manager (LAB_MANAGER/AUDITOR, see User::isBranchManager()) only manages
+     *  locations in their own branch; other `location.manage` holders (none scoped by
+     *  lab today) see/edit every location, same as before. */
     private function inOwnLab(User $user, Location $location): bool
     {
-        return ! $user->hasRole('LAB_MANAGER') || $location->lab_id === $user->lab_id;
+        return ! $user->isBranchManager() || $location->lab_id === $user->lab_id;
     }
 }

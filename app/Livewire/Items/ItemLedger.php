@@ -61,7 +61,7 @@ final class ItemLedger extends Component
 
         /** @var \App\Models\User $user */
         $user = auth()->user();
-        if ($user->hasRole('LAB_MANAGER')) {
+        if ($user->isBranchManager()) {
             $this->labId = $user->lab_id;
         }
     }

@@ -49,7 +49,7 @@ final class StockInRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             /** @var User $user */
             $user = $this->user();
-            if (! $user->hasRole('LAB_MANAGER')) {
+            if (! $user->isBranchManager()) {
                 return;
             }
 

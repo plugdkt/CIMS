@@ -30,7 +30,7 @@ final class LabPolicy extends Policy
         return $this->hasPermission($user, 'lab.manage');
     }
 
-    /** LAB_MANAGER whitelisting who may requisition from their own branch (their own `lab_id`). */
+    /** A branch manager (LAB_MANAGER/AUDITOR) whitelisting who may requisition from their own branch (their own `lab_id`). */
     public function manageMembers(User $user): bool
     {
         return $this->hasPermission($user, 'lab.manage_members');

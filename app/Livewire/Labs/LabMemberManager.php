@@ -13,8 +13,9 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * A LAB_MANAGER's whitelist of who may requisition from their own branch — literally
- * `users.lab_id` (see CLAUDE.md: no separate whitelist table). Candidates are limited to
+ * A branch manager's (LAB_MANAGER/AUDITOR, see User::isBranchManager()) whitelist of who
+ * may requisition from their own branch — literally `users.lab_id` (see CLAUDE.md: no
+ * separate whitelist table). Candidates are limited to
  * the two roles that actually hold `requisition.create` (STUDENT/STAFF, per
  * `PermissionSeeder`) — ADVISOR/SCIENTIST/etc. never requisition, so they're not part of
  * this whitelist. A manager can only add someone currently unassigned or already in their

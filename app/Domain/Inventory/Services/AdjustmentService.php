@@ -34,13 +34,13 @@ final class AdjustmentService
     {
         $isAuthorizedApprover = $approver->roles->flatMap(fn ($role) => $role->permissions)->contains('code', 'ledger.adjust');
         if (! $isAuthorizedApprover) {
-            throw new InvalidAdjustmentException('ผู้อนุมัติต้องเป็นหัวหน้าสาขาวิชา (BR-06)');
+            throw new InvalidAdjustmentException('ผู้อนุมัติต้องเป็นหัวหน้าสาขาวิชาหรือผู้ดูแลคลัง (BR-06)');
         }
 
-        if ($approver->hasRole('LAB_MANAGER')) {
+        if ($approver->isBranchManager()) {
             $containerLabId = $this->labIdFor($container);
             if ($containerLabId !== null && $containerLabId !== $approver->lab_id) {
-                throw new InvalidAdjustmentException('ผู้อนุมัติต้องเป็นหัวหน้าสาขาวิชาของสาขาที่ภาชนะนี้ตั้งอยู่');
+                throw new InvalidAdjustmentException('ผู้อนุมัติต้องเป็นหัวหน้าสาขาวิชาหรือผู้ดูแลคลังของสาขาที่ภาชนะนี้ตั้งอยู่');
             }
         }
 

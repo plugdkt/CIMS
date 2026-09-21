@@ -60,7 +60,7 @@ final class LocationRequest extends FormRequest
     {
         $validator->after(function (Validator $validator) {
             $user = $this->user();
-            if ($user !== null && $user->hasRole('LAB_MANAGER')) {
+            if ($user !== null && $user->isBranchManager()) {
                 $submittedLabId = $this->input('lab_id') !== null ? (int) $this->input('lab_id') : null;
                 if ($submittedLabId !== $user->lab_id) {
                     $validator->errors()->add('lab_id', __('locations.validation.lab_must_match_own'));

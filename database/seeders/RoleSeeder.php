@@ -19,7 +19,10 @@ final class RoleSeeder extends Seeder
             ['code' => 'SCIENTIST', 'name_th' => 'นักวิทยาศาสตร์'],
             ['code' => 'LAB_MANAGER', 'name_th' => 'หัวหน้าสาขาวิชา'],
             ['code' => 'ADMIN', 'name_th' => 'ผู้ดูแลระบบ'],
-            ['code' => 'AUDITOR', 'name_th' => 'ผู้ตรวจสอบ'],
+            // Repurposed 2026-09-21 (user-requested): AUDITOR reads as "ผู้ดูแลคลัง"
+            // now, not the original spec-described read-only auditor — see
+            // PermissionSeeder's own note on this role's grants for the full reasoning.
+            ['code' => 'AUDITOR', 'name_th' => 'ผู้ดูแลคลัง'],
         ];
 
         foreach ($roles as $role) {

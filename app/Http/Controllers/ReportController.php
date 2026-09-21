@@ -131,25 +131,25 @@ final class ReportController extends Controller
         );
     }
 
-    /** A LAB_MANAGER's own `lab_id` always overrides the request's — never widened via the query string. */
+    /** A branch manager's (LAB_MANAGER/AUDITOR) own `lab_id` always overrides the request's — never widened via the query string. */
     private function labIdFor(Request $request): ?int
     {
         /** @var User $user */
         $user = $request->user();
 
-        if ($user->hasRole('LAB_MANAGER')) {
+        if ($user->isBranchManager()) {
             return $user->lab_id;
         }
 
         return $request->integer('lab_id') ?: null;
     }
 
-    /** A LAB_MANAGER may only view a stock take taken in their own branch. */
+    /** A branch manager (LAB_MANAGER/AUDITOR) may only view a stock take taken in their own branch. */
     private function authorizeStockTakeOwnLab(StockTake $stockTake): void
     {
         /** @var User $user */
         $user = auth()->user();
 
-        abort_if($user->hasRole('LAB_MANAGER') && $stockTake->lab_id !== $user->lab_id, 403);
+        abort_if($user->isBranchManager() && $stockTake->lab_id !== $user->lab_id, 403);
     }
 }

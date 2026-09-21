@@ -112,7 +112,7 @@ final class ReportsDashboard extends Component
         /** @var User $user */
         $user = auth()->user();
 
-        return $user->hasRole('LAB_MANAGER') ? $user->lab_id : null;
+        return $user->isBranchManager() ? $user->lab_id : null;
     }
 
     public function render(): View

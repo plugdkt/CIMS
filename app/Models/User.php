@@ -82,6 +82,20 @@ class User extends Authenticatable
         return $this->roles->contains('code', $code);
     }
 
+    /**
+     * Post-launch, 2026-09-21 (user-requested): AUDITOR was repurposed from a
+     * read-only oversight role into a second, independently-assignable flavor of
+     * branch-scoped warehouse manager — same operational grants and own-branch-only
+     * scoping as LAB_MANAGER (name_th "ผู้ดูแลคลัง"), just a separate role code so
+     * both can be assigned/removed independently. Every place that used to gate
+     * "is this a branch-scoped manager" on `hasRole('LAB_MANAGER')` alone now calls
+     * this instead, so both roles are always scoped identically.
+     */
+    public function isBranchManager(): bool
+    {
+        return $this->hasRole('LAB_MANAGER') || $this->hasRole('AUDITOR');
+    }
+
     public function hasPermission(string $code): bool
     {
         return $this->roles->flatMap(fn ($role) => $role->permissions)->contains('code', $code);

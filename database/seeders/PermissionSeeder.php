@@ -15,8 +15,10 @@ use Illuminate\Database\Seeder;
  * as those features are built, rather than guessing every fine-grained code up front.
  *
  * ADMIN never gets a ledger.* write permission (§3: "ไม่มีสิทธิ์แตะ Ledger"); it does
- * get ledger.verify, which FR-LG-06 explicitly grants to AUDITOR/ADMIN as a read-only
- * integrity check, not a write.
+ * get ledger.verify, a read-only integrity check FR-LG-06 originally granted to
+ * AUDITOR/ADMIN together — AUDITOR lost it in the 2026-09-21 repurposing below, so
+ * ADMIN is now the only holder; this is a deliberate, user-approved deviation from
+ * FR-LG-06's literal wording, not an oversight.
  *
  * ADMIN also gets item.view (added for the Lab Inventory feature, docs/
  * lab_inventory_handover_spec.md) — that page's own lab-picker is explicitly meant to
@@ -73,9 +75,15 @@ final class PermissionSeeder extends Seeder
                 'lab.manage_members',
             ],
             'ADMIN' => ['user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
+            // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the
+            // spec-described read-only oversight role — it's now a second,
+            // independently-assignable flavor of branch-scoped warehouse manager
+            // (name_th "ผู้ดูแลคลัง"), so its grants mirror LAB_MANAGER's exactly.
+            // See User::isBranchManager() for the scoping side of this change.
             'AUDITOR' => [
-                'requisition.view_all', 'ledger.view', 'ledger.verify', 'item.view',
-                'audit.view', 'report.view',
+                'requisition.view_all', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
+                'lab.manage_members',
             ],
         ];
 
@@ -83,6 +91,15 @@ final class PermissionSeeder extends Seeder
             $role = Role::where('code', $roleCode)->firstOrFail();
             $permissionIds = Permission::whereIn('code', $permissionCodes)->pluck('id');
             $role->permissions()->syncWithoutDetaching($permissionIds);
+        }
+
+        // syncWithoutDetaching() above is additive-only, so it would never remove
+        // AUDITOR's old read-only grants from an already-seeded database — detach
+        // them explicitly. Both stay available system-wide via ADMIN's own grant.
+        $auditorRole = Role::where('code', 'AUDITOR')->first();
+        if ($auditorRole !== null) {
+            $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view'])->pluck('id');
+            $auditorRole->permissions()->detach($staleAuditorPermissionIds);
         }
     }
 }

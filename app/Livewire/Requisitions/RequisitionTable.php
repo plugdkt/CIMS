@@ -33,7 +33,7 @@ final class RequisitionTable extends Component
             $query->where(function ($q) use ($user) {
                 $q->where('requester_id', $user->id)->orWhere('advisor_id', $user->id);
             });
-        } elseif ($user->hasRole('LAB_MANAGER')) {
+        } elseif ($user->isBranchManager()) {
             $query->where('lab_id', $user->lab_id);
         }
 

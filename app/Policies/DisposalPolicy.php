@@ -7,7 +7,7 @@ namespace App\Policies;
 use App\Models\Disposal;
 use App\Models\User;
 
-/** FR-ST-05: `disposal.request` (SCIENTIST) requests; `disposal.approve` (LAB_MANAGER) approves/rejects. */
+/** FR-ST-05: `disposal.request` (SCIENTIST) requests; `disposal.approve` (LAB_MANAGER/AUDITOR — both branch-scoped managers, see User::isBranchManager()) approves/rejects. */
 final class DisposalPolicy extends Policy
 {
     public function viewAny(User $user): bool
@@ -31,7 +31,7 @@ final class DisposalPolicy extends Policy
             return false;
         }
 
-        if ($user->hasRole('LAB_MANAGER')) {
+        if ($user->isBranchManager()) {
             $disposalLabId = $this->labIdFor($disposal);
 
             return $disposalLabId === null || $disposalLabId === $user->lab_id;

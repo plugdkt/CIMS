@@ -62,6 +62,19 @@ if (! function_exists('adminUser')) {
     }
 }
 
+// AUDITOR was repurposed 2026-09-21 into a second, independently-assignable flavor of
+// branch-scoped warehouse manager (name_th "ผู้ดูแลคลัง") — same grants/scoping as
+// LAB_MANAGER, see User::isBranchManager() and PermissionSeeder's own note.
+if (! function_exists('auditorUser')) {
+    function auditorUser(array $overrides = []): \App\Models\User
+    {
+        $user = \App\Models\User::factory()->create($overrides);
+        $user->roles()->attach(\App\Models\Role::where('code', 'AUDITOR')->firstOrFail());
+
+        return $user;
+    }
+}
+
 if (! function_exists('makeLab')) {
     function makeLab(array $overrides = []): \App\Models\Lab
     {
