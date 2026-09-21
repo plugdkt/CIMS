@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Inventory\Services\StockBalanceService;
 use App\Models\Container;
 use App\Models\IssueTransaction;
 use App\Models\Item;
 use App\Models\Requisition;
-use App\Models\StockLedger;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -20,6 +20,10 @@ use Illuminate\Support\Collection;
  */
 final class DashboardService
 {
+    public function __construct(private readonly StockBalanceService $stockBalance)
+    {
+    }
+
     /**
      * Sums every action-queue this user's permissions make them responsible for
      * (advisor decisions, scientist decisions, pending issuance); a plain requester with
@@ -59,26 +63,45 @@ final class DashboardService
             ->count();
     }
 
-    public function belowReorderPointCount(): int
+    /**
+     * User-requested 2026-09-21: the dashboard should show *what* is running low, not
+     * just a count — every item genuinely below its own reorder point, cheapest
+     * (lowest remaining-vs-reorder-point ratio) first, so the most urgent one is on
+     * top regardless of how many are flagged.
+     *
+     * @return Collection<int, array{item: Item, balance: numeric-string}>
+     */
+    public function belowReorderPointItems(): Collection
     {
         return Item::where('is_active', true)
             ->where('reorder_point_base', '>', 0)
             ->get()
-            ->filter(function (Item $item) {
-                $balance = StockLedger::where('item_id', $item->id)->orderByDesc('id')->value('balance_base') ?? '0.000000';
-
-                return bccomp($balance, $item->reorder_point_base, 6) < 0;
-            })
-            ->count();
+            ->map(fn (Item $item) => ['item' => $item, 'balance' => $this->stockBalance->currentBalance($item)])
+            ->filter(fn (array $row) => $this->stockBalance->isBelowReorderPoint($row['item'], $row['balance']))
+            ->sortBy(fn (array $row) => (float) $row['balance'] / max((float) $row['item']->reorder_point_base, 0.000001))
+            ->values();
     }
 
-    public function expiringWithin30DaysCount(): int
+    public function belowReorderPointCount(): int
+    {
+        return $this->belowReorderPointItems()->count();
+    }
+
+    /** @return Collection<int, Container> */
+    public function expiringWithin30DaysContainers(): Collection
     {
         return Container::whereIn('status', ['SEALED', 'IN_USE', 'QUARANTINE'])
             ->whereNotNull('expiry_date')
             ->whereDate('expiry_date', '>=', now()->toDateString())
             ->whereDate('expiry_date', '<=', now()->addDays(30)->toDateString())
-            ->count();
+            ->with('item')
+            ->orderBy('expiry_date')
+            ->get();
+    }
+
+    public function expiringWithin30DaysCount(): int
+    {
+        return $this->expiringWithin30DaysContainers()->count();
     }
 
     /**

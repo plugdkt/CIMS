@@ -97,6 +97,7 @@ return [
     'issued_so_far' => 'จ่ายไปแล้ว',
     'remaining' => 'คงเหลือที่ต้องจ่าย',
     'line_fully_issued' => 'จ่ายครบตามที่ขอแล้ว',
+    'low_stock_warning' => 'สารนี้ใกล้หมด (คงเหลือในคลัง :balance) — ควรเติมเข้าคลัง',
     'col_barcode' => 'บาร์โค้ด',
     'select_container_to_issue' => 'เลือกภาชนะนี้เพื่อจ่าย',
     'col_container_status' => 'สถานะภาชนะ',

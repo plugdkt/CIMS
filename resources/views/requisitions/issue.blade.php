@@ -55,6 +55,14 @@
                         / {{ __('requisitions.issued_so_far') }} {{ rtrim(rtrim((string) $line->qty_issued_base, '0'), '.') }}
                         ({{ __('requisitions.remaining') }} {{ rtrim(rtrim((string) $row['remaining_base'], '0'), '.') }})
                     </span>
+
+                    @if ($row['low_stock'])
+                        <div class="mt-2">
+                            <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-warning-soft text-warning-ink font-semibold">
+                                ⚠️ {{ __('requisitions.low_stock_warning', ['balance' => rtrim(rtrim((string) $row['stock_balance'], '0'), '.')]) }}
+                            </span>
+                        </div>
+                    @endif
                 </div>
 
                 @if ($row['remaining_base'] <= 0)

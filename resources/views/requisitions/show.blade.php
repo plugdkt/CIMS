@@ -78,6 +78,7 @@
                                 <th class="px-3 py-2 font-semibold">#</th>
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_item') }}</th>
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_qty_requested') }}</th>
+                                <th class="px-3 py-2 font-semibold">{{ __('requisitions.current_balance') }}</th>
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_reference_doc') }}</th>
                                 <th class="px-3 py-2"></th>
                             </tr>
@@ -113,6 +114,13 @@
                                         </div>
                                     </td>
                                     <td class="px-3 py-2 align-top">{{ rtrim(rtrim((string) $line->qty_requested, '0'), '.') }} {{ $line->unit?->code }}</td>
+                                    <td class="px-3 py-2 align-top">
+                                        @if ($line->item !== null && isset($balances[$line->item->id]))
+                                            {{ rtrim(rtrim((string) $balances[$line->item->id], '0'), '.') }} {{ $line->item->baseUnit?->code }}
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
                                     <td class="px-3 py-2 align-top">{{ $line->reference_doc ?: '—' }}</td>
                                     <td class="px-3 py-2 align-top text-right">
                                         @if ($canEdit)

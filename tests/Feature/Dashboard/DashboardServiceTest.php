@@ -78,6 +78,51 @@ test('§7.9: expiring-within-30-days count excludes containers outside the windo
     expect(app(DashboardService::class)->expiringWithin30DaysCount())->toBe(1);
 });
 
+test('§7.9 (user-requested 2026-09-21): belowReorderPointItems lists the flagged items, most urgent first', function () {
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $user = User::factory()->create();
+
+    $barelyLow = makeItem(['name_th' => 'สารเกือบพอ', 'reorder_point_base' => '100.000000']);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        makeContainer(['item_id' => $barelyLow->id])->id,
+        '90.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $user->id),
+    );
+
+    $critical = makeItem(['name_th' => 'สารใกล้หมดวิกฤต', 'reorder_point_base' => '100.000000']);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        makeContainer(['item_id' => $critical->id])->id,
+        '5.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $user->id),
+    );
+
+    $wellStocked = makeItem(['name_th' => 'สารเหลือเยอะ', 'reorder_point_base' => '100.000000']);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        makeContainer(['item_id' => $wellStocked->id])->id,
+        '500.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $user->id),
+    );
+
+    $items = app(DashboardService::class)->belowReorderPointItems();
+
+    expect($items)->toHaveCount(2);
+    expect($items->first()['item']->id)->toBe($critical->id);
+    expect($items->last()['item']->id)->toBe($barelyLow->id);
+});
+
+test('§7.9 (user-requested 2026-09-21): expiringWithin30DaysContainers lists the containers, soonest first', function () {
+    $item = makeItem();
+    $soon = makeContainer(['item_id' => $item->id, 'status' => 'IN_USE', 'expiry_date' => now()->addDays(5)->toDateString()]);
+    $later = makeContainer(['item_id' => $item->id, 'status' => 'IN_USE', 'expiry_date' => now()->addDays(25)->toDateString()]);
+    makeContainer(['item_id' => $item->id, 'status' => 'IN_USE', 'expiry_date' => now()->addDays(45)->toDateString()]); // outside window
+
+    $containers = app(DashboardService::class)->expiringWithin30DaysContainers();
+
+    expect($containers)->toHaveCount(2);
+    expect($containers->first()->id)->toBe($soon->id);
+    expect($containers->last()->id)->toBe($later->id);
+});
+
 test('§7.9: top issued items are ranked by issue frequency within the last 3 months', function () {
     $staff = staffUser();
     $popular = makeItem();

@@ -24,8 +24,13 @@ final class DashboardController extends Controller
         $data = ['pendingRequisitions' => $dashboard->pendingRequisitionsCount($user)];
 
         if ($user->can('report.view')) {
-            $data['belowReorderCount'] = $dashboard->belowReorderPointCount();
-            $data['expiringCount'] = $dashboard->expiringWithin30DaysCount();
+            $belowReorderItems = $dashboard->belowReorderPointItems();
+            $expiringContainers = $dashboard->expiringWithin30DaysContainers();
+
+            $data['belowReorderCount'] = $belowReorderItems->count();
+            $data['belowReorderItems'] = $belowReorderItems->take(5);
+            $data['expiringCount'] = $expiringContainers->count();
+            $data['expiringContainers'] = $expiringContainers->take(5);
             $data['topItems'] = $dashboard->topIssuedItems();
             $data['monthlySeries'] = $dashboard->monthlyIssuanceSeries();
         }

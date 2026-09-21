@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Services\FefoContainerSelector;
+use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Requisition\Exceptions\ExcessiveIssueQuantityException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Exceptions\InvalidSignatureImageException;
@@ -30,21 +31,35 @@ final class RequisitionIssueController extends Controller
      * requisition can no longer be issued against but can still be returned against
      * (BR-05), so this page must stay reachable for that case too.
      */
-    public function create(Requisition $requisition, FefoContainerSelector $selector, ReturnService $returns): View
-    {
+    public function create(
+        Requisition $requisition,
+        FefoContainerSelector $selector,
+        ReturnService $returns,
+        StockBalanceService $stockBalance,
+    ): View {
         /** @var User|null $user */
         $user = auth()->user();
         abort_unless($user !== null && ($user->can('issue', $requisition) || $user->can('return', $requisition)), 403);
 
         $requisition->load(['items.item', 'items.unit', 'requester']);
 
-        $lines = $requisition->items->map(fn (RequisitionItem $line) => [
-            'line' => $line,
-            'remaining_base' => bcsub($line->qty_requested_base, $line->qty_issued_base, 6),
-            'returnable_base' => bcsub($line->qty_issued_base, $line->qty_returned_base, 6),
-            'containers' => $selector->recommend($line->item()->firstOrFail()),
-            'issued_containers' => $returns->issuedContainersFor($line),
-        ]);
+        // User-requested 2026-09-21: warn right where the actual dispensing happens
+        // (not on the earlier review page) once an item's current balance is below
+        // its reorder point — the person issuing is exactly who'd go restock it.
+        $lines = $requisition->items->map(function (RequisitionItem $line) use ($selector, $returns, $stockBalance) {
+            $item = $line->item()->firstOrFail();
+            $balance = $stockBalance->currentBalance($item);
+
+            return [
+                'line' => $line,
+                'remaining_base' => bcsub($line->qty_requested_base, $line->qty_issued_base, 6),
+                'returnable_base' => bcsub($line->qty_issued_base, $line->qty_returned_base, 6),
+                'containers' => $selector->recommend($item),
+                'issued_containers' => $returns->issuedContainersFor($line),
+                'stock_balance' => $balance,
+                'low_stock' => $stockBalance->isBelowReorderPoint($item, $balance),
+            ];
+        });
 
         return view('requisitions.issue', [
             'requisition' => $requisition,

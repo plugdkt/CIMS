@@ -118,8 +118,8 @@ final class Fr01PdfService
                 ? '<div style="font-size: 7.5pt; color: #555; margin-top: 2px;">'.$this->e(implode(' | ', $subParts)).'</div>'
                 : '';
 
-            $qtyRequested = $this->e("{$line->qty_requested} {$line->unit?->code}");
-            $qtyIssued = $this->e($line->qty_issued_base).' ('.$this->e($lineItem->baseUnit?->code).')';
+            $qtyRequested = $this->e($this->trimQty($line->qty_requested).' '.$line->unit?->code);
+            $qtyIssued = $this->e($this->trimQty($line->qty_issued_base)).' ('.$this->e($lineItem->baseUnit?->code).')';
             $reference = $this->e($line->reference_doc ?? '—');
 
             return <<<HTML
@@ -197,5 +197,12 @@ final class Fr01PdfService
     private function e(?string $value): string
     {
         return e($value ?? '');
+    }
+
+    /** Display-only: trims trailing zeros (and a bare decimal point) off a
+     *  DECIMAL(18,6)-backed quantity — the stored/ledger value is never touched. */
+    private function trimQty(string $value): string
+    {
+        return rtrim(rtrim($value, '0'), '.');
     }
 }

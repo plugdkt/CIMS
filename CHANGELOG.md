@@ -1793,3 +1793,65 @@ just want to create a shelf record on its own with no "root" above it at all.
   constraint; fixed alongside this change since every test in that file depended on it.
   Full suite green (513 tests), Pint clean (366 files), PHPStan level 8 clean (0 errors),
   `composer audit` clean.
+
+## Post-launch — F-01 PDF: trim trailing-zero quantities (2026-09-21)
+
+User-reported: the printed F-01 requisition form showed every quantity as a raw
+`DECIMAL(18,6)` string (e.g. "5.000000 g"), same class of readability issue already fixed
+in several on-screen places earlier this session (item tables, balance displays, the
+reports dashboard) but never applied to this PDF.
+
+- `Fr01PdfService::linesHtml()` now trims both `qty_requested` and `qty_issued_base`
+  through a new `trimQty()` helper (`rtrim(rtrim($value, '0'), '.')`) — same convention
+  used everywhere else in the app; display-only, the underlying stored/ledger values are
+  untouched.
+- Verified: new `Fr01PdfServiceTest` case renders the form's HTML directly (via
+  `ReflectionMethod` on the private `buildHtml()`, since `render()` only returns the final
+  compiled PDF binary) and asserts the trimmed value appears, not the raw
+  "5.000000". Full suite green (514 tests), Pint clean (366 files), PHPStan level 8 clean
+  (0 errors), `composer audit` clean.
+
+## Post-launch — Stock visibility at review/issue time, and a more useful dashboard (2026-09-21)
+
+User-asked: should the reviewer of a requisition (a SCIENTIST deciding "พิจารณาใบขอเบิก")
+see the item's current stock, so they aren't deciding blind? Confirmed yes — then
+user-refined the scope after discussion: keep the review page simple (current balance
+only, not a cross-requisition demand total), move the actual *low-stock warning* to the
+point where it's actionable (issuing, since that's who'd go restock), and make the home
+dashboard show *what* is running low/expiring, not just a bare count — "เหมือนแบบว่า Login
+เข้าระบบมาปุ๊บ ... เห็นเลยว่ามีอะไรใกล้จะหมดบ้าง".
+
+- **New `StockBalanceService`** (`app/Domain/Inventory/Services/StockBalanceService.php`)
+  — `currentBalance(Item)` and `isBelowReorderPoint(Item, ?balance)`. The
+  `StockLedger::where('item_id', ...)->orderByDesc('id')->value('balance_base')` query
+  this wraps was already duplicated inline in 7 places with no shared helper
+  (`RequisitionController::itemBalance()`, `DashboardService`, `BelowReorderPointExport`
+  ×2, `ReportsDashboard`, `NotifyReorderPointCommand`, `ItemStockSummaryExport`) —
+  extracted now that two new consumers need it, rather than adding an 8th inline copy.
+  The 7 pre-existing call sites are deliberately left alone (already tested and working;
+  not a blanket refactor).
+- **Requisition review page** (`requisitions/show.blade.php`): the lines table gained a
+  "คงเหลือปัจจุบัน" column — each line's item's current stock balance, fetched in
+  `RequisitionController::show()`. Simple balance only, per user's explicit scope call —
+  no aggregate of what other pending requisitions are also asking for (that would need a
+  new `requisition_items` aggregate query that doesn't exist yet; deliberately not built).
+- **Requisition issue page** (`requisitions/issue.blade.php`): each line now shows a
+  "⚠️ สารนี้ใกล้หมด" warning when the item's current balance has dropped below its
+  `reorder_point_base` — computed per line in `RequisitionIssueController::create()` via
+  `StockBalanceService::isBelowReorderPoint()`, the same reorder-point convention
+  `BelowReorderPointExport`/`DashboardService` already use (not the unrelated
+  `ReportsDashboard::LOW_STOCK_REMAINING_PERCENT` convention, which measures something
+  different — remaining share of period usage, not balance-vs-reorder-point).
+- **Dashboard**: `DashboardService::belowReorderPointCount()`/`expiringWithin30DaysCount()`
+  now delegate to new `belowReorderPointItems()`/`expiringWithin30DaysContainers()`
+  methods (same public count signatures, no behavior change there) that also return the
+  actual rows. `DashboardController` passes the top 5 of each (most urgent first — lowest
+  balance-to-reorder-point ratio for stock, soonest-expiring first for containers) to the
+  view. `home.blade.php` gained two new list cards naming the actual items/containers,
+  each linking to the matching Reports tab when more than 5 are flagged.
+- Verified: new `StockBalanceServiceTest` (4 tests), 2 new `RequisitionIssueControllerTest`
+  cases (warns below reorder point, silent above it), 1 new `ScientistDecisionTest` case
+  (review page shows the real balance), 2 new `DashboardServiceTest` cases (both list
+  methods, correctly ordered), 1 new `DashboardControllerTest` case (the dashboard names
+  the actual flagged items, not just a count). Full suite green (524 tests), Pint clean
+  (368 files), PHPStan level 8 clean (0 errors), `composer audit` clean.

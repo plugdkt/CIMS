@@ -29,6 +29,32 @@ test('the issue page is not reachable for a DRAFT requisition', function () {
     $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))->assertStatus(403);
 });
 
+test('user-requested 2026-09-21: the issue page warns when an item\'s stock has dropped below its reorder point', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '20.000000');
+    $line = $requisition->items->first();
+    $line->item()->update(['reorder_point_base' => '100.000000']);
+    stockedContainer($line->item_id, '50.000000', $staff); // below the 100 reorder point
+    $scientist = scientistUser();
+
+    $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
+        ->assertOk()
+        ->assertSee(__('requisitions.low_stock_warning', ['balance' => '50']));
+});
+
+test('the issue page does not warn when stock is still above the reorder point', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '20.000000');
+    $line = $requisition->items->first();
+    $line->item()->update(['reorder_point_base' => '10.000000']);
+    stockedContainer($line->item_id, '50.000000', $staff); // above the 10 reorder point
+    $scientist = scientistUser();
+
+    $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
+        ->assertOk()
+        ->assertDontSee(__('requisitions.low_stock_warning', ['balance' => '50']));
+});
+
 test('a scientist can record a full issue via barcode and a drawn signature', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');

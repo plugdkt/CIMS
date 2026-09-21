@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Reporting\Services\Fr01PdfService;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Services\RequisitionService;
@@ -76,14 +77,25 @@ final class RequisitionController extends Controller
         return redirect()->route('requisitions.show', $requisition)->with('status', __('requisitions.created'));
     }
 
-    public function show(Requisition $requisition): View
+    public function show(Requisition $requisition, StockBalanceService $stockBalance): View
     {
         $this->authorize('view', $requisition);
 
+        $requisition->load(['lab', 'requester', 'advisor', 'items.item.baseUnit', 'items.unit']);
+
+        // User-requested 2026-09-21: whoever is reviewing/deciding a requisition
+        // should see each item's current stock balance right in the lines table, so
+        // "should I approve this?" isn't decided blind to what's actually left —
+        // keyed by item id since several lines can request the same item.
+        $balances = $requisition->items
+            ->keyBy(fn ($line) => $line->item()->firstOrFail()->id)
+            ->map(fn ($line) => $stockBalance->currentBalance($line->item()->firstOrFail()));
+
         return view('requisitions.show', [
-            'requisition' => $requisition->load(['lab', 'requester', 'advisor', 'items.item', 'items.unit']),
+            'requisition' => $requisition,
             'units' => Unit::orderBy('sort_order')->get(),
             'canEdit' => auth()->user()?->can('update', $requisition) ?? false,
+            'balances' => $balances,
         ]);
     }
 

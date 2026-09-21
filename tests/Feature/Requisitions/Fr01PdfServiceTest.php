@@ -42,3 +42,14 @@ test('the requester can download their own requisition as a PDF', function () {
     $response->assertOk();
     $response->assertHeader('Content-Type', 'application/pdf');
 });
+
+test('quantities in the printed form have their trailing zeros trimmed, not shown as X.000000', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student); // seeds one line with qty_requested = '5.000000'
+
+    $service = app(Fr01PdfService::class);
+    $buildHtml = new ReflectionMethod($service, 'buildHtml');
+    $html = $buildHtml->invoke($service, $requisition->fresh());
+
+    expect($html)->not->toContain('5.000000')->toContain('>5 ');
+});

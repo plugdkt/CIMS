@@ -82,3 +82,25 @@ test('the scientist decision form is visible on the show page only when eligible
     $this->actingAs($scientist)->get(route('requisitions.show', $draft))
         ->assertDontSee(__('requisitions.scientist_approve_decision'));
 });
+
+test('user-requested 2026-09-21: the requisition review page shows each line item\'s current stock balance', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $line = $requisition->items()->firstOrFail();
+    $item = $line->item()->firstOrFail();
+    $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+    $ledgerUser = \App\Models\User::factory()->create();
+    $container = makeContainer(['item_id' => $item->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        $container->id,
+        '42.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $ledgerUser->id),
+    );
+
+    $scientist = scientistUser();
+
+    $this->actingAs($scientist)->get(route('requisitions.show', $requisition))
+        ->assertOk()
+        ->assertSee(__('requisitions.current_balance'))
+        ->assertSee('42 ');
+});

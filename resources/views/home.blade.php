@@ -23,6 +23,58 @@
         @endif
     </div>
 
+    @if (isset($belowReorderItems) || isset($expiringContainers))
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            @if (isset($belowReorderItems))
+                <div class="bg-surface border border-border rounded-xl p-5">
+                    <h2 class="font-semibold text-sm mb-3">{{ __('home.below_reorder_list_title') }}</h2>
+                    @if ($belowReorderItems->isEmpty())
+                        <p class="text-xs text-ink-faint">{{ __('home.below_reorder_empty') }}</p>
+                    @else
+                        <ul class="space-y-2">
+                            @foreach ($belowReorderItems as $row)
+                                <li class="flex items-center justify-between text-sm gap-2">
+                                    <a href="{{ route('items.show', $row['item']) }}" class="truncate hover:text-accent">{{ $row['item']->name_th }}</a>
+                                    <span class="text-warning whitespace-nowrap">
+                                        {{ rtrim(rtrim((string) $row['balance'], '0'), '.') }} / {{ rtrim(rtrim((string) $row['item']->reorder_point_base, '0'), '.') }} {{ $row['item']->baseUnit?->code }}
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                        @if ($belowReorderCount > $belowReorderItems->count())
+                            <a href="{{ route('reports.index', ['tab' => 'below_reorder']) }}" class="block mt-3 text-xs font-semibold text-accent hover:text-accent-strong">
+                                {{ __('home.view_all', ['count' => $belowReorderCount]) }}
+                            </a>
+                        @endif
+                    @endif
+                </div>
+            @endif
+
+            @if (isset($expiringContainers))
+                <div class="bg-surface border border-border rounded-xl p-5">
+                    <h2 class="font-semibold text-sm mb-3">{{ __('home.expiring_list_title') }}</h2>
+                    @if ($expiringContainers->isEmpty())
+                        <p class="text-xs text-ink-faint">{{ __('home.expiring_empty') }}</p>
+                    @else
+                        <ul class="space-y-2">
+                            @foreach ($expiringContainers as $container)
+                                <li class="flex items-center justify-between text-sm gap-2">
+                                    <span class="truncate">{{ $container->item?->name_th }}</span>
+                                    <span class="text-danger whitespace-nowrap">{{ $container->expiry_date?->format('d/m/Y') }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                        @if ($expiringCount > $expiringContainers->count())
+                            <a href="{{ route('reports.index', ['tab' => 'expiring_stock']) }}" class="block mt-3 text-xs font-semibold text-accent hover:text-accent-strong">
+                                {{ __('home.view_all', ['count' => $expiringCount]) }}
+                            </a>
+                        @endif
+                    @endif
+                </div>
+            @endif
+        </div>
+    @endif
+
     @if (isset($topItems) && isset($monthlySeries))
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <div class="bg-surface border border-border rounded-xl p-5">
