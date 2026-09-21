@@ -1613,5 +1613,11 @@ code (vs. its own numeric `002`).
   the two commands' conventions) is now moot since only one command remains, so no fix was
   made to `users:import-msc-acc` itself for it — flag this if a third lab-provisioning
   path is ever added and reuses either naming convention.
+- **Refactor `users:import-msc-acc` with `MscAccReader` Service & DB-Independent Tests (2026-09-21)**:
+  - Extracted external `account_medsci` database query into `App\Domain\Auth\Services\MscAccReader`.
+  - Injected `MscAccReader` into `ImportMscAccUsersCommand`, adhering cleanly to spec §4.2 layering rules.
+  - Refactored `ImportMscAccUsersCommandTest` to mock `MscAccReader` rather than dropping and creating tables dynamically in `cmis_testing`.
+  - Resolves QA finding `docs/qa_finding_2026-09-21_msc_acc_import_test_db_grants.md`: tests now pass 100% on restricted-grant environments (T-027 / MariaDB `cmis_app`) as well as environments without SQLite drivers. Full test execution dropped from ~92s to ~15s.
+
 
 
