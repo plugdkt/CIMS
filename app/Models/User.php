@@ -93,6 +93,10 @@ class User extends Authenticatable
      */
     public function isBranchManager(): bool
     {
+        if ($this->hasRole('ADMIN')) {
+            return false;
+        }
+
         return $this->hasRole('LAB_MANAGER') || $this->hasRole('AUDITOR');
     }
 

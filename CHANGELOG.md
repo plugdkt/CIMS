@@ -1697,5 +1697,10 @@ and own-branch-only scoping as LAB_MANAGER, confirmed explicitly rather than ass
   New `auditorUser()` Pest helper added alongside the existing `labManagerUser()`/
   `scientistUser()`/`adminUser()` ones. Full suite green (508 tests), Pint clean (365 files),
   PHPStan level 8 clean (0 errors), `composer audit` clean.
+- **Fix Super Admin branch-scoping (`User::isBranchManager()`)**:
+  - `User::isBranchManager()` now explicitly returns `false` if the user holds the `ADMIN` role (`if ($this->hasRole('ADMIN')) return false;`).
+  - Previously, a Super Admin holding both `ADMIN` and `LAB_MANAGER`/`AUDITOR` (such as `wittaya.su`) was evaluated as a branch-scoped manager, accidentally locking their reports, ledger view, and requisitions list to their own `lab_id` instead of allowing system-wide visibility across all branches.
+  - Verified: `RoleScopingTest` regression test added and passing; Pint and PHPStan level 8 clean.
+
 
 

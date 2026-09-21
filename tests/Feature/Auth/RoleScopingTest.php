@@ -11,6 +11,13 @@ test('isBranchManager is true for LAB_MANAGER and AUDITOR, false for everyone el
     expect(scientistUser()->isBranchManager())->toBeFalse();
     expect(adminUser()->isBranchManager())->toBeFalse();
     expect(studentUser()->isBranchManager())->toBeFalse();
+
+    // A Super Admin who holds both ADMIN and LAB_MANAGER/AUDITOR is never branch-restricted
+    $lab = makeLab();
+    $superAdmin = adminUser(['lab_id' => $lab->id]);
+    $superAdmin->roles()->attach(Role::where('code', 'LAB_MANAGER')->firstOrFail());
+    $superAdmin->roles()->attach(Role::where('code', 'AUDITOR')->firstOrFail());
+    expect($superAdmin->isBranchManager())->toBeFalse();
 });
 
 test('AUDITOR (ผู้ดูแลคลัง) now holds the exact same operational grants as LAB_MANAGER', function () {
