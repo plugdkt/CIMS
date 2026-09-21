@@ -43,9 +43,9 @@ if (! function_exists('labManagerUser')) {
 }
 
 if (! function_exists('scientistUser')) {
-    function scientistUser(): \App\Models\User
+    function scientistUser(array $overrides = []): \App\Models\User
     {
-        $user = \App\Models\User::factory()->create();
+        $user = \App\Models\User::factory()->create($overrides);
         $user->roles()->attach(\App\Models\Role::where('code', 'SCIENTIST')->firstOrFail());
 
         return $user;

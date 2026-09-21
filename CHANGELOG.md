@@ -1698,4 +1698,36 @@ and own-branch-only scoping as LAB_MANAGER, confirmed explicitly rather than ass
   `scientistUser()`/`adminUser()` ones. Full suite green (508 tests), Pint clean (365 files),
   PHPStan level 8 clean (0 errors), `composer audit` clean.
 
+## Post-launch — Lab member management: SCIENTIST was invisible on the page (2026-09-21)
+
+User-reported bug: "จัดการสมาชิกสาขาวิชา" ("Manage branch members") showed no scientists at
+all, even ones with `lab_id` already set to that branch. Root cause: `LabMemberManager` was
+built for one specific purpose — the requisition whitelist (BR-11/multi-branch feature) —
+so its candidate list was deliberately restricted to STUDENT/STAFF (the two roles that hold
+`requisition.create`). A scientist holds neither, so despite the page's generic-sounding
+name, they could never appear there, whether or not they had a `lab_id`. User-confirmed:
+widen the page to also manage SCIENTIST membership, the same way as STUDENT/STAFF.
+
+- **`LabMemberManager::CANDIDATE_ROLES`** now includes `SCIENTIST` alongside `STUDENT`/
+  `STAFF` — a manager can now see, add, and remove scientists from their own branch exactly
+  like a student/staff requisitioner. ADVISOR/LAB_MANAGER/AUDITOR/ADMIN are still excluded
+  (an advisor isn't tied to one branch; the other three are the branch's own managers, not
+  members of it).
+- **`remove()` gained the same candidate-role check `assign()` already had** — previously
+  `remove()` only checked `lab_id` ownership, meaning it could technically clear *any* same-
+  branch user's `lab_id` (even another manager's) since nothing restricted its target to an
+  actual candidate role. Caught while adding SCIENTIST to the same check in `assign()`; not
+  a new hole introduced by this change, but the same underlying whitelist boundary, so fixed
+  alongside it rather than left inconsistent between the two methods.
+- **Each row now shows the person's role(s)** (`$candidate->roles->pluck('name_th')`,
+  eager-loaded to avoid an N+1) — with three different roles now mixed into one list, a bare
+  name/email/username no longer said which kind of member a row actually was.
+- Verified: 3 new `LabMemberManagerTest` cases (an unassigned scientist is visible and can
+  be whitelisted, with an audit log entry; a manager can remove a scientist from their own
+  branch; a manager cannot poach a scientist already assigned elsewhere) — mirroring the
+  existing STUDENT-focused tests exactly. `scientistUser()` Pest helper gained an
+  `$overrides` parameter (matching `labManagerUser()`/`studentUser()`/`adminUser()`) so
+  these tests could set `lab_id` directly. Full suite green (511 tests), Pint clean
+  (365 files), PHPStan level 8 clean (0 errors), `composer audit` clean.
+
 

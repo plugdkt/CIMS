@@ -13,21 +13,26 @@ use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * A branch manager's (LAB_MANAGER/AUDITOR, see User::isBranchManager()) whitelist of who
- * may requisition from their own branch — literally `users.lab_id` (see CLAUDE.md: no
- * separate whitelist table). Candidates are limited to
- * the two roles that actually hold `requisition.create` (STUDENT/STAFF, per
- * `PermissionSeeder`) — ADVISOR/SCIENTIST/etc. never requisition, so they're not part of
- * this whitelist. A manager can only add someone currently unassigned or already in their
- * own lab, and can only remove someone already in their own lab — never poach a member
- * assigned to a different branch (that still requires ADMIN via `UserRoleManager::setLab()`).
+ * A branch manager's (LAB_MANAGER/AUDITOR, see User::isBranchManager()) roster of who
+ * belongs to their own branch — literally `users.lab_id` (see CLAUDE.md: no separate
+ * whitelist table). Candidates are STUDENT/STAFF (the two roles that actually hold
+ * `requisition.create`, per `PermissionSeeder` — this half of the roster is who may
+ * requisition from the branch) plus SCIENTIST (user-requested 2026-09-21: the scientists
+ * actually staffing the branch were invisible here entirely, since they hold neither
+ * requisition-whitelist role — this page is meant to show/manage everyone in the branch,
+ * not just requisitioners). ADVISOR/LAB_MANAGER/AUDITOR/ADMIN are still excluded — an
+ * advisor isn't tied to one branch, and the other three are the branch's own managers,
+ * not members of it. A manager can only add someone currently unassigned or already in
+ * their own lab, and can only remove someone already in their own lab — never poach a
+ * member assigned to a different branch (that still requires ADMIN via
+ * `UserRoleManager::setLab()`).
  */
 #[Layout('components.layout')]
 final class LabMemberManager extends Component
 {
     use WithPagination;
 
-    private const CANDIDATE_ROLES = ['STUDENT', 'STAFF'];
+    private const CANDIDATE_ROLES = ['STUDENT', 'STAFF', 'SCIENTIST'];
 
     public string $search = '';
 
@@ -53,7 +58,7 @@ final class LabMemberManager extends Component
 
         /** @var User $target */
         $target = User::findOrFail($userId);
-        $isCandidate = $target->hasRole('STUDENT') || $target->hasRole('STAFF');
+        $isCandidate = collect(self::CANDIDATE_ROLES)->contains(fn (string $role) => $target->hasRole($role));
         if (! $isCandidate || ! in_array($target->lab_id, [null, $manager->lab_id], true)) {
             return;
         }
@@ -81,7 +86,8 @@ final class LabMemberManager extends Component
 
         /** @var User $target */
         $target = User::findOrFail($userId);
-        if ($target->lab_id !== $manager->lab_id) {
+        $isCandidate = collect(self::CANDIDATE_ROLES)->contains(fn (string $role) => $target->hasRole($role));
+        if (! $isCandidate || $target->lab_id !== $manager->lab_id) {
             return;
         }
 
@@ -111,6 +117,7 @@ final class LabMemberManager extends Component
         $manager = auth()->user();
 
         $candidates = User::query()
+            ->with('roles')
             ->whereHas('roles', fn ($q) => $q->whereIn('code', self::CANDIDATE_ROLES))
             ->where(function ($q) use ($manager) {
                 $q->whereNull('lab_id')->orWhere('lab_id', $manager->lab_id);

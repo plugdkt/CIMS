@@ -30,6 +30,7 @@
                                 <td class="px-4 py-3 align-top">
                                     <div class="font-medium">{{ $candidate->full_name }}</div>
                                     <div class="text-xs text-ink-muted">{{ $candidate->username }} · {{ $candidate->email }}</div>
+                                    <div class="text-xs text-ink-faint mt-0.5">{{ $candidate->roles->pluck('name_th')->implode(', ') }}</div>
                                 </td>
                                 <td class="px-4 py-3 align-top whitespace-nowrap">
                                     @if ($isMember)

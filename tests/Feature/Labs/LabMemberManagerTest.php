@@ -68,3 +68,43 @@ test('a LAB_MANAGER cannot remove a member of a different branch', function () {
 
     expect($student->fresh()->lab_id)->toBe($otherLab->id);
 });
+
+test('an unassigned SCIENTIST is visible and can be whitelisted into the branch, and it is audited', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $scientist = scientistUser(['lab_id' => null]);
+
+    Livewire::actingAs($manager)
+        ->test(LabMemberManager::class)
+        ->assertSee($scientist->full_name)
+        ->call('assign', $scientist->id);
+
+    expect($scientist->fresh()->lab_id)->toBe($lab->id);
+    $log = AuditLog::where('action', 'LAB_MEMBER_ASSIGN')->where('entity_id', $scientist->id)->first();
+    expect($log)->not->toBeNull();
+});
+
+test('a LAB_MANAGER can remove a SCIENTIST from their own branch', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+
+    Livewire::actingAs($manager)
+        ->test(LabMemberManager::class)
+        ->call('remove', $scientist->id);
+
+    expect($scientist->fresh()->lab_id)->toBeNull();
+});
+
+test('a LAB_MANAGER cannot poach a SCIENTIST already assigned to a different branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $scientist = scientistUser(['lab_id' => $otherLab->id]);
+
+    Livewire::actingAs($manager)
+        ->test(LabMemberManager::class)
+        ->call('assign', $scientist->id);
+
+    expect($scientist->fresh()->lab_id)->toBe($otherLab->id);
+});
