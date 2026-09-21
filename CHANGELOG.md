@@ -1702,5 +1702,13 @@ and own-branch-only scoping as LAB_MANAGER, confirmed explicitly rather than ass
   - Previously, a Super Admin holding both `ADMIN` and `LAB_MANAGER`/`AUDITOR` (such as `wittaya.su`) was evaluated as a branch-scoped manager, accidentally locking their reports, ledger view, and requisitions list to their own `lab_id` instead of allowing system-wide visibility across all branches.
   - Verified: `RoleScopingTest` regression test added and passing; Pint and PHPStan level 8 clean.
 
+## Post-launch — Student / Requester Branch (Lab) Self-Selection in Complete Profile (2026-09-21)
 
-
+- **Student / Requester Branch Onboarding**:
+  - Requesters (students/staff/lecturers) are now prompted to select their branch/lab (`lab_id`) directly on the "Complete Profile" page (`/account/complete-profile`) during their first setup.
+  - Previously, `complete-profile` did not capture `lab_id`, causing users to immediately hit `account.pending-lab` after submitting their profile, requiring manual branch assignment by an administrator or branch manager.
+  - `CompleteProfileRequest`: Added validation rule requiring active `lab_id` (`required|integer|exists:labs,id`).
+  - `CompleteProfileController`: Passes active labs to the view, persists `lab_id` to `users.lab_id`, and safely redirects to `intended(route('requisitions.create'))`.
+  - `resources/views/auth/complete-profile.blade.php`: Added branch selection dropdown and enhanced advisor dropdown to display the advisor's branch name.
+  - `lang/th/auth.php`: Added localized strings for field label, help text, placeholder, and validation error messages.
+  - Verified: Unit and Feature tests in `CompleteProfileTest` passing 100%; Pint clean; PHPStan level 8 clean.

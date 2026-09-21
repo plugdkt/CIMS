@@ -24,6 +24,11 @@ final class CompleteProfileRequest extends FormRequest
             'person_code' => ['required', 'string', 'max:32'],
             'program' => ['required', 'string', 'max:255'],
             'faculty' => ['required', 'string', 'max:255'],
+            'lab_id' => [
+                'required',
+                'integer',
+                Rule::exists('labs', 'id')->where('is_active', true),
+            ],
             'advisor_id' => [
                 Rule::requiredIf(fn () => $this->input('person_type') === 'STUDENT'),
                 'nullable',
@@ -43,6 +48,8 @@ final class CompleteProfileRequest extends FormRequest
             'phone.regex' => __('auth.validation.phone_invalid'),
             'person_code.required' => __('auth.validation.person_code_required'),
             'faculty.required' => __('auth.validation.faculty_required'),
+            'lab_id.required' => __('auth.validation.lab_required'),
+            'lab_id.exists' => __('auth.validation.lab_invalid'),
             'advisor_id.required_if' => __('auth.validation.advisor_required_for_student'),
             'advisor_id.exists' => __('auth.validation.advisor_invalid'),
         ];
