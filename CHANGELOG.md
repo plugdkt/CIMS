@@ -1893,3 +1893,25 @@ new number is each row's own item's own total, never combined with another item'
   the summed quantity for both the most- and least-frequent item. Full suite green
   (525 tests), Pint clean (368 files), PHPStan level 8 clean (0 errors), `composer audit`
   clean.
+
+## Post-launch — SSO login crash on empty email: Duplicate entry '' for key 'users_email_unique' (2026-09-21)
+
+User-reported bug (with production screenshot): User ID 18 (`surachet.ku`) encountered an
+`Illuminate\Database\UniqueConstraintViolationException: Duplicate entry '' for key 'users_email_unique'`
+upon logging in via UP SSO.
+
+- **Root Cause**: In UP SSO, some accounts return an empty string `""` or null for the email attribute.
+  `SsoUserData` previously cast `$payload['email']` directly to string without sanitization, and
+  `UserProvisioningService` wrote it straight to `$user->email = $data->email`. Because another record
+  (User ID 5, `apisit.ph`) previously held an empty string `''` in the database, updating any second user
+  with an empty string triggered MariaDB's unique constraint `users_email_unique`.
+- **Database Hygiene**: Updated User ID 5's email to `apisit.ph@up.ac.th`. Confirmed all 108 existing users
+  now have valid emails and zero empty strings exist.
+- **Code Fix**:
+  - `SsoUserData::fromArray`: Falls back to `{$username}@up.ac.th` whenever SSO payload email is empty,
+    `'-'`, or not a valid email address (matching the convention in `ImportMscAccUsersCommand`).
+  - `UserProvisioningService::provision`: Ensures existing user emails are never overwritten with an empty
+    or invalid string, and defaults to `{$username}@up.ac.th`.
+  - Verified: 3 new `SsoLoginTest` feature tests covering missing SSO email fallback, multiple empty-email
+    SSO logins without collision, and email preservation for existing accounts; Pint clean; PHPStan clean.
+

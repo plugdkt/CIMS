@@ -20,13 +20,19 @@ final readonly class SsoUserData
     /** @param  array<string, mixed>  $payload */
     public static function fromArray(array $payload): self
     {
+        $username = (string) $payload['username'];
+        $rawEmail = isset($payload['email']) ? trim((string) $payload['email']) : '';
+        $email = ($rawEmail !== '' && $rawEmail !== '-' && filter_var($rawEmail, FILTER_VALIDATE_EMAIL))
+            ? $rawEmail
+            : "{$username}@up.ac.th";
+
         return new self(
             subject: (string) $payload['user_id'],
-            username: (string) $payload['username'],
+            username: $username,
             name: (string) $payload['name'],
             posName: isset($payload['pos_name']) ? (string) $payload['pos_name'] : null,
             divName: isset($payload['div_name']) ? (string) $payload['div_name'] : null,
-            email: (string) $payload['email'],
+            email: $email,
         );
     }
 }

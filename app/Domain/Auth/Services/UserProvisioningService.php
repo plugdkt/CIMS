@@ -39,7 +39,11 @@ final class UserProvisioningService
         }
 
         $user->username = $data->username;
-        $user->email = $data->email;
+        $email = trim($data->email);
+        if ($email === '' || $email === '-' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $email = ! empty($user->email) ? $user->email : "{$data->username}@up.ac.th";
+        }
+        $user->email = $email;
         $user->full_name = $data->name;
         $user->pos_name = $data->posName;
         $user->div_name = $data->divName;

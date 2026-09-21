@@ -144,3 +144,40 @@ test('a username with no pre-created account still gets a genuinely new one on f
     $user = User::where('sso_subject', '6363')->firstOrFail();
     expect($user->lab_id)->toBeNull();
 });
+
+test('when SSO verify returns empty or missing email, it falls back to username@up.ac.th', function () {
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess(['user_id' => 7171, 'username' => 'surachet.ku', 'email' => '']);
+
+    $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    $user = User::where('sso_subject', '7171')->firstOrFail();
+    expect($user->email)->toBe('surachet.ku@up.ac.th');
+});
+
+test('multiple users with empty SSO email can log in without unique constraint violation', function () {
+    $this->withSession(['sso_state' => 'state-1']);
+    fakeSsoVerifySuccess(['user_id' => 7172, 'username' => 'user.one', 'email' => '']);
+    $this->get('/sso/callback?token=validtoken&state=state-1');
+
+    $this->withSession(['sso_state' => 'state-2']);
+    fakeSsoVerifySuccess(['user_id' => 7173, 'username' => 'user.two', 'email' => '']);
+    $this->get('/sso/callback?token=validtoken&state=state-2');
+
+    expect(User::where('username', 'user.one')->firstOrFail()->email)->toBe('user.one@up.ac.th');
+    expect(User::where('username', 'user.two')->firstOrFail()->email)->toBe('user.two@up.ac.th');
+});
+
+test('an existing user with an email keeps it if SSO returns an empty email', function () {
+    $user = User::factory()->create([
+        'sso_subject' => '7174',
+        'username' => 'existing.user',
+        'email' => 'existing.user@up.ac.th',
+    ]);
+
+    $this->withSession(['sso_state' => 'good-state']);
+    fakeSsoVerifySuccess(['user_id' => 7174, 'username' => 'existing.user', 'email' => '']);
+    $this->get('/sso/callback?token=validtoken&state=good-state');
+
+    expect($user->fresh()->email)->toBe('existing.user@up.ac.th');
+});
