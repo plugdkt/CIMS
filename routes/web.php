@@ -36,7 +36,9 @@ use App\Livewire\Reports\ReportsDashboard;
 use Illuminate\Support\Facades\Route;
 
 // §7.9: DashboardController itself returns the guest "welcome" view when not logged in.
-Route::get('/', [DashboardController::class, 'index']);
+// Named (user-reported 2026-09-21: no way back to it once you navigate away — nothing
+// in the sidebar linked here at all) so the layout can link to it like every other page.
+Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
 // §7.2 public routes — SEC-AU-04: rate limited, no `auth` middleware (that's the point).
 Route::middleware('throttle:20,1')->group(function () {

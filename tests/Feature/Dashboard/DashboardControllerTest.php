@@ -8,6 +8,18 @@ test('a guest sees the plain welcome page at /', function () {
     $this->get('/')->assertOk()->assertViewIs('welcome');
 });
 
+test('user-reported 2026-09-21: the sidebar always has a way back to the dashboard, from any page', function () {
+    $scientist = scientistUser();
+
+    $this->actingAs($scientist)->get(route('dashboard'))->assertOk();
+
+    // Navigate to a completely different page — the dashboard link must still be there.
+    $this->actingAs($scientist)->get(route('items.index'))
+        ->assertOk()
+        ->assertSee(__('nav.dashboard'))
+        ->assertSee(route('dashboard'), false);
+});
+
 test('§7.9: a logged-in STUDENT sees the dashboard with a pending-requisitions card but no report.view analytics', function () {
     $student = studentUser();
 

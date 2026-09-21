@@ -18,7 +18,7 @@
     <label for="drawer-toggle" class="hidden peer-checked:block fixed inset-0 bg-ink/40 z-30 md:hidden" aria-hidden="true"></label>
 
     <aside class="fixed z-40 inset-y-0 left-0 w-64 bg-surface border-r border-border p-4 flex flex-col gap-6 -translate-x-full transition-transform peer-checked:translate-x-0 md:static md:translate-x-0">
-        <div class="flex items-center gap-3 px-1">
+        <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-1">
             <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-gold flex items-center justify-center text-white font-display font-bold text-sm">
                 CM
             </div>
@@ -26,9 +26,14 @@
                 <div class="font-display font-bold text-sm leading-none">{{ __('auth.app_name') }}</div>
                 <div class="text-[11px] text-ink-muted mt-0.5">{{ __('auth.app_tagline') }}</div>
             </div>
-        </div>
+        </a>
 
         <nav class="flex flex-col gap-1">
+            <a href="{{ route('dashboard') }}"
+               class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium mb-2 {{ request()->routeIs('dashboard') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
+                {{ __('nav.dashboard') }}
+            </a>
+
             <div class="text-[11px] font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1">
                 {{ __('nav.group_inventory') }}
             </div>

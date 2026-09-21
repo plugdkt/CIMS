@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'dashboard' => 'หน้าแรก',
     'group_data' => 'ข้อมูลหลัก',
     'items' => 'ทะเบียนสารเคมี/วัสดุ',
     'chemical_lookup' => 'ค้นข้อมูลสารเคมี (PubChem)',

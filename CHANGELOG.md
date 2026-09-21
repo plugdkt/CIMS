@@ -1855,3 +1855,20 @@ dashboard show *what* is running low/expiring, not just a bare count — "เห
   methods, correctly ordered), 1 new `DashboardControllerTest` case (the dashboard names
   the actual flagged items, not just a count). Full suite green (524 tests), Pint clean
   (368 files), PHPStan level 8 clean (0 errors), `composer audit` clean.
+
+## Post-launch — Sidebar: no way back to the dashboard once you navigated away (2026-09-21)
+
+User-reported: after landing on `/` right after login, there was nothing in the sidebar
+to get back to it — every other page (`items`, `requisitions`, `reports`, …) had a nav
+link; the dashboard itself didn't.
+
+- **`/` is now a named route** (`->name('dashboard')`) — it had none before, so nothing
+  could `route()` to it.
+- **New "หน้าแรก" (Home) link at the top of the sidebar**, above the existing nav groups,
+  highlighted when active — plus the logo/app-name block at the very top of the sidebar
+  (previously a plain, non-clickable `<div>`) is now also a link to the same place, the
+  conventional "click the logo to go home" affordance most users already expect.
+- Verified: new `DashboardControllerTest` case — the dashboard link (and its `href`)
+  appears in the sidebar while viewing a completely different page (`/items`), not just on
+  the dashboard itself. Full suite green (525 tests), Pint clean (368 files), PHPStan
+  level 8 clean (0 errors), `composer audit` clean.
