@@ -1697,6 +1697,10 @@ and own-branch-only scoping as LAB_MANAGER, confirmed explicitly rather than ass
   New `auditorUser()` Pest helper added alongside the existing `labManagerUser()`/
   `scientistUser()`/`adminUser()` ones. Full suite green (508 tests), Pint clean (365 files),
   PHPStan level 8 clean (0 errors), `composer audit` clean.
+- **Fix Super Admin branch-scoping (`User::isBranchManager()`)**:
+  - `User::isBranchManager()` now explicitly returns `false` if the user holds the `ADMIN` role (`if ($this->hasRole('ADMIN')) return false;`).
+  - Previously, a Super Admin holding both `ADMIN` and `LAB_MANAGER`/`AUDITOR` (such as `wittaya.su`) was evaluated as a branch-scoped manager, accidentally locking their reports, ledger view, and requisitions list to their own `lab_id` instead of allowing system-wide visibility across all branches.
+  - Verified: `RoleScopingTest` regression test added and passing; Pint and PHPStan level 8 clean.
 
 ## Post-launch — Lab member management: SCIENTIST was invisible on the page (2026-09-21)
 
@@ -1730,4 +1734,13 @@ widen the page to also manage SCIENTIST membership, the same way as STUDENT/STAF
   these tests could set `lab_id` directly. Full suite green (511 tests), Pint clean
   (365 files), PHPStan level 8 clean (0 errors), `composer audit` clean.
 
+## Post-launch — Student / Requester Branch (Lab) Self-Selection in Complete Profile (2026-09-21)
 
+- **Student / Requester Branch Onboarding**:
+  - Requesters (students/staff/lecturers) are now prompted to select their branch/lab (`lab_id`) directly on the "Complete Profile" page (`/account/complete-profile`) during their first setup.
+  - Previously, `complete-profile` did not capture `lab_id`, causing users to immediately hit `account.pending-lab` after submitting their profile, requiring manual branch assignment by an administrator or branch manager.
+  - `CompleteProfileRequest`: Added validation rule requiring active `lab_id` (`required|integer|exists:labs,id`).
+  - `CompleteProfileController`: Passes active labs to the view, persists `lab_id` to `users.lab_id`, and safely redirects to `intended(route('requisitions.create'))`.
+  - `resources/views/auth/complete-profile.blade.php`: Added branch selection dropdown and enhanced advisor dropdown to display the advisor's branch name.
+  - `lang/th/auth.php`: Added localized strings for field label, help text, placeholder, and validation error messages.
+  - Verified: Unit and Feature tests in `CompleteProfileTest` passing 100%; Pint clean; PHPStan level 8 clean.

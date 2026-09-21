@@ -36,15 +36,30 @@
         </div>
 
         <div>
+            <label for="lab_id" class="block text-sm font-medium mb-1">{{ __('auth.field_lab') }}</label>
+            <select id="lab_id" name="lab_id"
+                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                <option value="">— {{ __('auth.select_lab_placeholder') }} —</option>
+                @foreach ($labs as $lab)
+                    <option value="{{ $lab->id }}" @selected((int) old('lab_id', $user?->lab_id) === $lab->id)>
+                        {{ $lab->code }} - {{ $lab->name_th }}
+                    </option>
+                @endforeach
+            </select>
+            <p class="mt-1 text-xs text-ink-faint">{{ __('auth.field_lab_help') }}</p>
+            @error('lab_id') <p class="mt-1 text-xs text-danger">{{ $message }}</p> @enderror
+        </div>
+
+        <div>
             <label for="program" class="block text-sm font-medium mb-1">{{ __('auth.field_program') }}</label>
-            <input type="text" id="program" name="program" value="{{ old('program') }}"
+            <input type="text" id="program" name="program" value="{{ old('program', $user?->program) }}"
                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             @error('program') <p class="mt-1 text-xs text-danger">{{ $message }}</p> @enderror
         </div>
 
         <div>
             <label for="faculty" class="block text-sm font-medium mb-1">{{ __('auth.field_faculty') }}</label>
-            <input type="text" id="faculty" name="faculty" value="{{ old('faculty') }}"
+            <input type="text" id="faculty" name="faculty" value="{{ old('faculty', $user?->faculty ?? 'คณะวิทยาศาสตร์การแพทย์') }}"
                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
             @error('faculty') <p class="mt-1 text-xs text-danger">{{ $message }}</p> @enderror
         </div>
@@ -55,8 +70,8 @@
                     class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 <option value="">—</option>
                 @foreach ($advisors as $advisor)
-                    <option value="{{ $advisor->id }}" @selected((string) old('advisor_id') === (string) $advisor->id)>
-                        {{ $advisor->full_name }}
+                    <option value="{{ $advisor->id }}" @selected((string) old('advisor_id', (string) $user?->advisor_id) === (string) $advisor->id)>
+                        {{ $advisor->full_name }}@if($advisor->lab) ({{ $advisor->lab->name_th }})@endif
                     </option>
                 @endforeach
             </select>

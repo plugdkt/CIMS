@@ -6,19 +6,32 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\CompleteProfileRequest;
+use App\Models\Lab;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 final class CompleteProfileController extends Controller
 {
-    public function show(): View
+    public function show(Request $request): View
     {
-        $advisors = User::whereHas('roles', fn ($q) => $q->where('code', 'ADVISOR'))
-            ->orderBy('full_name')
-            ->get(['id', 'full_name']);
+        $user = $request->user();
 
-        return view('auth.complete-profile', ['advisors' => $advisors]);
+        $advisors = User::whereHas('roles', fn ($q) => $q->where('code', 'ADVISOR'))
+            ->with('lab')
+            ->orderBy('full_name')
+            ->get(['id', 'full_name', 'lab_id']);
+
+        $labs = Lab::where('is_active', true)
+            ->orderBy('code')
+            ->get(['id', 'code', 'name_th']);
+
+        return view('auth.complete-profile', [
+            'user' => $user,
+            'advisors' => $advisors,
+            'labs' => $labs,
+        ]);
     }
 
     public function update(CompleteProfileRequest $request): RedirectResponse
@@ -32,12 +45,13 @@ final class CompleteProfileController extends Controller
             'person_code_encrypted' => $request->string('person_code')->toString(),
             'program' => $request->string('program')->toString(),
             'faculty' => $request->string('faculty')->toString(),
+            'lab_id' => $request->integer('lab_id'),
             'advisor_id' => $request->input('advisor_id'),
             'profile_completed_at' => now(),
         ]);
         $user->save();
 
-        // No dashboard yet (Phase 2) — '/' is the placeholder landing spot until then.
-        return redirect('/')->with('status', __('auth.complete_profile_success'));
+        return redirect()->intended(route('requisitions.create'))
+            ->with('status', __('auth.complete_profile_success'));
     }
 }
