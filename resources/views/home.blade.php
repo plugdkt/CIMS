@@ -5,21 +5,21 @@
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-surface border border-border rounded-xl p-5">
+        <a href="{{ route('requisitions.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
             <div class="text-xs text-ink-muted">{{ __('home.pending_requisitions') }}</div>
             <div class="font-display text-2xl font-bold mt-1">{{ $pendingRequisitions }}</div>
-        </div>
+        </a>
         @if (isset($belowReorderCount))
-            <div class="bg-surface border border-border rounded-xl p-5">
+            <a href="{{ route('reports.index', ['tab' => 'below_reorder']) }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
                 <div class="text-xs text-ink-muted">{{ __('home.below_reorder') }}</div>
                 <div class="font-display text-2xl font-bold mt-1 {{ $belowReorderCount > 0 ? 'text-warning' : '' }}">{{ $belowReorderCount }}</div>
-            </div>
+            </a>
         @endif
         @if (isset($expiringCount))
-            <div class="bg-surface border border-border rounded-xl p-5">
+            <a href="{{ route('reports.index', ['tab' => 'expiring_stock']) }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
                 <div class="text-xs text-ink-muted">{{ __('home.expiring_soon') }}</div>
                 <div class="font-display text-2xl font-bold mt-1 {{ $expiringCount > 0 ? 'text-danger' : '' }}">{{ $expiringCount }}</div>
-            </div>
+            </a>
         @endif
     </div>
 

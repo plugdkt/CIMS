@@ -25,60 +25,68 @@ final class DashboardService
     }
 
     /**
-     * Sums every action-queue this user's permissions make them responsible for
-     * (advisor decisions, scientist decisions, pending issuance); a plain requester with
-     * none of those permissions sees their own requisitions still in flight instead.
+     * Sums action-queue requisitions for warehouse managers (AUDITOR/LAB_MANAGER/ADMIN)
+     * scoped to branch; for requesters without requisition.view_all (SCIENTIST, STUDENT, STAFF),
+     * scopes strictly to their own pending requisitions (and advisees for ADVISOR).
      */
     public function pendingRequisitionsCount(User $user): int
     {
-        $hasPermission = fn (string $code) => $user->roles->flatMap(fn ($role) => $role->permissions)->contains('code', $code);
+        if ($user->can('requisition.view_all')) {
+            $count = 0;
 
-        $count = 0;
-        $matchedAnyActionQueue = false;
+            if ($user->can('requisition.approve_scientist')) {
+                $count += Requisition::where(function ($q) {
+                    $q->where('status', 'ADVISOR_APPROVED')
+                        ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
+                })
+                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+                ->count();
+            }
 
-        if ($hasPermission('requisition.approve_advisor')) {
-            $matchedAnyActionQueue = true;
-            $count += Requisition::where('advisor_id', $user->id)->where('status', 'SUBMITTED')->count();
-        }
+            if ($user->can('requisition.issue')) {
+                $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
+                    ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+                    ->count();
+            }
 
-        if ($hasPermission('requisition.approve_scientist')) {
-            $matchedAnyActionQueue = true;
-            $count += Requisition::where(function ($q) {
-                $q->where('status', 'ADVISOR_APPROVED')
-                    ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
-            })
-            ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
-            ->count();
-        }
+            if ($count > 0) {
+                return $count;
+            }
 
-        if ($hasPermission('requisition.issue')) {
-            $matchedAnyActionQueue = true;
-            $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
+            return Requisition::whereNotIn('status', ['ISSUED', 'REJECTED', 'CANCELLED'])
                 ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
                 ->count();
         }
 
-        if ($matchedAnyActionQueue) {
-            return $count;
-        }
-
-        return Requisition::where('requester_id', $user->id)
+        $count = Requisition::where('requester_id', $user->id)
             ->whereNotIn('status', ['ISSUED', 'REJECTED', 'CANCELLED'])
             ->count();
+
+        if ($user->can('requisition.approve_advisor')) {
+            $count += Requisition::where('advisor_id', $user->id)
+                ->where('status', 'SUBMITTED')
+                ->count();
+        }
+
+        return $count;
     }
 
     /**
      * User-requested 2026-09-21: the dashboard should show *what* is running low, not
      * just a count — every item genuinely below its own reorder point, cheapest
      * (lowest remaining-vs-reorder-point ratio) first, so the most urgent one is on
-     * top regardless of how many are flagged.
+     * top regardless of how many are flagged. Scoped to branch when labId is given.
      *
      * @return Collection<int, array{item: Item, balance: numeric-string}>
      */
-    public function belowReorderPointItems(): Collection
+    public function belowReorderPointItems(?int $labId = null): Collection
     {
         return Item::where('is_active', true)
             ->where('reorder_point_base', '>', 0)
+            ->when($labId !== null, fn ($q) => $q->whereHas(
+                'containers',
+                fn ($c) => $c->whereHas('location', fn ($l) => $l->where('lab_id', $labId)),
+            ))
             ->get()
             ->map(fn (Item $item) => ['item' => $item, 'balance' => $this->stockBalance->currentBalance($item)])
             ->filter(fn (array $row) => $this->stockBalance->isBelowReorderPoint($row['item'], $row['balance']))
@@ -86,26 +94,27 @@ final class DashboardService
             ->values();
     }
 
-    public function belowReorderPointCount(): int
+    public function belowReorderPointCount(?int $labId = null): int
     {
-        return $this->belowReorderPointItems()->count();
+        return $this->belowReorderPointItems($labId)->count();
     }
 
     /** @return Collection<int, Container> */
-    public function expiringWithin30DaysContainers(): Collection
+    public function expiringWithin30DaysContainers(?int $labId = null): Collection
     {
         return Container::whereIn('status', ['SEALED', 'IN_USE', 'QUARANTINE'])
             ->whereNotNull('expiry_date')
             ->whereDate('expiry_date', '>=', now()->toDateString())
             ->whereDate('expiry_date', '<=', now()->addDays(30)->toDateString())
+            ->when($labId !== null, fn ($q) => $q->whereHas('location', fn ($l) => $l->where('lab_id', $labId)))
             ->with('item')
             ->orderBy('expiry_date')
             ->get();
     }
 
-    public function expiringWithin30DaysCount(): int
+    public function expiringWithin30DaysCount(?int $labId = null): int
     {
-        return $this->expiringWithin30DaysContainers()->count();
+        return $this->expiringWithin30DaysContainers($labId)->count();
     }
 
     /**
@@ -117,16 +126,20 @@ final class DashboardService
      * unit), so it carries none of the cross-item-unit risk the ranking metric avoids.
      * Grouped/summed in PHP with BCMath (AGENT RULE #2/#3 — no float math on
      * quantities, no raw SQL), which is fine at this app's scale (issue_transactions
-     * is a low-write-volume table).
+     * is a low-write-volume table). Scoped to branch when labId is given.
      *
      * @return Collection<int, array{item: Item, issue_count: int, qty_issued: string}>
      */
-    public function topIssuedItems(int $limit = 10): Collection
+    public function topIssuedItems(int $limit = 10, ?int $labId = null): Collection
     {
         /** @var array<int, array{count: int, qty: string}> $byItem */
         $byItem = [];
 
         IssueTransaction::where('issued_at', '>=', now()->subMonths(3))
+            ->when($labId !== null, fn ($q) => $q->whereHas(
+                'requisitionItem.requisition',
+                fn ($r) => $r->where('lab_id', $labId),
+            ))
             ->with('requisitionItem:id,item_id')
             ->get(['id', 'requisition_item_id', 'qty_issued_base'])
             ->each(function (IssueTransaction $row) use (&$byItem) {
@@ -161,15 +174,19 @@ final class DashboardService
     /**
      * Trailing 12 months, oldest first, each month's issue-transaction count — same
      * frequency-not-quantity reasoning as {@see topIssuedItems()}, grouped in PHP for
-     * the same AGENT RULE #3 reason.
+     * the same AGENT RULE #3 reason. Scoped to branch when labId is given.
      *
      * @return Collection<int, array{month: Carbon, count: int}>
      */
-    public function monthlyIssuanceSeries(): Collection
+    public function monthlyIssuanceSeries(?int $labId = null): Collection
     {
         $since = now()->startOfMonth()->subMonths(11);
 
         $counts = IssueTransaction::where('issued_at', '>=', $since)
+            ->when($labId !== null, fn ($q) => $q->whereHas(
+                'requisitionItem.requisition',
+                fn ($r) => $r->where('lab_id', $labId),
+            ))
             ->get(['issued_at'])
             ->pluck('issued_at')
             ->countBy(fn (Carbon $issuedAt) => $issuedAt->format('Y-m'));

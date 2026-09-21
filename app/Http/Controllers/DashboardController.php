@@ -21,18 +21,20 @@ final class DashboardController extends Controller
             return view('welcome');
         }
 
+        $labId = $user->isBranchManager() ? $user->lab_id : null;
+
         $data = ['pendingRequisitions' => $dashboard->pendingRequisitionsCount($user)];
 
         if ($user->can('report.view')) {
-            $belowReorderItems = $dashboard->belowReorderPointItems();
-            $expiringContainers = $dashboard->expiringWithin30DaysContainers();
+            $belowReorderItems = $dashboard->belowReorderPointItems($labId);
+            $expiringContainers = $dashboard->expiringWithin30DaysContainers($labId);
 
             $data['belowReorderCount'] = $belowReorderItems->count();
             $data['belowReorderItems'] = $belowReorderItems->take(5);
             $data['expiringCount'] = $expiringContainers->count();
             $data['expiringContainers'] = $expiringContainers->take(5);
-            $data['topItems'] = $dashboard->topIssuedItems();
-            $data['monthlySeries'] = $dashboard->monthlyIssuanceSeries();
+            $data['topItems'] = $dashboard->topIssuedItems(10, $labId);
+            $data['monthlySeries'] = $dashboard->monthlyIssuanceSeries($labId);
         }
 
         return view('home', $data);

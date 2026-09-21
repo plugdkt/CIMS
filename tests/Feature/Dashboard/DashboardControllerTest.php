@@ -68,3 +68,56 @@ test('§7.9 (user-requested 2026-09-21): the dashboard names which items are act
         ->assertSee('สารใกล้หมดสำหรับทดสอบ')
         ->assertSee('สารใกล้หมดอายุสำหรับทดสอบ');
 });
+
+test('dashboard: a SCIENTIST only sees their own pending requisitions count', function () {
+    $scientist = scientistUser();
+    $student = studentUser();
+
+    // Student has an approved requisition in the system
+    makeRequisition($student, ['status' => 'APPROVED']);
+
+    // Scientist has one draft/submitted requisition
+    makeRequisition($scientist, ['status' => 'SUBMITTED']);
+
+    $response = $this->actingAs($scientist)->get('/');
+    $response->assertOk()->assertViewHas('pendingRequisitions', 1);
+});
+
+test('dashboard: a warehouse manager (AUDITOR) only sees pending requisitions in their own branch', function () {
+    $labA = makeLab();
+    $labB = makeLab();
+    $auditor = auditorUser(['lab_id' => $labA->id]);
+    $studentA = studentUser(['lab_id' => $labA->id]);
+    $studentB = studentUser(['lab_id' => $labB->id]);
+
+    makeRequisition($studentA, ['lab_id' => $labA->id, 'status' => 'ADVISOR_APPROVED']);
+    makeRequisition($studentB, ['lab_id' => $labB->id, 'status' => 'ADVISOR_APPROVED']);
+
+    $response = $this->actingAs($auditor)->get('/');
+    $response->assertOk()->assertViewHas('pendingRequisitions', 1);
+});
+
+test('dashboard: a warehouse manager (AUDITOR) only sees expiring containers from their own branch', function () {
+    $labA = makeLab();
+    $labB = makeLab();
+    $locA = makeLocationForLab($labA);
+    $locB = makeLocationForLab($labB);
+    $auditor = auditorUser(['lab_id' => $labA->id]);
+
+    $item = makeItem();
+    makeContainer([
+        'item_id' => $item->id,
+        'location_id' => $locA->id,
+        'status' => 'IN_USE',
+        'expiry_date' => now()->addDays(5)->toDateString(),
+    ]);
+    makeContainer([
+        'item_id' => $item->id,
+        'location_id' => $locB->id,
+        'status' => 'IN_USE',
+        'expiry_date' => now()->addDays(5)->toDateString(),
+    ]);
+
+    $response = $this->actingAs($auditor)->get('/');
+    $response->assertOk()->assertViewHas('expiringCount', 1);
+});

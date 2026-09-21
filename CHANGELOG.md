@@ -2001,3 +2001,22 @@ lacked an explicit controller-level authorization gate.
   - Updated `GoodsReceiptCrudTest`: Asserted scientists/students get 403 on GRN endpoints; updated valid operations to use `AUDITOR`.
   - Updated `ChemicalPropertiesWorkflowTest`: Used `AUDITOR` to access `/stock-in/create`.
 - Verified: Live database synced; Pint clean; full test suites green.
+
+## Post-launch — Scope Dashboard requisitions and analytics cards to branch / user (2026-09-21)
+
+User-reported: "หน้า dashboard ด้วยนะครับ"
+Following the earlier requisition and warehouse scoping changes, the main dashboard (`/`) still had:
+1. `pendingRequisitionsCount`: Counted pending approved requisitions system-wide for scientists because they held `requisition.issue`, rather than counting only their own pending requisitions.
+2. Analytics cards (`belowReorderPointItems`, `expiringWithin30DaysContainers`, `topIssuedItems`, `monthlyIssuanceSeries`): Were evaluated globally without branch scoping, causing warehouse managers (`AUDITOR`) to see inventory and alerts from all branches.
+
+- **`DashboardService`**:
+  - `pendingRequisitionsCount`: Non-warehouse managers (users without `requisition.view_all`) now strictly count only their own pending requisitions (plus advisees for `ADVISOR`). Warehouse managers (`AUDITOR`/`LAB_MANAGER`) count pending requisitions within their branch (`lab_id`).
+  - `belowReorderPointItems`, `expiringWithin30DaysContainers`, `topIssuedItems`, `monthlyIssuanceSeries`: Added optional `$labId` parameter to filter by the user's branch.
+- **`DashboardController`**:
+  - Passes `$labId = $user->isBranchManager() ? $user->lab_id : null` to all dashboard analytics calls.
+- **`home.blade.php`**:
+  - Made the top metric cards ("ใบเบิกรอดำเนินการ", "รายการต่ำกว่าจุดสั่งซื้อ", "ภาชนะใกล้หมดอายุ") clickable links to direct users to their respective index/reports pages.
+- **`DashboardControllerTest`**:
+  - Added test verifying scientists only see their own pending requisitions count.
+  - Added tests verifying warehouse managers (`AUDITOR`) only see pending requisitions and expiring containers within their branch.
+- Verified: Pint clean; full test suite green.
