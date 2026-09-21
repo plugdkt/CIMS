@@ -12,4 +12,6 @@ return [
     'inactive' => 'ปิดใช้งาน',
     'no_role_badge' => 'ยังไม่มีสิทธิ์',
     'no_results' => 'ไม่พบผู้ใช้งานที่ค้นหา',
+    'tab_students' => 'นิสิต',
+    'tab_unassigned' => 'ไม่ระบุสาขา',
 ];

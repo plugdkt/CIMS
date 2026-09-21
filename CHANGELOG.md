@@ -1614,4 +1614,37 @@ code (vs. its own numeric `002`).
   made to `users:import-msc-acc` itself for it — flag this if a third lab-provisioning
   path is ever added and reuses either naming convention.
 
+## Post-launch — `/admin/users`: split personnel into per-branch tabs, plus a student tab (2026-09-21)
+
+User-requested: the flat, single paginated list mixed every account together regardless of
+role or branch, making it hard to find "everyone in ชีวเคมี" or "just the students" once the
+roster grew past a hundred real people (post `users:import-msc-acc`).
+
+- **`UserRoleManager` now renders one tab per active `Lab`** (label = `name_th`, live count
+  of non-student users assigned to it), **a `นิสิต` tab** that shows every STUDENT-role user
+  regardless of `lab_id` (a student's own branch isn't the useful axis for finding them here
+  the way it is for staff/scientists — and lab tabs deliberately exclude students via
+  `whereDoesntHave('roles', ... 'STUDENT')`, so nobody appears in two tabs at once), and
+  **an `ไม่ระบุสาขา` catch-all tab** for anyone with no `lab_id` who also isn't a student —
+  ADMIN/AUDITOR accounts, or a freshly-provisioned roleless one with no branch assigned yet.
+  Every existing action (role toggle, lab reassignment, active/inactive toggle) works
+  unchanged inside any tab — only which rows are visible changed, not what can be done to
+  them. `#[Url] public string $tab` keeps the selected tab bookmarkable/shareable, matching
+  the same live-tab convention already used by `ReportsDashboard`.
+- **Real bug caught by PHPStan, not by eye**: `Lab::firstOrCreate`/computed-array keys built
+  from `(string) $lab->id` get silently coerced back to an **int** array key by PHP's own
+  array semantics (a numeric-string key always becomes an int key) — so the view's original
+  `$tab === $key` comparison (`$tab` a genuine string property) would have **never matched
+  any lab tab**, only the string-literal `students`/`unassigned` keys, leaving every lab tab
+  permanently un-highlighted regardless of which one was actually selected. Fixed by
+  comparing against `(string) $key` in the view instead; regression-tested by asserting the
+  rendered `<button>` for a specific lab actually carries the active CSS class when selected.
+- Verified: 5 new `UserRoleManagerTest` cases (personnel correctly split per branch and never
+  leak a student into a lab tab; the student tab ignores branch entirely; the unassigned tab
+  catches ADMIN/AUDITOR-style accounts; the tab bar's live counts are correct; the
+  active-tab-highlight regression above). Full suite green aside from the already-flagged,
+  pre-existing `ImportMscAccUsersCommandTest` DB-grant failures (see the QA finding doc two
+  entries up — unrelated to this change). Pint clean (363 files), PHPStan level 8 clean
+  (0 errors), `composer audit` clean.
+
 

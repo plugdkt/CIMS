@@ -4,6 +4,16 @@
         <p class="text-sm text-ink-muted mt-1">{{ __('admin.users_subtitle') }}</p>
     </div>
 
+    <div class="flex flex-wrap gap-2 mb-5 border-b border-border pb-4">
+        @foreach ($this->tabs as $key => $meta)
+            <button type="button" wire:click="selectTab('{{ $key }}')"
+                    class="px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors {{ $tab === (string) $key ? 'bg-accent text-white' : 'bg-surface-alt text-ink-muted hover:text-ink' }}">
+                {{ $meta['label'] }}
+                <span class="ml-1 opacity-75">({{ $meta['count'] }})</span>
+            </button>
+        @endforeach
+    </div>
+
     <div class="mb-4">
         <input type="text" wire:model.live.debounce.300ms="search" placeholder="{{ __('admin.search_placeholder') }}"
                class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">

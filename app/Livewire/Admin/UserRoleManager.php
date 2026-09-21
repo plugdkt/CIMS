@@ -9,9 +9,11 @@ use App\Models\Lab;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -19,11 +21,24 @@ use Livewire\WithPagination;
  * FR-AU-07: assign/remove roles, toggle is_active — ADMIN only (enforced via UserPolicy).
  * No #[Title] attribute: PHP attribute arguments can't call __() (rule #11 bars hardcoded
  * Thai), so the browser tab falls back to the layout's default app-name title.
+ *
+ * User-requested 2026-09-21: personnel split into one tab per branch (Lab), plus a
+ * dedicated "นิสิต" (student) tab that ignores `lab_id` entirely (a student's branch
+ * doesn't matter for finding them here the way it does for staff/scientists), plus a
+ * catch-all "ไม่ระบุสาขา" tab so no account — ADMIN/AUDITOR, or a freshly-provisioned
+ * roleless one with no branch yet — is ever unreachable from this page.
  */
 #[Layout('components.layout')]
 final class UserRoleManager extends Component
 {
     use WithPagination;
+
+    private const TAB_STUDENTS = 'students';
+
+    private const TAB_UNASSIGNED = 'unassigned';
+
+    #[Url]
+    public string $tab = '';
 
     public string $search = '';
 
@@ -35,6 +50,17 @@ final class UserRoleManager extends Component
     public function mount(): void
     {
         $this->authorize('viewAny', User::class);
+
+        if ($this->tab === '') {
+            $firstLab = $this->labs()->first();
+            $this->tab = $firstLab !== null ? (string) $firstLab->id : self::TAB_STUDENTS;
+        }
+    }
+
+    public function selectTab(string $tab): void
+    {
+        $this->tab = $tab;
+        $this->resetPage();
     }
 
     /** @return Collection<int, Role> */
@@ -48,7 +74,51 @@ final class UserRoleManager extends Component
     #[Computed]
     public function labs(): Collection
     {
-        return Lab::orderBy('name_th')->get();
+        return Lab::where('is_active', true)->orderBy('name_th')->get();
+    }
+
+    /**
+     * One tab per active Lab (personnel — everyone except students, scoped to that
+     * branch), then the student tab, then the unassigned catch-all — each with a
+     * live count so the tab bar itself shows where people actually are.
+     *
+     * @return array<int|string, array{label: string, count: int}>
+     */
+    #[Computed]
+    public function tabs(): array
+    {
+        $tabs = [];
+
+        foreach ($this->labs() as $lab) {
+            $tabs[(string) $lab->id] = [
+                'label' => $lab->name_th,
+                'count' => $this->personnelQuery()->where('lab_id', $lab->id)->count(),
+            ];
+        }
+
+        $tabs[self::TAB_STUDENTS] = [
+            'label' => (string) __('admin.tab_students'),
+            'count' => $this->studentsQuery()->count(),
+        ];
+
+        $tabs[self::TAB_UNASSIGNED] = [
+            'label' => (string) __('admin.tab_unassigned'),
+            'count' => $this->personnelQuery()->whereNull('lab_id')->count(),
+        ];
+
+        return $tabs;
+    }
+
+    /** @return Builder<User> every user who is not a STUDENT (personnel: staff/scientist/lab manager/etc). */
+    private function personnelQuery(): Builder
+    {
+        return User::query()->whereDoesntHave('roles', fn ($q) => $q->where('code', 'STUDENT'));
+    }
+
+    /** @return Builder<User> */
+    private function studentsQuery(): Builder
+    {
+        return User::query()->whereHas('roles', fn ($q) => $q->where('code', 'STUDENT'));
     }
 
     /** Branch assignment (`users.lab_id`) — who belongs to which lab, per the multi-branch
@@ -129,7 +199,11 @@ final class UserRoleManager extends Component
 
     public function render(): View
     {
-        $users = User::query()
+        $users = (match ($this->tab) {
+            self::TAB_STUDENTS => $this->studentsQuery(),
+            self::TAB_UNASSIGNED => $this->personnelQuery()->whereNull('lab_id'),
+            default => $this->personnelQuery()->where('lab_id', (int) $this->tab),
+        })
             ->with('roles')
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($q) {
