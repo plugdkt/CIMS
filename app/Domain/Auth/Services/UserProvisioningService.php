@@ -22,13 +22,15 @@ final class UserProvisioningService
         $isNewUser = $user === null;
 
         if ($isNewUser) {
-            // A bulk import (php artisan users:import-lab-assignments) may have
-            // already pre-created this username's account — lab_id set, but
-            // sso_subject still null, since a `users` row otherwise can't exist
-            // ahead of a real SSO login at all (no admin "create user" flow).
-            // Claim that row instead of creating a duplicate one for the same
-            // person; every field it doesn't already carry (ulid, is_active) is
-            // filled in exactly like a genuinely new row.
+            // A `users` row can be pre-created ahead of a real SSO login (no admin
+            // "create user" flow exists otherwise) with `sso_subject` left null —
+            // e.g. `php artisan users:import-msc-acc` normally sets a real
+            // sso_subject directly from the source database's own id_user, but any
+            // future bulk-provisioning path that can't determine that value yet
+            // may leave it null instead. Claim such a row by username rather than
+            // creating a duplicate account for the same person; every field it
+            // doesn't already carry (ulid, is_active) is filled in exactly like a
+            // genuinely new row.
             $user = User::where('username', $data->username)->whereNull('sso_subject')->first()
                 ?? new User();
             $user->sso_subject = $data->subject;

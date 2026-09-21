@@ -1579,4 +1579,39 @@ instead, which is what this feature imports.
   - Executed live against `account_medsci`: 106 new users imported, 2 existing users updated, giving CMIS a total of 108 faculty personnel ready with roles and lab assignments across all 6 departments.
   - Verified: `ImportMscAccUsersCommandTest` (4 tests, 31 assertions covering database connection failure handling, `--dry-run` preview mode, deduplication, role assignment, lab mapping, fallback email synthesis, existing-user preservation, and `AuditLog` logging). Pint clean, PHPStan level 8 clean (0 errors).
 
+## Post-launch — Removed `users:import-lab-assignments`, superseded by `users:import-msc-acc` (2026-09-21)
+
+Both commands landed independently on the same day (2026-09-18) solving the same problem
+(bulk-assign `users.lab_id` from a real personnel roster) with two genuinely conflicting
+policies: this command excluded "สำนักงานธุรการ" from becoming a Lab and never touched
+CMIS roles (both explicit user decisions at the time); `users:import-msc-acc` includes it
+as Lab code `001` and auto-assigns SCIENTIST/STAFF/ADVISOR from job title. Running both
+against the same database would also have silently created a **duplicate Lab** for
+จุลชีววิทยา/จุลชีววิทยาและปรสิตวิทยา — `users:import-msc-acc` looks up an existing Lab by
+the short name "จุลชีววิทยา", which never matches this command's Lab record (created
+with the export's full department name, "จุลชีววิทยาและปรสิตวิทยา") or its `LAB-MICRO`
+code (vs. its own numeric `002`).
+
+- User-decided 2026-09-21, informed by a live comparison of both commands: standardize on
+  `users:import-msc-acc` going forward — it reads the real MEDSCI ACC database directly
+  (`account_medsci`'s own `user`/`position`/`division` tables, with real numeric IDs), a
+  stronger source of truth than the manually-exported CSV this command was built against.
+  Already run for real against a real `account_medsci` instance (106 users), unlike this
+  command's own dev-database-only run.
+- **Removed**: `app/Console/Commands/ImportLabAssignmentsCommand.php`,
+  `tests/Feature/Labs/ImportLabAssignmentsCommandTest.php`, and the now-unused
+  `/storage/app/_staff_imports/` `.gitignore` entry.
+- **Kept**: `UserProvisioningService::provision()`'s "claim a pre-created row with a
+  still-null `sso_subject` by username on first real login" behavior, and the
+  `sso_subject`-nullable migration underneath it — both are general-purpose and harmless
+  regardless of which command pre-creates a row this way. `users:import-msc-acc` doesn't
+  currently need this path (it always sets a real `sso_subject` from `id_user` directly),
+  but nothing about removing this command required reverting it, and doing so would have
+  meant destructively cleaning up this session's own dev-database rows with a null
+  `sso_subject` first for no real benefit.
+- **Not otherwise reconciled**: the Lab-duplication risk above (name/code mismatch between
+  the two commands' conventions) is now moot since only one command remains, so no fix was
+  made to `users:import-msc-acc` itself for it — flag this if a third lab-provisioning
+  path is ever added and reuses either naming convention.
+
 

@@ -104,7 +104,7 @@ test('an authenticated user with no role gets HTTP 403 on any route except pendi
     $this->actingAs($user)->get(route('account.pending-role'))->assertOk();
 });
 
-test('a pre-created account (from users:import-lab-assignments) is claimed, not duplicated, on its first real login', function () {
+test('a pre-created account with sso_subject still null is claimed by username, not duplicated, on its first real login', function () {
     $lab = Lab::create(['code' => 'LAB-PHYSIO', 'name_th' => 'สรีรวิทยา', 'is_active' => true]);
     $preCreated = User::create([
         'ulid' => (string) \Illuminate\Support\Str::ulid(),
