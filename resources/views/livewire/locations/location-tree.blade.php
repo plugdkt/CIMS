@@ -11,11 +11,17 @@
         @endif
     </div>
 
-    <div class="bg-surface border border-border rounded-xl p-4">
-        @forelse ($roots as $root)
-            @include('livewire.locations._node', ['location' => $root, 'byParent' => $byParent, 'conflictIds' => $conflictIds, 'canManage' => $canManage, 'depth' => 0])
-        @empty
-            <p class="text-sm text-ink-muted px-2 py-4">{{ __('locations.no_results') }}</p>
-        @endforelse
-    </div>
+    @if ($noOwnLab)
+        <div class="rounded-lg bg-warning-soft text-warning-ink text-sm px-4 py-3">
+            {{ __('locations.no_own_lab') }}
+        </div>
+    @else
+        <div class="bg-surface border border-border rounded-xl p-4">
+            @forelse ($roots as $root)
+                @include('livewire.locations._node', ['location' => $root, 'byParent' => $byParent, 'conflictIds' => $conflictIds, 'canManage' => $canManage, 'depth' => 0])
+            @empty
+                <p class="text-sm text-ink-muted px-2 py-4">{{ __('locations.no_results') }}</p>
+            @endforelse
+        </div>
+    @endif
 </div>

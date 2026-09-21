@@ -21,10 +21,12 @@ beforeEach(function () {
     $this->student->roles()->attach(\App\Models\Role::where('code', 'STUDENT')->first());
 
     $this->unitG = Unit::where('code', 'g')->first() ?? Unit::create(['name_th' => 'กรัม', 'code' => 'g', 'sort_order' => 1]);
+    $this->lab = makeLab();
     $this->location = Location::create([
         'name' => 'ตู้เก็บสารเคมี A1',
         'code' => 'CAB-A1',
-        'type' => 'CABINET',
+        'level_type' => 'CABINET',
+        'lab_id' => $this->lab->id,
     ]);
 
     $this->item = Item::create([

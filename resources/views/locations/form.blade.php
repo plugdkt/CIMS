@@ -23,9 +23,15 @@
             </div>
         @endif
 
+        @if ($lab === null)
+            <div class="rounded-lg bg-warning-soft text-warning-ink text-sm px-4 py-3">
+                {{ __('locations.no_own_lab') }}
+            </div>
+        @else
         <form method="POST" action="{{ $location->exists ? route('locations.update', $location) : route('locations.store') }}" class="bg-surface border border-border rounded-xl p-6 space-y-4">
             @csrf
             @if ($location->exists) @method('PUT') @endif
+            <input type="hidden" name="lab_id" value="{{ $lab->id }}">
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -73,13 +79,8 @@
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-1" for="lab_id">{{ __('locations.field_lab') }}</label>
-                    <select name="lab_id" id="lab_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                        <option value="">{{ __('items.select_placeholder') }}</option>
-                        @foreach ($labs as $lab)
-                            <option value="{{ $lab->id }}" @selected((int) old('lab_id', $location->lab_id) === $lab->id)>{{ $lab->name_th }}</option>
-                        @endforeach
-                    </select>
+                    <span class="block text-sm font-medium mb-1">{{ __('locations.field_lab') }}</span>
+                    <p class="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-ink-muted">{{ $lab->name_th }}</p>
                 </div>
             </div>
 
@@ -89,5 +90,6 @@
                 </button>
             </div>
         </form>
+        @endif
     </div>
 </x-layout>

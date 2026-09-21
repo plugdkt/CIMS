@@ -12,75 +12,78 @@ test('a user without location.manage gets 403 on the location index', function (
     $this->actingAs($scientist)->get(route('locations.create'))->assertStatus(403);
 });
 
-test('LAB_MANAGER can create a BUILDING with no parent', function () {
-    $manager = labManagerUser();
+test('a LAB_MANAGER can create a location with no parent at any level, not just BUILDING', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
 
     $response = $this->actingAs($manager)->post(route('locations.store'), [
-        'code' => 'BLD-A',
-        'name' => 'อาคาร A',
-        'level_type' => 'BUILDING',
+        'code' => 'SHELF-STANDALONE',
+        'name' => 'ชั้นวางอิสระ',
+        'level_type' => 'SHELF',
+        'lab_id' => $lab->id,
     ]);
 
-    $building = Location::where('code', 'BLD-A')->first();
-    expect($building)->not->toBeNull();
-    expect($building->parent_id)->toBeNull();
-    $response->assertRedirect(route('locations.edit', $building));
+    $shelf = Location::where('code', 'SHELF-STANDALONE')->first();
+    expect($shelf)->not->toBeNull();
+    expect($shelf->parent_id)->toBeNull();
+    $response->assertRedirect(route('locations.edit', $shelf));
 });
 
-test('a BUILDING with a parent is rejected', function () {
-    $manager = labManagerUser();
-    $building = Location::create(['code' => 'BLD-B', 'name' => 'อาคาร B', 'level_type' => 'BUILDING']);
+test('a location can parent to any other level in the same branch, not just the level directly above', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $building = Location::create(['code' => 'BLD-A', 'name' => 'อาคาร A', 'level_type' => 'BUILDING', 'lab_id' => $lab->id]);
 
+    // A SHELF parenting directly to a BUILDING, skipping ROOM/CABINET entirely.
     $this->actingAs($manager)->post(route('locations.store'), [
-        'code' => 'BLD-C',
-        'name' => 'อาคาร C',
-        'level_type' => 'BUILDING',
+        'code' => 'SHELF-A',
+        'name' => 'ชั้นวาง A',
+        'level_type' => 'SHELF',
         'parent_id' => $building->id,
-    ])->assertSessionHasErrors('parent_id');
+        'lab_id' => $lab->id,
+    ])->assertSessionDoesntHaveErrors('parent_id');
+
+    expect(Location::where('code', 'SHELF-A')->first()->parent_id)->toBe($building->id);
 });
 
-test('a ROOM without a parent is rejected', function () {
-    $manager = labManagerUser();
+test('a location cannot parent to a location in a different branch', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $otherBuilding = Location::create(['code' => 'BLD-OTHER', 'name' => 'อาคารสาขาอื่น', 'level_type' => 'BUILDING', 'lab_id' => $otherLab->id]);
 
     $this->actingAs($manager)->post(route('locations.store'), [
-        'code' => 'ROOM-A',
-        'name' => 'ห้อง A',
+        'code' => 'ROOM-CROSS',
+        'name' => 'ห้องข้ามสาขา',
         'level_type' => 'ROOM',
+        'parent_id' => $otherBuilding->id,
+        'lab_id' => $lab->id,
     ])->assertSessionHasErrors('parent_id');
-});
 
-test('a ROOM whose parent is not a BUILDING is rejected', function () {
-    $manager = labManagerUser();
-    $building = Location::create(['code' => 'BLD-D', 'name' => 'อาคาร D', 'level_type' => 'BUILDING']);
-    $room = Location::create(['code' => 'ROOM-D', 'name' => 'ห้อง D', 'level_type' => 'ROOM', 'parent_id' => $building->id]);
-    $cabinet = Location::create(['code' => 'CAB-D', 'name' => 'ตู้ D', 'level_type' => 'CABINET', 'parent_id' => $room->id]);
-
-    $this->actingAs($manager)->post(route('locations.store'), [
-        'code' => 'ROOM-E',
-        'name' => 'ห้อง E',
-        'level_type' => 'ROOM',
-        'parent_id' => $cabinet->id,
-    ])->assertSessionHasErrors('parent_id');
+    expect(Location::where('code', 'ROOM-CROSS')->exists())->toBeFalse();
 });
 
 test('code must be unique', function () {
-    $manager = labManagerUser();
-    Location::create(['code' => 'BLD-F', 'name' => 'อาคาร F', 'level_type' => 'BUILDING']);
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    Location::create(['code' => 'BLD-F', 'name' => 'อาคาร F', 'level_type' => 'BUILDING', 'lab_id' => $lab->id]);
 
     $this->actingAs($manager)->post(route('locations.store'), [
         'code' => 'BLD-F',
         'name' => 'อาคาร F ซ้ำ',
         'level_type' => 'BUILDING',
+        'lab_id' => $lab->id,
     ])->assertSessionHasErrors('code');
 });
 
 test('saving a location with a storage_class that conflicts with a sibling flashes a BR-10 warning', function () {
-    $manager = labManagerUser();
-    $building = Location::create(['code' => 'BLD-G', 'name' => 'อาคาร G', 'level_type' => 'BUILDING']);
-    $room = Location::create(['code' => 'ROOM-G', 'name' => 'ห้อง G', 'level_type' => 'ROOM', 'parent_id' => $building->id]);
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $building = Location::create(['code' => 'BLD-G', 'name' => 'อาคาร G', 'level_type' => 'BUILDING', 'lab_id' => $lab->id]);
+    $room = Location::create(['code' => 'ROOM-G', 'name' => 'ห้อง G', 'level_type' => 'ROOM', 'parent_id' => $building->id, 'lab_id' => $lab->id]);
     Location::create([
         'code' => 'CAB-G1', 'name' => 'ตู้กรด', 'level_type' => 'CABINET',
-        'parent_id' => $room->id, 'storage_class' => 'ACID',
+        'parent_id' => $room->id, 'storage_class' => 'ACID', 'lab_id' => $lab->id,
     ]);
 
     $response = $this->actingAs($manager)->post(route('locations.store'), [
@@ -89,6 +92,7 @@ test('saving a location with a storage_class that conflicts with a sibling flash
         'level_type' => 'CABINET',
         'parent_id' => $room->id,
         'storage_class' => 'BASE',
+        'lab_id' => $lab->id,
     ]);
 
     $response->assertSessionHas('conflicts', ['ACID']);
@@ -125,12 +129,30 @@ test('branch scoping: a LAB_MANAGER gets 403 editing a location in a different b
     $this->actingAs($manager)->get(route('locations.edit', $otherBuilding))->assertStatus(403);
 });
 
-test('LAB_MANAGER can view the location tree', function () {
-    $manager = labManagerUser();
-    $building = Location::create(['code' => 'BLD-H', 'name' => 'อาคาร H', 'level_type' => 'BUILDING']);
+test('the location tree only shows the viewer\'s own branch, never another branch\'s locations', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $ownBuilding = Location::create(['code' => 'BLD-OWN2', 'name' => 'อาคารสาขาตนเอง', 'level_type' => 'BUILDING', 'lab_id' => $lab->id]);
+    $otherBuilding = Location::create(['code' => 'BLD-OTHER2', 'name' => 'อาคารสาขาอื่น', 'level_type' => 'BUILDING', 'lab_id' => $otherLab->id]);
 
     $this->actingAs($manager)
         ->get(route('locations.index'))
         ->assertOk()
-        ->assertSee($building->name);
+        ->assertSee($ownBuilding->name)
+        ->assertDontSee($otherBuilding->name);
+});
+
+test('a branch manager with no lab_id assigned sees a clear message instead of an empty tree', function () {
+    $manager = labManagerUser(['lab_id' => null]);
+
+    $this->actingAs($manager)
+        ->get(route('locations.index'))
+        ->assertOk()
+        ->assertSee(__('locations.no_own_lab'));
+
+    $this->actingAs($manager)
+        ->get(route('locations.create'))
+        ->assertOk()
+        ->assertSee(__('locations.no_own_lab'));
 });

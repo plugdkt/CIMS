@@ -1744,3 +1744,52 @@ widen the page to also manage SCIENTIST membership, the same way as STUDENT/STAF
   - `resources/views/auth/complete-profile.blade.php`: Added branch selection dropdown and enhanced advisor dropdown to display the advisor's branch name.
   - `lang/th/auth.php`: Added localized strings for field label, help text, placeholder, and validation error messages.
   - Verified: Unit and Feature tests in `CompleteProfileTest` passing 100%; Pint clean; PHPStan level 8 clean.
+
+## Post-launch — Location tree: independent, private, freely-nested per branch (2026-09-21)
+
+User-requested: each branch (lab) should build and see its own storage tree ("ผังจัดเก็บ")
+without being confused by every other branch's locations mixed into the same list — and
+without being forced to build a strict BUILDING→ROOM→CABINET→SHELF chain, since a lab may
+just want to create a shelf record on its own with no "root" above it at all.
+
+- **The tree list is now scoped to the viewer's own branch** (`LocationTree::render()`
+  filters `where('lab_id', $user->lab_id)`) — reversing an earlier, explicit design
+  decision documented in this file ("the list stays unscoped... spec never asked for a
+  lab-scoped location list"). That reasoning no longer applies once `lab_id` is required
+  on every location (see below) — there's no longer a shared, no-lab node whose children
+  a filter could silently orphan. Confirmed this is safe for every real viewer: only
+  LAB_MANAGER/AUDITOR (`User::isBranchManager()`) hold `location.manage` at all, so the
+  list was never actually shared with anyone who'd need to see more than one branch.
+- **`locations.lab_id` is now `NOT NULL`** (new migration) — user-confirmed: every storage
+  location belongs to exactly one branch, no more shared/unscoped nodes. Safe with zero
+  data loss (the table had exactly one row, already carrying a `lab_id`, at the time of
+  this change).
+- **Strict level-nesting removed** (user-confirmed: "อนุญาตได้อิสระ" — allow free
+  parenting) — `LocationRequest::REQUIRED_PARENT_LEVEL` (which forced e.g. a CABINET's
+  parent to be exactly a ROOM, and only a BUILDING could have no parent at all) is gone.
+  A location at any level may now have no parent, or parent to *any* other location —
+  the only remaining rule is that a parent must be in the **same branch** (a location can
+  never cross into another lab's tree, which would defeat the whole point of this change).
+- **The create/edit form no longer offers a lab picker** — since every `location.manage`
+  holder is a branch manager with exactly one lab, letting them "choose" a lab (then
+  rejecting anything but their own) was pointless friction. `lab_id` is now a hidden field
+  auto-set to the manager's own branch; the `parent_id` dropdown is pre-filtered to that
+  same branch's own locations. A manager with no `lab_id` assigned yet sees a clear
+  "contact an administrator" message instead of a confusing empty tree or a validation
+  error on submit (mirrors `LabMemberManager`'s existing `no_own_lab` pattern).
+- **Removed the per-node "lab name" caption** in the tree view — with the list now scoped
+  to one branch, every row is trivially the viewer's own lab, so repeating that on every
+  row was noise, not information.
+- Verified: rewrote `LocationCrudTest` (10 tests) — a location can be created standalone at
+  any level, not just BUILDING; a location can parent to any other level in the same
+  branch; a location cannot parent to a different branch's location; the tree list only
+  shows the viewer's own branch; a branch manager with no `lab_id` sees the clear message
+  on both the index and create pages — alongside the pre-existing code-uniqueness/BR-10-
+  conflict/branch-scoped-edit tests, updated for the now-required `lab_id`. Also fixed a
+  real, unrelated, newly-surfaced fixture bug while verifying: `StockInTest`'s `beforeEach`
+  created a `Location` with a wrong key (`'type'` instead of `'level_type'`) and no
+  `lab_id` at all — previously silent (MariaDB's non-strict defaults let it through with a
+  blank `level_type` and `lab_id = NULL`), now loudly rejected by the new `NOT NULL`
+  constraint; fixed alongside this change since every test in that file depended on it.
+  Full suite green (513 tests), Pint clean (366 files), PHPStan level 8 clean (0 errors),
+  `composer audit` clean.

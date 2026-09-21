@@ -22,9 +22,6 @@
                     </span>
                 @endif
             </div>
-            @if ($location->lab)
-                <div class="text-xs text-ink-faint mt-0.5">{{ $location->lab->name_th }}</div>
-            @endif
         </div>
         @if ($canManage)
             <a href="{{ route('locations.edit', $location) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
