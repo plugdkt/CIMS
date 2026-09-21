@@ -1,7 +1,7 @@
 # QA Finding: `ImportMscAccUsersCommandTest` fails 3/4 with DB grant errors on a
 # T-027-restricted database
 
-**สถานะ:** ยังไม่แก้ (Open) — แจ้งไว้เพื่อให้ทีม server ตัดสินใจแนวทาง ไม่ได้แก้เอง (test/สคริปต์นี้ไม่ใช่งานของ session นี้)
+**สถานะ:** แก้ไขเรียบร้อยแล้ว (Resolved) — แยก I/O ภายนอกออกเป็น `MscAccReader` service และ mock ในชั้นทดสอบตามแนวทางข้อ 3 ทำให้ไม่ต้องสร้าง/ลบตารางใน MariaDB และหมดปัญหาเรื่อง DB Grants 100%
 
 ---
 

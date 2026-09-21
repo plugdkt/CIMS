@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Domain\Auth\Services\MscAccReader;
 use App\Models\AuditLog;
 use App\Models\Lab;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -21,14 +21,7 @@ use Illuminate\Support\Str;
  * STAFF/ADVISOR for lecturers, STAFF for general personnel), and preserves
  * existing user roles and lab assignments.
  *
- * @phpstan-type MscAccUserRow object{
- *     id_user: int|string,
- *     name_user: string,
- *     username: string,
- *     email: string|null,
- *     pos_name: string|null,
- *     div_name: string|null
- * }
+ * @phpstan-import-type MscAccUserRow from MscAccReader
  */
 final class ImportMscAccUsersCommand extends Command
 {
@@ -49,7 +42,7 @@ final class ImportMscAccUsersCommand extends Command
         'โภชนาการ' => ['code' => '006', 'name' => 'โภชนาการ'],
     ];
 
-    public function handle(): int
+    public function handle(MscAccReader $reader): int
     {
         $dbName = (string) $this->option('database');
         $dryRun = (bool) $this->option('dry-run');
@@ -57,25 +50,7 @@ final class ImportMscAccUsersCommand extends Command
         $this->info("กำลังเชื่อมต่อฐานข้อมูล: {$dbName}...");
 
         try {
-            config(['database.connections.msc_acc' => array_merge(config('database.connections.mysql'), [
-                'database' => $dbName,
-            ])]);
-
-            /** @var \Illuminate\Support\Collection<int, MscAccUserRow> $rawUsers */
-            $rawUsers = DB::connection('msc_acc')
-                ->table('user as u')
-                ->leftJoin('position as p', 'u.id_pos', '=', 'p.id_pos')
-                ->leftJoin('division as d', 'u.id_div', '=', 'd.id_div')
-                ->select([
-                    'u.id_user',
-                    'u.name_user',
-                    'u.username',
-                    'u.email',
-                    'p.pos_name',
-                    'd.div_name',
-                ])
-                ->orderBy('u.id_user')
-                ->get();
+            $rawUsers = $reader->getPersonnel($dbName);
         } catch (\Throwable $e) {
             $this->error("ไม่สามารถเชื่อมต่อฐานข้อมูล {$dbName}: {$e->getMessage()}");
 
