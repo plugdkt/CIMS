@@ -5,10 +5,12 @@
             <div class="flex items-center justify-between mt-1">
                 <h1 class="font-display text-lg font-bold">{{ $item->name_th }}</h1>
                 <div class="flex items-center gap-3">
-                    <a href="{{ route('stock-in.create', ['item_id' => $item->id]) }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-strong transition-colors">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-                        {{ __('stock.btn_stock_in') }}
-                    </a>
+                    @if (auth()->user()?->can('receiving.manage') || auth()->user()?->can('item.manage') || auth()->user()?->can('ledger.adjust') || auth()->user()?->hasRole('ADMIN'))
+                        <a href="{{ route('stock-in.create', ['item_id' => $item->id]) }}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-strong transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                            {{ __('stock.btn_stock_in') }}
+                        </a>
+                    @endif
                     @can('viewAny', App\Models\StockLedger::class)
                         <a href="{{ route('items.ledger', $item) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
                             {{ __('ledger.view_ledger') }}

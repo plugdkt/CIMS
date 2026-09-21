@@ -19,6 +19,9 @@ uses(RefreshDatabase::class);
 beforeEach(function () {
     $this->lab = makeLab();
 
+    $this->auditor = User::factory()->create(['lab_id' => $this->lab->id]);
+    $this->auditor->roles()->attach(Role::where('code', 'AUDITOR')->first());
+
     $this->scientist = User::factory()->create(['lab_id' => $this->lab->id]);
     $this->scientist->roles()->attach(Role::where('code', 'SCIENTIST')->first());
 
@@ -52,7 +55,7 @@ beforeEach(function () {
 });
 
 test('stock-in create view includes grade and physical_state in items JSON payload', function () {
-    $response = $this->actingAs($this->scientist)->get(route('stock-in.create'));
+    $response = $this->actingAs($this->auditor)->get(route('stock-in.create'));
 
     $response->assertOk();
     $response->assertSee('เอทานอลทดสอบ');

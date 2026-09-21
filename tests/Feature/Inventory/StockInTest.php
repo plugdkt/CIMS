@@ -22,6 +22,9 @@ beforeEach(function () {
 
     $this->unitG = Unit::where('code', 'g')->first() ?? Unit::create(['name_th' => 'กรัม', 'code' => 'g', 'sort_order' => 1]);
     $this->lab = makeLab();
+
+    $this->auditor = User::factory()->create(['lab_id' => $this->lab->id]);
+    $this->auditor->roles()->attach(\App\Models\Role::where('code', 'AUDITOR')->first());
     $this->location = Location::create([
         'name' => 'ตู้เก็บสารเคมี A1',
         'code' => 'CAB-A1',
@@ -59,8 +62,22 @@ test('students cannot perform stock-in', function () {
         ->assertForbidden();
 });
 
-test('scientist can perform bulk stock-in successfully', function () {
-    $response = $this->actingAs($this->scientist)
+test('scientists cannot perform stock-in (reserved for warehouse managers)', function () {
+    $this->actingAs($this->scientist)->get(route('stock-in.create'))->assertForbidden();
+
+    $this->actingAs($this->scientist)
+        ->post(route('stock-in.store'), [
+            'item_id' => $this->item->id,
+            'tracking_type' => 'BULK',
+            'qty' => '500',
+            'unit_id' => $this->unitG->id,
+            'location_id' => $this->location->id,
+        ])
+        ->assertForbidden();
+});
+
+test('warehouse manager (AUDITOR) can perform bulk stock-in successfully', function () {
+    $response = $this->actingAs($this->auditor)
         ->post(route('stock-in.store'), [
             'item_id' => $this->item->id,
             'tracking_type' => 'BULK',
@@ -86,8 +103,8 @@ test('scientist can perform bulk stock-in successfully', function () {
     expect((float) $ledger->balance_base)->toEqual(500.0);
 });
 
-test('scientist can perform container stock-in with multiple containers', function () {
-    $response = $this->actingAs($this->scientist)
+test('warehouse manager (AUDITOR) can perform container stock-in with multiple containers', function () {
+    $response = $this->actingAs($this->auditor)
         ->post(route('stock-in.store'), [
             'item_id' => $this->item->id,
             'tracking_type' => 'CONTAINER',
@@ -127,7 +144,7 @@ test('can render PDF barcode labels for created containers', function () {
         'status' => 'SEALED',
     ]);
 
-    $response = $this->actingAs($this->scientist)
+    $response = $this->actingAs($this->auditor)
         ->get(route('stock-in.labels', ['size' => '40x25', 'ids' => (string) $c1->id]));
 
     $response->assertOk();
@@ -148,7 +165,7 @@ test('stock-in automatically sets base_unit_id on item if it was not specified',
 
     expect($itemWithoutUnit->base_unit_id)->toBeNull();
 
-    $response = $this->actingAs($this->scientist)
+    $response = $this->actingAs($this->auditor)
         ->post(route('stock-in.store'), [
             'item_id' => $itemWithoutUnit->id,
             'tracking_type' => 'BULK',

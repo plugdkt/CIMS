@@ -30,11 +30,19 @@ final class StockInController extends Controller
 
     public function create(Request $request, ?Item $item = null): View
     {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        abort_unless(
+            $user->can('receiving.manage')
+            || $user->can('item.manage')
+            || $user->can('ledger.adjust')
+            || $user->hasRole('ADMIN'),
+            403
+        );
+
         $selectedItemId = $item instanceof Item ? $item->id : $request->query('item_id');
         $selectedItem = $selectedItemId ? Item::find($selectedItemId) : null;
 
-        /** @var \App\Models\User $user */
-        $user = $request->user();
         $locations = $user->isBranchManager()
             ? Location::where('lab_id', $user->lab_id)->orderBy('name')->get()
             : Location::orderBy('name')->get();

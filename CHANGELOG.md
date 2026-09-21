@@ -1980,3 +1980,24 @@ All other users (including students, staff, and scientists) must only see their 
   - Updated `RequisitionLabScopeTest`: Verified that AUDITOR can view requisitions within their branch and gets 403 outside their branch; verified that the requisition table only shows an AUDITOR their own branch; verified that a SCIENTIST only sees their own requisitions in the table and gets 403 viewing other users' requisitions.
   - Updated `RequisitionCrudTest`: Updated `view_all` assertion to use `auditorUser` instead of `scientistUser`.
 - Verified: Live database synced; 101/101 Pest tests green; Pint clean.
+
+## Post-launch — Restrict stock-in and receiving to Warehouse Managers (2026-09-21)
+
+User-reported: "ทำไมนักวิทย์ถึงเติมสต็อกได้หละ ผมบอกว่าให้เฉพาะผู้ดูคลังไม่ใช่ไง"
+Previously, `receiving.manage` ('รับของเข้าคลัง') was assigned to `SCIENTIST` in the initial spec grants, which permitted
+scientists to perform stock-in (`/stock-in/store`) and Goods Receipts (`/goods-receipts`). Furthermore, the "+ เติมสต็อก"
+button on the chemical detail view (`items.show`) was rendered without a permission gate, and `StockInController::create`
+lacked an explicit controller-level authorization gate.
+
+- **`PermissionSeeder`**:
+  - Removed `receiving.manage` from `SCIENTIST` role (detached in live database).
+  - Granted `receiving.manage` and `stocktake.manage` to `AUDITOR` ("ผู้ดูแลคลัง"), `LAB_MANAGER` ("หัวหน้าสาขาวิชา"), and `ADMIN`.
+- **`StockInController`**:
+  - Added authorization check in `create()` ensuring only users with `receiving.manage`, `item.manage`, `ledger.adjust`, or `ADMIN` can access `/stock-in/create`.
+- **`items.show`**:
+  - Wrapped `+ เติมสต็อก` button inside an authorization condition so non-warehouse roles (including scientists) do not see the action.
+- **Tests**:
+  - Updated `StockInTest`: Added test asserting scientists get 403 on `/stock-in/create` and `/stock-in/store`; updated successful stock-in tests to use `AUDITOR`.
+  - Updated `GoodsReceiptCrudTest`: Asserted scientists/students get 403 on GRN endpoints; updated valid operations to use `AUDITOR`.
+  - Updated `ChemicalPropertiesWorkflowTest`: Used `AUDITOR` to access `/stock-in/create`.
+- Verified: Live database synced; Pint clean; full test suites green.

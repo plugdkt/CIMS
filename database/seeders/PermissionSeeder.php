@@ -66,22 +66,22 @@ final class PermissionSeeder extends Seeder
             'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view'],
             'SCIENTIST' => [
                 'requisition.create', 'requisition.view_own', 'requisition.issue',
-                'receiving.manage', 'stocktake.manage', 'ledger.view', 'disposal.request',
+                'stocktake.manage', 'ledger.view', 'disposal.request',
                 'item.view', 'report.view',
             ],
             'LAB_MANAGER' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
-            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
+            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'receiving.manage', 'stocktake.manage', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
             // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the
             // spec-described read-only oversight role — it's now a second,
             // independently-assignable flavor of branch-scoped warehouse manager
             // (name_th "ผู้ดูแลคลัง"), so its grants mirror LAB_MANAGER's exactly.
             // See User::isBranchManager() for the scoping side of this change.
             'AUDITOR' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
@@ -94,13 +94,14 @@ final class PermissionSeeder extends Seeder
         }
 
         // syncWithoutDetaching() above is additive-only, so explicitly detach
-        // requisition.approve_scientist and requisition.view_all from SCIENTIST role
-        // (requisition approval and viewing all requisitions are reserved for warehouse managers).
+        // requisition.approve_scientist, requisition.view_all, and receiving.manage from SCIENTIST role
+        // (requisition approval, viewing all requisitions, and stock-in/receiving are reserved for warehouse managers).
         $scientistRole = Role::where('code', 'SCIENTIST')->first();
         if ($scientistRole !== null) {
             $staleScientistPermissionIds = Permission::whereIn('code', [
                 'requisition.approve_scientist',
                 'requisition.view_all',
+                'receiving.manage',
             ])->pluck('id');
             $scientistRole->permissions()->detach($staleScientistPermissionIds);
         }
