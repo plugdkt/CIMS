@@ -65,7 +65,7 @@ final class PermissionSeeder extends Seeder
             'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view'],
             'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view'],
             'SCIENTIST' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.issue',
+                'requisition.create', 'requisition.view_own', 'requisition.issue',
                 'receiving.manage', 'stocktake.manage', 'ledger.view', 'disposal.request',
                 'item.view', 'report.view',
             ],
@@ -74,7 +74,7 @@ final class PermissionSeeder extends Seeder
                 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
-            'ADMIN' => ['requisition.create', 'requisition.view_own', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
+            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
             // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the
             // spec-described read-only oversight role — it's now a second,
             // independently-assignable flavor of branch-scoped warehouse manager
@@ -94,19 +94,28 @@ final class PermissionSeeder extends Seeder
         }
 
         // syncWithoutDetaching() above is additive-only, so explicitly detach
-        // requisition.approve_scientist from SCIENTIST role (transferred to AUDITOR/LAB_MANAGER).
+        // requisition.approve_scientist and requisition.view_all from SCIENTIST role
+        // (requisition approval and viewing all requisitions are reserved for warehouse managers).
         $scientistRole = Role::where('code', 'SCIENTIST')->first();
         if ($scientistRole !== null) {
-            $approveScientistId = Permission::where('code', 'requisition.approve_scientist')->value('id');
-            if ($approveScientistId) {
-                $scientistRole->permissions()->detach($approveScientistId);
-            }
+            $staleScientistPermissionIds = Permission::whereIn('code', [
+                'requisition.approve_scientist',
+                'requisition.view_all',
+            ])->pluck('id');
+            $scientistRole->permissions()->detach($staleScientistPermissionIds);
         }
 
-        // Also detach AUDITOR's old read-only grants from an already-seeded database.
+        // Also detach AUDITOR's old read-only grants from an already-seeded database,
+        // and ensure requisition.issue is not attached to LAB_MANAGER/AUDITOR.
+        $issueId = Permission::where('code', 'requisition.issue')->value('id');
+        $labManagerRole = Role::where('code', 'LAB_MANAGER')->first();
+        if ($labManagerRole !== null && $issueId !== null) {
+            $labManagerRole->permissions()->detach($issueId);
+        }
+
         $auditorRole = Role::where('code', 'AUDITOR')->first();
         if ($auditorRole !== null) {
-            $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view'])->pluck('id');
+            $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view', 'requisition.issue'])->pluck('id');
             $auditorRole->permissions()->detach($staleAuditorPermissionIds);
         }
     }

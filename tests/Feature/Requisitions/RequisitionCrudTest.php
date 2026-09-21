@@ -266,8 +266,8 @@ test('a requester with view_own cannot open another requester\'s requisition, bu
 
     $this->actingAs($studentB)->get(route('requisitions.show', $requisition))->assertStatus(403);
 
-    $scientist = scientistUser();
-    $this->actingAs($scientist)->get(route('requisitions.show', $requisition))->assertStatus(200);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $this->actingAs($auditor)->get(route('requisitions.show', $requisition))->assertStatus(200);
 });
 
 test('the item balance endpoint returns the current ledger balance, trailing zeros trimmed for display', function () {

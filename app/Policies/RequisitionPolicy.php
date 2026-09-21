@@ -8,10 +8,10 @@ use App\Models\Requisition;
 use App\Models\User;
 
 /**
- * FR-RQ-01..05: `requisition.create` (STUDENT/STAFF per PermissionSeeder) owns creating
+ * FR-RQ-01..05: `requisition.create` (STUDENT/STAFF/etc.) owns creating
  * and editing one's own DRAFT requisitions. `requisition.view_own` sees only requisitions
- * the user requested or advises; `requisition.view_all` (SCIENTIST/LAB_MANAGER/AUDITOR)
- * sees every requisition.
+ * the user requested or advises; `requisition.view_all` (AUDITOR/LAB_MANAGER/ADMIN)
+ * sees every requisition (scoped to branch for branch managers).
  */
 final class RequisitionPolicy extends Policy
 {

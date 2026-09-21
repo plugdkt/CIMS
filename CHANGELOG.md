@@ -1963,6 +1963,20 @@ This allowed scientists to approve/reject requisitions instead of the designated
   and SCIENTIST gets 403.
 - Verified: Live database synced; Pint clean.
 
+## Post-launch — Restrict requisition visibility to own requisitions except Warehouse Managers (2026-09-21)
 
+User-reported: "ในส่วนของใบขอเบิก เห็นเฉพาะของตัวเอง ยกเว้นผู้ดูแลคลัง เห็นทั้งหมดครับ"
+Previously, `requisition.view_all` was granted to `SCIENTIST`, allowing scientists to see all requisitions across the system.
+Meanwhile, only warehouse managers (`AUDITOR` / `LAB_MANAGER`) should see all requisitions in their branch, and `ADMIN` across all branches.
+All other users (including students, staff, and scientists) must only see their own requisitions (as requester or advisor).
 
-
+- **`PermissionSeeder`**:
+  - Removed `requisition.view_all` from `SCIENTIST` role (detached in live database).
+  - Added `requisition.view_all` to `ADMIN` role.
+  - Retained `requisition.view_all` on `AUDITOR` ("ผู้ดูแลคลัง") and `LAB_MANAGER` ("หัวหน้าสาขาวิชา") which is already branch-scoped by `User::isBranchManager()`.
+- **`RequisitionPolicy`**:
+  - Updated docblocks to reflect that only AUDITOR, LAB_MANAGER, and ADMIN hold `requisition.view_all`.
+- **Tests**:
+  - Updated `RequisitionLabScopeTest`: Verified that AUDITOR can view requisitions within their branch and gets 403 outside their branch; verified that the requisition table only shows an AUDITOR their own branch; verified that a SCIENTIST only sees their own requisitions in the table and gets 403 viewing other users' requisitions.
+  - Updated `RequisitionCrudTest`: Updated `view_all` assertion to use `auditorUser` instead of `scientistUser`.
+- Verified: Live database synced; 101/101 Pest tests green; Pint clean.
