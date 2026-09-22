@@ -249,11 +249,21 @@
         <p class="text-sm text-ink-muted">{{ __('reports.item_issue_history_pick') }}</p>
     @else
         @if ($tab === 'item_issue_history' && $historySummary)
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
                 <div class="bg-surface border border-border rounded-xl p-5">
                     <div class="text-xs text-ink-muted">{{ __('reports.summary_total_issued') }}</div>
                     <div class="font-display text-2xl font-bold mt-1">
                         {{ rtrim(rtrim((string) $historySummary['issued'], '0'), '.') ?: '0' }}
+                        <span class="text-sm font-normal text-ink-muted">{{ $historySummary['unit'] }}</span>
+                    </div>
+                </div>
+                {{-- User-reported 2026-09-22: without this card, "issued 100, balance 200"
+                     looked like it exceeded a 250 receipt — the missing 50 returned is
+                     exactly what reconciles it, so it needs to be just as visible. --}}
+                <div class="bg-surface border border-border rounded-xl p-5">
+                    <div class="text-xs text-ink-muted">{{ __('reports.summary_total_returned') }}</div>
+                    <div class="font-display text-2xl font-bold mt-1">
+                        {{ rtrim(rtrim((string) $historySummary['returned'], '0'), '.') ?: '0' }}
                         <span class="text-sm font-normal text-ink-muted">{{ $historySummary['unit'] }}</span>
                     </div>
                 </div>
@@ -535,6 +545,51 @@
                                         <td class="py-1 pr-3 whitespace-nowrap">{{ $row->txn_date->format('d/m/Y') }}</td>
                                         <td class="py-1 pr-3 font-mono">{{ $row->remark }}</td>
                                         <td class="py-1 pr-3">{{ $row->creator?->full_name }}</td>
+                                        <td class="py-1 pr-3 whitespace-nowrap">
+                                            {{ rtrim(rtrim((string) $row->qty_in_base, '0'), '.') }}
+                                            {{ $historyItem?->baseUnit?->code }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        @endif
+
+        {{-- User-reported 2026-09-22: a real return went unshown, making "issued 100,
+             balance 200" look like it exceeded a 250 receipt. Returns are stock_ledger
+             RETURN rows (ReturnService), not issue_transactions — a requisition line can be
+             issued more than once before a single return, so a return isn't tied to any one
+             dispensing row above; it's its own section, same as receiving. --}}
+        @if ($tab === 'item_issue_history')
+            <div class="bg-surface border border-border rounded-xl p-5 mt-5">
+                <h2 class="font-semibold text-sm mb-3">{{ __('reports.item_return_history_title') }}</h2>
+                @if ($returnRows->isEmpty())
+                    <p class="text-xs text-ink-faint">{{ __('reports.item_return_history_empty') }}</p>
+                @else
+                    <div class="overflow-x-auto" tabindex="0">
+                        <table class="w-full text-xs">
+                            <thead class="text-left text-ink-faint uppercase tracking-wide">
+                                <tr>
+                                    <th class="py-1 pr-3">{{ __('reports.col_date') }}</th>
+                                    <th class="py-1 pr-3">{{ __('reports.col_doc_no') }}</th>
+                                    <th class="py-1 pr-3">{{ __('reports.col_requester') }}</th>
+                                    <th class="py-1 pr-3">{{ __('reports.col_qty_returned') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                @foreach ($returnRows as $row)
+                                    @php
+                                        $returnRequisition = $row->ref_type === 'REQUISITION' && $row->ref_id !== null
+                                            ? \App\Models\Requisition::find($row->ref_id)
+                                            : null;
+                                    @endphp
+                                    <tr>
+                                        <td class="py-1 pr-3 whitespace-nowrap">{{ $row->txn_date->format('d/m/Y') }}</td>
+                                        <td class="py-1 pr-3 font-mono">{{ $row->ref_doc_no }}</td>
+                                        <td class="py-1 pr-3">{{ $returnRequisition?->requester?->full_name }}</td>
                                         <td class="py-1 pr-3 whitespace-nowrap">
                                             {{ rtrim(rtrim((string) $row->qty_in_base, '0'), '.') }}
                                             {{ $historyItem?->baseUnit?->code }}

@@ -357,20 +357,32 @@ test('user-requested 2026-09-22: the PDF lists receiving history first, then dis
 
     $issueExport = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
     $receivingExport = new \App\Domain\Reporting\Exports\ItemReceivingHistoryExport($item, new DateRangeFilter(null, null));
+    $returnExport = new \App\Domain\Reporting\Exports\ItemReturnHistoryExport($item, new DateRangeFilter(null, null));
 
     $service = app(\App\Domain\Reporting\Services\ItemIssueHistoryPdfService::class);
     $buildHtml = new ReflectionMethod($service, 'buildHtml');
-    $html = $buildHtml->invoke($service, $item, $issueExport->results(), $receivingExport->results(), $issueExport);
+    $html = $buildHtml->invoke(
+        $service,
+        $item,
+        $issueExport->results(),
+        $receivingExport->results(),
+        $returnExport->results(),
+        $issueExport,
+        $returnExport,
+    );
 
     $receivingPos = strpos($html, __('reports.item_receiving_history_title'));
     $issuePos = strpos($html, __('reports.col_doc_no'));
+    $returnPos = strpos($html, __('reports.item_return_history_title'));
     $balancePos = strpos($html, __('reports.summary_balance'));
 
     expect($receivingPos)->not->toBeFalse();
     expect($issuePos)->not->toBeFalse();
+    expect($returnPos)->not->toBeFalse();
     expect($balancePos)->not->toBeFalse();
     expect($receivingPos)->toBeLessThan($issuePos);
-    expect($issuePos)->toBeLessThan($balancePos);
+    expect($issuePos)->toBeLessThan($returnPos);
+    expect($returnPos)->toBeLessThan($balancePos);
 
     // issueOnce() stocks its own container and fully issues it (net zero); only the
     // manual +50 receive above changes the overall balance, so it should read 50, trimmed.
@@ -381,4 +393,80 @@ test('user-requested 2026-09-22: the PDF lists receiving history first, then dis
     // item's own unit — a bare number alone doesn't say what was actually moved.
     expect($html)->toContain('50 g'); // the manual receiving row, and also the balance
     expect($html)->toContain('20 g'); // the dispensing row
+});
+
+test('user-reported 2026-09-22: a real return no longer makes the report look inconsistent', function () {
+    // Exact scenario reported: received 250, issued 50, returned 50 (still "ค้างจ่าย 50"),
+    // issued another 50 to complete the 100 requested. Physical balance ends at 200.
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $item = makeItem();
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $manager = auditorUser(['lab_id' => $lab->id]);
+    $requester = staffUser(['lab_id' => $lab->id]);
+
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        $container->id,
+        '250.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id),
+    );
+
+    $requisition = makeRequisition($requester, ['lab_id' => $lab->id]);
+    app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $g, '100.000000');
+    $requisition->update(['status' => 'APPROVED']);
+    $line = $requisition->fresh(['items'])->items()->firstOrFail();
+
+    app(\App\Domain\Requisition\Services\IssueService::class)->issue($line, $container, '50.000000', $g, $manager, $requester, hash('sha256', 'a'));
+    app(\App\Domain\Requisition\Services\ReturnService::class)->return($line->fresh(), $container, '50.000000', $g, $manager);
+    app(\App\Domain\Requisition\Services\IssueService::class)->issue($line->fresh(), $container, '50.000000', $g, $manager, $requester, hash('sha256', 'b'));
+
+    expect((float) $container->fresh()->remaining_qty_base)->toEqual(200.0);
+
+    $issueExport = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
+    $returnExport = new \App\Domain\Reporting\Exports\ItemReturnHistoryExport($item, new DateRangeFilter(null, null));
+
+    // Both dispensing events count toward the gross total — that number was never wrong.
+    expect($issueExport->totalIssued())->toBe('100.000000');
+    // The return that explains the balance is now a real, visible figure.
+    expect($returnExport->totalReturned())->toBe('50.000000');
+    expect((float) $issueExport->remainingBalance())->toEqual(200.0);
+
+    // Reconciles exactly: received = net issued + balance, i.e. 250 = (100 − 50) + 200.
+    $received = '250.000000';
+    $netIssued = bcsub($issueExport->totalIssued(), $returnExport->totalReturned(), 6);
+    expect(bcadd($netIssued, $issueExport->remainingBalance(), 6))->toBe($received);
+
+    $returnRows = $returnExport->collection();
+    expect($returnRows)->toHaveCount(1);
+    expect($returnRows->first())->toContain($requester->full_name, '50 g');
+});
+
+test('the return history route is reachable and reflects the same scenario', function () {
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $item = makeItem();
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $manager = auditorUser(['lab_id' => $lab->id]);
+    $requester = staffUser(['lab_id' => $lab->id]);
+
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive($container->id, '250.000000', new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id));
+
+    $requisition = makeRequisition($requester, ['lab_id' => $lab->id]);
+    app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $g, '100.000000');
+    $requisition->update(['status' => 'APPROVED']);
+    $line = $requisition->fresh(['items'])->items()->firstOrFail();
+
+    app(\App\Domain\Requisition\Services\IssueService::class)->issue($line, $container, '50.000000', $g, $manager, $requester, hash('sha256', 'a'));
+    app(\App\Domain\Requisition\Services\ReturnService::class)->return($line->fresh(), $container, '50.000000', $g, $manager);
+
+    $this->actingAs($manager)
+        ->get(route('reports.item-issue-history.pdf', $item))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'application/pdf');
+
+    $this->actingAs($manager)
+        ->get(route('reports.item-issue-history.excel', $item))
+        ->assertOk();
 });

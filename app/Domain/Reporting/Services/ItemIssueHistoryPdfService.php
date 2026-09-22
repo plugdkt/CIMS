@@ -6,8 +6,10 @@ namespace App\Domain\Reporting\Services;
 
 use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
 use App\Domain\Reporting\Exports\ItemReceivingHistoryExport;
+use App\Domain\Reporting\Exports\ItemReturnHistoryExport;
 use App\Models\IssueTransaction;
 use App\Models\Item;
+use App\Models\Requisition;
 use App\Models\StockLedger;
 use Illuminate\Support\Collection;
 use Mpdf\Output\Destination;
@@ -30,13 +32,24 @@ final class ItemIssueHistoryPdfService
      * User-requested 2026-09-22: "ประวัติการรับเข้าเป็นตารางด้านบน แล้วต่อด้วยประวัติการเบิก และท้ายตาราง
      * บอกจำนวนคงเหลือไว้ด้วย" — receiving history first (it's the earlier event in the item's
      * life), dispensing history below it, and the current balance at the very end of the
-     * document, after both tables.
+     * document, after every table.
+     *
+     * A return history section was added the same day, in between dispensing and the
+     * balance — a real return (received 250, issued 100 across two dispensings, 50
+     * returned, balance correctly 200) made the report look broken without it: "เบิก 100
+     * คงเหลือ 200" looks like it exceeds the 250 received, until the return that explains it
+     * is visible. Nothing about the issued total or the balance was ever wrong; the report
+     * was just missing this whole category of movement (see {@see ItemReturnHistoryExport}).
      */
-    public function render(ItemIssueHistoryExport $issueExport, ItemReceivingHistoryExport $receivingExport): string
-    {
+    public function render(
+        ItemIssueHistoryExport $issueExport,
+        ItemReceivingHistoryExport $receivingExport,
+        ItemReturnHistoryExport $returnExport,
+    ): string {
         $item = $issueExport->itemFor();
         $issueRows = $issueExport->results();
         $receivingRows = $receivingExport->results();
+        $returnRows = $returnExport->results();
 
         $mpdf = MpdfFactory::make([
             'format' => 'A4',
@@ -48,7 +61,7 @@ final class ItemIssueHistoryPdfService
         ]);
 
         $mpdf->SetTitle((string) __('reports.item_issue_history_title').' — '.$item->name_th);
-        $mpdf->WriteHTML($this->buildHtml($item, $issueRows, $receivingRows, $issueExport));
+        $mpdf->WriteHTML($this->buildHtml($item, $issueRows, $receivingRows, $returnRows, $issueExport, $returnExport));
 
         return $mpdf->Output('', Destination::STRING_RETURN);
     }
@@ -56,9 +69,16 @@ final class ItemIssueHistoryPdfService
     /**
      * @param  Collection<int, IssueTransaction>  $issueRows
      * @param  Collection<int, StockLedger>  $receivingRows
+     * @param  Collection<int, StockLedger>  $returnRows
      */
-    private function buildHtml(Item $item, Collection $issueRows, Collection $receivingRows, ItemIssueHistoryExport $export): string
-    {
+    private function buildHtml(
+        Item $item,
+        Collection $issueRows,
+        Collection $receivingRows,
+        Collection $returnRows,
+        ItemIssueHistoryExport $export,
+        ItemReturnHistoryExport $returnExport,
+    ): string {
         $title = e(__('reports.item_issue_history_title'));
 
         return <<<HTML
@@ -77,7 +97,8 @@ final class ItemIssueHistoryPdfService
             {$this->itemInfoHtml($item)}
             {$this->receivingHtml($receivingRows, $item)}
             {$this->issueHtml($issueRows, $item)}
-            {$this->balanceFooterHtml($item, $export)}
+            {$this->returnHtml($returnRows, $item)}
+            {$this->balanceFooterHtml($item, $export, $returnExport)}
             HTML;
     }
 
@@ -155,14 +176,44 @@ final class ItemIssueHistoryPdfService
             HTML;
     }
 
-    private function balanceFooterHtml(Item $item, ItemIssueHistoryExport $export): string
+    /** @param  Collection<int, StockLedger>  $rows */
+    private function returnHtml(Collection $rows, Item $item): string
+    {
+        $title = e(__('reports.item_return_history_title'));
+        $unit = $item->baseUnit?->code;
+
+        $bodyRows = $rows->isEmpty()
+            ? '<tr><td colspan="4" style="text-align:center;padding:8px;">'.e(__('reports.item_return_history_empty')).'</td></tr>'
+            : $rows->map(fn (StockLedger $row) => $this->returnRowHtml($row, $unit))->implode('');
+
+        return <<<HTML
+            <h2>{$title}</h2>
+            <table class="report">
+                <thead>
+                    <tr>
+                        <th>{$this->col('col_date')}</th>
+                        <th>{$this->col('col_doc_no')}</th>
+                        <th>{$this->col('col_requester')}</th>
+                        <th class="num">{$this->col('col_qty_returned')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {$bodyRows}
+                </tbody>
+            </table>
+            HTML;
+    }
+
+    private function balanceFooterHtml(Item $item, ItemIssueHistoryExport $export, ItemReturnHistoryExport $returnExport): string
     {
         $unit = $item->baseUnit?->code;
         $totalIssued = e(ItemIssueHistoryExport::trimQty($export->totalIssued()).' '.$unit);
+        $totalReturned = e(ItemIssueHistoryExport::trimQty($returnExport->totalReturned()).' '.$unit);
         $balance = e(ItemIssueHistoryExport::trimQty($export->remainingBalance()).' '.$unit);
 
         return '<p class="balance-footer">'
             .'<b>'.e(__('reports.summary_total_issued')).':</b> '.$totalIssued.'&nbsp;&nbsp;&nbsp;'
+            .'<b>'.e(__('reports.summary_total_returned')).':</b> '.$totalReturned.'&nbsp;&nbsp;&nbsp;'
             .'<b>'.e(__('reports.summary_balance')).':</b> '.$balance
             .'</p>';
     }
@@ -210,6 +261,28 @@ final class ItemIssueHistoryPdfService
                 <td>{$date}</td>
                 <td>{$docNo}</td>
                 <td>{$receivedBy}</td>
+                <td class="num">{$qty}</td>
+            </tr>
+            HTML;
+    }
+
+    private function returnRowHtml(StockLedger $row, ?string $unit): string
+    {
+        $requisition = $row->ref_type === 'REQUISITION' && $row->ref_id !== null
+            ? Requisition::find($row->ref_id)
+            : null;
+        $requester = $requisition === null ? null : $requisition->requester()->first();
+        $requesterName = $requester === null ? '—' : $requester->full_name;
+
+        $date = e($row->txn_date->format('d/m/Y'));
+        $docNo = e((string) ($row->ref_doc_no ?? '—'));
+        $qty = e(trim(ItemIssueHistoryExport::trimQty((string) $row->qty_in_base).' '.$unit));
+
+        return <<<HTML
+            <tr>
+                <td>{$date}</td>
+                <td>{$docNo}</td>
+                <td>{$requesterName}</td>
                 <td class="num">{$qty}</td>
             </tr>
             HTML;

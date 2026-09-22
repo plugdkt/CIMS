@@ -12,6 +12,7 @@ use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
 use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
 use App\Domain\Reporting\Exports\ItemReceivingHistoryExport;
+use App\Domain\Reporting\Exports\ItemReturnHistoryExport;
 use App\Domain\Reporting\Exports\ItemStockCardExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
@@ -84,7 +85,8 @@ final class ReportController extends Controller
         $labId = $this->labIdFor($request);
         $issueExport = new ItemIssueHistoryExport($item, $range, $labId);
         $receivingExport = new ItemReceivingHistoryExport($item, $range, $labId);
-        $pdf = $service->render($issueExport, $receivingExport);
+        $returnExport = new ItemReturnHistoryExport($item, $range, $labId);
+        $pdf = $service->render($issueExport, $receivingExport, $returnExport);
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',

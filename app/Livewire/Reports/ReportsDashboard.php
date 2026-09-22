@@ -12,6 +12,7 @@ use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
 use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
 use App\Domain\Reporting\Exports\ItemReceivingHistoryExport;
+use App\Domain\Reporting\Exports\ItemReturnHistoryExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
@@ -167,17 +168,25 @@ final class ReportsDashboard extends Component
             'receivingRows' => $historyItem === null
                 ? collect()
                 : $this->receivingExportFor($historyItem, $effectiveLabId)->results()->take(self::ROW_LIMIT),
+            // User-reported 2026-09-22: a real return made "issued 100, balance 200" look
+            // like it exceeded the 250 received — the return that explains it wasn't shown
+            // anywhere. Appended after dispensing, same as the PDF/Excel ordering.
+            'returnRows' => $historyItem === null
+                ? collect()
+                : $this->returnExportFor($historyItem, $effectiveLabId)->results()->take(self::ROW_LIMIT),
         ]);
     }
 
-    /** @return array{issued: string, balance: string, unit: string} */
+    /** @return array{issued: string, returned: string, balance: string, unit: string} */
     private function historySummaryFor(Item $item, ?int $labId): array
     {
         $export = $this->historyExportFor($item, $labId);
+        $returnExport = $this->returnExportFor($item, $labId);
         $unit = $item->baseUnit;
 
         return [
             'issued' => $export->totalIssued(),
+            'returned' => $returnExport->totalReturned(),
             'balance' => $export->remainingBalance(),
             'unit' => $unit === null ? '' : $unit->code,
         ];
@@ -235,6 +244,15 @@ final class ReportsDashboard extends Component
     private function receivingExportFor(Item $item, ?int $labId): ItemReceivingHistoryExport
     {
         return new ItemReceivingHistoryExport(
+            $item,
+            new DateRangeFilter(dateFrom: $this->historyFrom ?: null, dateTo: $this->historyTo ?: null),
+            $labId,
+        );
+    }
+
+    private function returnExportFor(Item $item, ?int $labId): ItemReturnHistoryExport
+    {
+        return new ItemReturnHistoryExport(
             $item,
             new DateRangeFilter(dateFrom: $this->historyFrom ?: null, dateTo: $this->historyTo ?: null),
             $labId,

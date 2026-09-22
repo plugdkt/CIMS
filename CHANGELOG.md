@@ -2374,3 +2374,27 @@ values never did, in both `ItemIssueHistoryExport` and `ItemReceivingHistoryExpo
 - Verified: Pest 581/581 green (updated 2 pre-existing assertions that checked for a bare
   trimmed number to expect the unit alongside it, added a unit assertion to the PDF ordering
   test), Pint clean, PHPStan level 8 clean, `composer audit` clean.
+
+## Fix — Report was missing returns entirely, making correct numbers look wrong (2026-09-22)
+
+User-reported a real scenario: received 250, a requisition for 100 issued in two dispensings
+(50 then 50) with a 50-unit return in between, ending with a correct physical balance of 200.
+The report showed "เบิก 100 คงเหลือ 200" — 300 total, more than the 250 received — "ซึ่งมันเกินจากที่
+รับเข้าไปครับ". Neither number was actually wrong: 250 − 100 + 50 (returned) = 200 reconciles
+exactly. The report was just missing the whole return event, so there was nothing on the page
+to explain where the extra 50 came from.
+
+- New `ItemReturnHistoryExport` — the third section of this stock card, alongside issuing and
+  receiving. Returns aren't in `issue_transactions` (that table only ever records the original
+  dispensing) — they're `stock_ledger` RETURN rows written by `ReturnService`, tagged
+  `ref_type = 'REQUISITION'`. A requisition line can be issued more than once before a single
+  return, so a return isn't attributable to any one dispensing row; it gets its own section
+  rather than being awkwardly attached to one.
+- Wired in everywhere the other two sections are: a third on-screen table (after dispensing,
+  before the balance cards), a third Excel sheet (`ItemStockCardExport`), and a third PDF table
+  (after dispensing, before the balance footer — matching the same requested ordering as the
+  receiving/dispensing sections).
+- The summary now shows total issued, total returned, and balance together — all three, not
+  just issued and balance — so the reconciliation is visible without doing arithmetic by hand.
+- Verified with the exact reported scenario: Pest 583/583 green, Pint clean (376 files),
+  PHPStan level 8 clean, `composer audit` clean.
