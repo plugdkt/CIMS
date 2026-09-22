@@ -110,6 +110,14 @@ final class ItemIssueHistoryExport implements FromCollection, WithHeadings, With
         return rtrim(rtrim($value, '0'), '.');
     }
 
+    /** User-reported 2026-09-22: exports showed a bare number with no unit (mL/g/…). */
+    private function qtyWithUnit(string $value): string
+    {
+        $unit = $this->item->baseUnit?->code;
+
+        return trim(self::trimQty($value).' '.$unit);
+    }
+
     /** @return array<int, string> */
     private function rowToArray(IssueTransaction $row): array
     {
@@ -122,7 +130,7 @@ final class ItemIssueHistoryExport implements FromCollection, WithHeadings, With
             CsvInjectionGuard::sanitize($requisition->doc_no),
             CsvInjectionGuard::sanitize($requester->full_name),
             CsvInjectionGuard::sanitize($requisition->faculty ?? ''),
-            self::trimQty((string) $row->qty_issued_base),
+            $this->qtyWithUnit((string) $row->qty_issued_base),
         ];
     }
 

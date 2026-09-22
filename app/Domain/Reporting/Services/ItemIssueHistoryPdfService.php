@@ -75,8 +75,8 @@ final class ItemIssueHistoryPdfService
             </style>
             <h1>{$title}</h1>
             {$this->itemInfoHtml($item)}
-            {$this->receivingHtml($receivingRows)}
-            {$this->issueHtml($issueRows)}
+            {$this->receivingHtml($receivingRows, $item)}
+            {$this->issueHtml($issueRows, $item)}
             {$this->balanceFooterHtml($item, $export)}
             HTML;
     }
@@ -99,13 +99,14 @@ final class ItemIssueHistoryPdfService
     }
 
     /** @param  Collection<int, StockLedger>  $rows */
-    private function receivingHtml(Collection $rows): string
+    private function receivingHtml(Collection $rows, Item $item): string
     {
         $title = e(__('reports.item_receiving_history_title'));
+        $unit = $item->baseUnit?->code;
 
         $bodyRows = $rows->isEmpty()
             ? '<tr><td colspan="4" style="text-align:center;padding:8px;">'.e(__('reports.item_receiving_history_empty')).'</td></tr>'
-            : $rows->map(fn (StockLedger $row) => $this->receivingRowHtml($row))->implode('');
+            : $rows->map(fn (StockLedger $row) => $this->receivingRowHtml($row, $unit))->implode('');
 
         return <<<HTML
             <h2>{$title}</h2>
@@ -126,13 +127,14 @@ final class ItemIssueHistoryPdfService
     }
 
     /** @param  Collection<int, IssueTransaction>  $rows */
-    private function issueHtml(Collection $rows): string
+    private function issueHtml(Collection $rows, Item $item): string
     {
         $title = e(__('reports.item_issue_history_title'));
+        $unit = $item->baseUnit?->code;
 
         $bodyRows = $rows->isEmpty()
             ? '<tr><td colspan="5" style="text-align:center;padding:8px;">'.e(__('reports.item_issue_history_empty')).'</td></tr>'
-            : $rows->map(fn (IssueTransaction $row) => $this->issueRowHtml($row))->implode('');
+            : $rows->map(fn (IssueTransaction $row) => $this->issueRowHtml($row, $unit))->implode('');
 
         return <<<HTML
             <h2>{$title}</h2>
@@ -170,7 +172,7 @@ final class ItemIssueHistoryPdfService
         return e(__('reports.'.$key));
     }
 
-    private function issueRowHtml(IssueTransaction $row): string
+    private function issueRowHtml(IssueTransaction $row, ?string $unit): string
     {
         $requisitionItem = $row->requisitionItem()->firstOrFail();
         $requisition = $requisitionItem->requisition()->firstOrFail();
@@ -180,7 +182,7 @@ final class ItemIssueHistoryPdfService
         $docNo = e($requisition->doc_no);
         $requesterName = e($requester->full_name);
         $faculty = e((string) ($requisition->faculty ?? '—'));
-        $qty = e(ItemIssueHistoryExport::trimQty((string) $row->qty_issued_base));
+        $qty = e(trim(ItemIssueHistoryExport::trimQty((string) $row->qty_issued_base).' '.$unit));
 
         return <<<HTML
             <tr>
@@ -193,7 +195,7 @@ final class ItemIssueHistoryPdfService
             HTML;
     }
 
-    private function receivingRowHtml(StockLedger $row): string
+    private function receivingRowHtml(StockLedger $row, ?string $unit): string
     {
         $creator = $row->creator()->first();
         $creatorName = $creator === null ? '—' : $creator->full_name;
@@ -201,7 +203,7 @@ final class ItemIssueHistoryPdfService
         $date = e($row->txn_date->format('d/m/Y'));
         $docNo = e((string) ($row->remark ?? '—'));
         $receivedBy = e($creatorName);
-        $qty = e(ItemIssueHistoryExport::trimQty((string) $row->qty_in_base));
+        $qty = e(trim(ItemIssueHistoryExport::trimQty((string) $row->qty_in_base).' '.$unit));
 
         return <<<HTML
             <tr>

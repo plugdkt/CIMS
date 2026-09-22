@@ -315,6 +315,7 @@
                                         <th class="py-1 pr-3">{{ __('reports.col_used_qty') }}</th>
                                         <th class="py-1 pr-3">{{ __('reports.col_current_balance') }}</th>
                                         <th class="py-1 pr-3">{{ __('reports.col_stock_status') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_actions') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-border">
@@ -333,6 +334,16 @@
                                                         ⚠️ {{ __('reports.low_stock_warning', ['percent' => rtrim(rtrim((string) $row['remaining_percent'], '0'), '.')]) }}
                                                     </span>
                                                 @endif
+                                            </td>
+                                            <td class="py-1 pr-3 whitespace-nowrap">
+                                                {{-- User-requested 2026-09-22: this table already lists every
+                                                     item, so its own per-chemical PDF/Excel lives right here too. --}}
+                                                <a href="{{ route('reports.item-issue-history.excel', ['item' => $item, 'lab_id' => $labId]) }}"
+                                                   title="{{ __('reports.download_excel') }}"
+                                                   class="text-xs font-semibold text-accent hover:text-accent-strong px-1">Excel</a>
+                                                <a href="{{ route('reports.item-issue-history.pdf', ['item' => $item, 'lab_id' => $labId]) }}" target="_blank"
+                                                   title="{{ __('reports.download_pdf') }}"
+                                                   class="text-xs font-semibold text-ink-muted hover:text-ink px-1">PDF</a>
                                             </td>
                                         </tr>
                                     @endforeach

@@ -2346,3 +2346,31 @@ User-requested: "เราควรเอา ประวัติการร�
   test rather than only "the sections all render somewhere."
 - Verified: Pest 580/580 green, Pint clean (375 files), PHPStan level 8 clean, `composer audit`
   clean.
+
+## Post-launch — Download links added to the item stock summary tab too (2026-09-22)
+
+User-requested: "เอา ปุ่ม download pdf มาไว้ตรง tab คงเหลือ/การใช้รายสาร เลยก็ได้นะครับ เพราะมันก็มีรายการอยู่ตรงนี้อยู่แล้ว".
+Confirmed with the user first whether the separate "ประวัติการเบิกรายสาร" tab (search + detail
+view + receiving history) should be removed now that this exists — kept both, since that tab's
+on-screen detail view is still the only place to actually read the history, not just download it.
+
+- Each row of the `item_stock_summary` table (already lists every item with real ledger
+  history) now has its own "Excel"/"PDF" links, pointing at the same
+  `reports.item-issue-history.{excel,pdf}` routes the other tab's per-row links use.
+- Verified: Pest 581/581 green, Pint clean (375 files), PHPStan level 8 clean, `composer audit`
+  clean.
+
+## Fix — Exported quantities had no unit, just a bare number (2026-09-22)
+
+User-reported: "ใน PDF ไม่ได้มีบอกหน่วยปริมาตรตอนเบิกและรับเข้าครับ เป็นแค่ตัวเลขเฉยๆ" — the on-screen table
+already appended the item's unit (e.g. "10 g"), but the Excel exports and the PDF's row/footer
+values never did, in both `ItemIssueHistoryExport` and `ItemReceivingHistoryExport`.
+
+- New private `qtyWithUnit()` helper on both export classes appends the item's own
+  `baseUnit->code` after the trimmed quantity — same place `trimQty()` already normalized.
+- `ItemIssueHistoryPdfService`'s row-rendering methods now take the unit code and append it
+  the same way; the balance footer already had a unit, so only the row-level values needed
+  it.
+- Verified: Pest 581/581 green (updated 2 pre-existing assertions that checked for a bare
+  trimmed number to expect the unit alongside it, added a unit assertion to the PDF ordering
+  test), Pint clean, PHPStan level 8 clean, `composer audit` clean.

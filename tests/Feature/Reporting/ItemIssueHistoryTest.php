@@ -213,7 +213,9 @@ test('user-reported 2026-09-22: the Excel export trims trailing zeros from the q
     $export = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
     $row = $export->collection()->first();
 
-    expect($row)->toContain('10');
+    // Trimmed and carrying the item's own unit (user-reported 2026-09-22: a bare number
+    // with no unit was hard to read).
+    expect($row)->toContain('10 g');
     expect($row)->not->toContain('10.000000');
 });
 
@@ -236,8 +238,8 @@ test('user-requested 2026-09-22: the receiving history lists IMS requisition num
 
     expect($rows)->toHaveCount(1);
     expect($rows->first())->toContain('IMS-2569-00042');
-    // Trimmed, same convention as the dispensing side.
-    expect($rows->first())->toContain('100')->not->toContain('100.000000');
+    // Trimmed and carrying the unit, same convention as the dispensing side.
+    expect($rows->first())->toContain('100 g')->not->toContain('100.000000');
 });
 
 test('the receiving history is branch-scoped the same way as the dispensing history', function () {
@@ -374,4 +376,9 @@ test('user-requested 2026-09-22: the PDF lists receiving history first, then dis
     // manual +50 receive above changes the overall balance, so it should read 50, trimmed.
     expect((float) $issueExport->remainingBalance())->toEqual(50.0);
     expect($html)->toContain('IMS-ORDER-TEST');
+
+    // User-reported 2026-09-22: both row types, and the footer balance, must carry the
+    // item's own unit — a bare number alone doesn't say what was actually moved.
+    expect($html)->toContain('50 g'); // the manual receiving row, and also the balance
+    expect($html)->toContain('20 g'); // the dispensing row
 });

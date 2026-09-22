@@ -63,6 +63,7 @@ return [
     'col_current_balance' => 'คงเหลือปัจจุบัน',
     'col_used_qty' => 'ใช้ไป',
     'col_stock_status' => 'สถานะ',
+    'col_actions' => 'รายงาน',
     'low_stock_warning' => 'ใกล้หมด (เหลืออีก :percent%)',
     'col_reorder_point' => 'จุดสั่งซื้อ',
     'col_last_movement' => 'เคลื่อนไหวล่าสุด',

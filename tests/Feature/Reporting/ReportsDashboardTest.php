@@ -201,3 +201,24 @@ test('a user without report.view gets 403 regardless of which tab is requested',
 
     $this->actingAs($student)->get(route('reports.index', ['tab' => 'dead_stock']))->assertStatus(403);
 });
+
+test('user-requested 2026-09-22: the item stock summary tab has its own PDF/Excel link per row, since the list already lives here', function () {
+    $item = makeItem(['name_th' => 'สารสำหรับทดสอบปุ่มในตารางคงเหลือ']);
+    StockLedger::create([
+        'item_id' => $item->id, 'txn_date' => now()->toDateString(), 'txn_type' => 'RECEIVE',
+        'qty_in_base' => '10', 'qty_out_base' => '0', 'balance_base' => '10.000000',
+        'display_unit_id' => Unit::where('code', 'g')->value('id'), 'created_by' => User::factory()->create()->id,
+        'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('k', 64),
+    ]);
+
+    $manager = auditorUser();
+    $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'item_stock_summary']));
+
+    $response->assertOk()
+        ->assertSee(route('reports.item-issue-history.excel', $item), false)
+        ->assertSee(route('reports.item-issue-history.pdf', $item), false);
+
+    $this->actingAs($manager)
+        ->get(route('reports.item-issue-history.excel', $item))
+        ->assertOk();
+});

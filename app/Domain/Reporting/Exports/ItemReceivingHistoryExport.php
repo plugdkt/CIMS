@@ -68,7 +68,7 @@ final class ItemReceivingHistoryExport implements FromCollection, WithHeadings, 
             $row->txn_date->format('d/m/Y'),
             CsvInjectionGuard::sanitize($row->remark ?? ''),
             CsvInjectionGuard::sanitize($creatorName),
-            ItemIssueHistoryExport::trimQty((string) $row->qty_in_base),
+            $this->qtyWithUnit((string) $row->qty_in_base),
         ];
     }
 
@@ -86,5 +86,13 @@ final class ItemReceivingHistoryExport implements FromCollection, WithHeadings, 
     public function title(): string
     {
         return mb_substr((string) __('reports.item_receiving_history_title'), 0, 31);
+    }
+
+    /** User-reported 2026-09-22: exports showed a bare number with no unit (mL/g/…). */
+    private function qtyWithUnit(string $value): string
+    {
+        $unit = $this->item->baseUnit?->code;
+
+        return trim(ItemIssueHistoryExport::trimQty($value).' '.$unit);
     }
 }
