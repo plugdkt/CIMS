@@ -11,6 +11,8 @@ use App\Domain\Reporting\Exports\ControlledSubstancesExport;
 use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
 use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
+use App\Domain\Reporting\Exports\ItemReceivingHistoryExport;
+use App\Domain\Reporting\Exports\ItemStockCardExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
@@ -59,12 +61,16 @@ final class ReportController extends Controller
         );
     }
 
+    /**
+     * User-requested 2026-09-22: the item's dispensing history, plus its receiving history
+     * (IMS requisition number) appended as a second sheet — "แนบท้ายรายงาน".
+     */
     public function itemIssueHistoryExcel(Request $request, Item $item): BinaryFileResponse
     {
         $this->authorize('report.view');
 
         return Excel::download(
-            new ItemIssueHistoryExport($item, $this->dateRangeFrom($request), $this->labIdFor($request)),
+            new ItemStockCardExport($item, $this->dateRangeFrom($request), $this->labIdFor($request)),
             'item-issue-history-'.$item->item_code.'.xlsx',
         );
     }
@@ -74,8 +80,11 @@ final class ReportController extends Controller
     {
         $this->authorize('report.view');
 
-        $export = new ItemIssueHistoryExport($item, $this->dateRangeFrom($request), $this->labIdFor($request));
-        $pdf = $service->render($export);
+        $range = $this->dateRangeFrom($request);
+        $labId = $this->labIdFor($request);
+        $issueExport = new ItemIssueHistoryExport($item, $range, $labId);
+        $receivingExport = new ItemReceivingHistoryExport($item, $range, $labId);
+        $pdf = $service->render($issueExport, $receivingExport);
 
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',

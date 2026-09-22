@@ -2276,3 +2276,46 @@ stay as they are — only the printed form now looks the same as F-03.
   `labIdFor()` as the Excel route. "ดาวน์โหลด PDF" now sits next to "ดาวน์โหลด Excel" on the tab.
 - Verified: Pest 572/572 green, Pint clean (373 files), PHPStan level 8 clean, `composer audit`
   clean.
+
+## Post-launch — Receiving history (IMS requisition number) appended to the per-chemical report (2026-09-22)
+
+User-requested: "ในระบบเติมสต็อก เรามีช่องหมายเหตุ แหล่งที่มาอยู่นะครับ ซึ่งตรงนี้เราตกลงกันแล้วว่าจะใช้เป็นเลขที่ใบเบิก
+จากระบบ IMS ครับ และรายงานสารแต่ละตัวเนี่ย เราต้องเอาแนบท้ายรายงานตามใบเบิกนี้ด้วยครับ" — the stock-in form's
+"หมายเหตุ / แหล่งที่มา" field (`stock_ledger.remark`) is agreed to carry the IMS requisition number,
+and it needs to appear in the per-chemical report.
+
+- New `ItemReceivingHistoryExport` — the receiving-side twin of `ItemIssueHistoryExport`: every
+  `RECEIVE` row for the item (date, `remark` as the IMS doc no, who received it, quantity),
+  branch-scoped and date-filtered the same way.
+- **Appended, not a separate report** (user-confirmed): the on-screen tab now shows a second
+  table "ประวัติการรับเข้า" below the existing dispensing table. The Excel download gained a
+  second sheet via new `ItemStockCardExport` (`WithMultipleSheets`). The PDF gained a second
+  table drawn after the first, in the same document (user-confirmed: "ต้นฉบับ/ท้ายเอกสาร").
+  - `ItemStockCardExport` has to implement the (empty) `Maatwebsite\Excel\Concerns\Export`
+    marker interface explicitly — this installed version types `Excel::download()`'s parameter
+    as `Export`, and `WithMultipleSheets` alone doesn't extend it (unlike `FromCollection`,
+    which does). Caught immediately by the route test; worth remembering for any future
+    multi-sheet export in this app.
+- `ItemIssueHistoryPdfService::render()` now takes both exports.
+
+## Fix — Exports still showed full DECIMAL(18,6) precision (2026-09-22)
+
+User-reported: PDF/Excel for the new report still showed `10.000000` instead of `10`, unlike
+the on-screen table (which already trimmed). `ItemIssueHistoryExport::trimQty()` (new, public —
+reused by the receiving-history export and the PDF service) applies the same rtrim-trailing-
+zeros convention already used elsewhere in the app to every quantity in both exports and the
+PDF's header summary. `totalIssued()`/`remainingBalance()` themselves stay untrimmed — they're
+still used for reconciliation and by tests that need the full value.
+
+## Post-launch — Item-history tab: pick, view, and export without a "change chemical" step (2026-09-22)
+
+User-requested: a click to view details and download PDF/Excel, "โดยที่ไม่ต้องคลิ๊กเลือกเปลี่ยนไปเปลี่ยนมาครับ".
+Previously, picking a chemical replaced the search/candidate list with just the selected item's
+name and a "เปลี่ยนสาร" (change chemical) button — switching to a different one meant clicking that
+button first, then searching again. The candidate list and the selected item's detail/export view
+now render side by side at all times; clicking a different row in the list switches the report
+immediately, with no intermediate step. The now-unused `reports.item_issue_history_change` lang
+key was removed.
+
+- Verified (all three entries above together): Pest 578/578 green, Pint clean (375 files),
+  PHPStan level 8 clean, `composer audit` clean.

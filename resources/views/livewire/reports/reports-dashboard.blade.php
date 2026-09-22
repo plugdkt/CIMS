@@ -50,53 +50,55 @@
                 @break
 
             @case('item_issue_history')
+                {{-- User-requested 2026-09-22: the item list, the selected item's info, and the
+                     export buttons all stay visible together — switching chemicals is one click
+                     on a different row, never a separate "เปลี่ยนสาร" step first. --}}
                 <p class="text-xs text-ink-muted mb-3">{{ __('reports.item_issue_history_desc') }}</p>
-                @if ($historyItem)
-                    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <div>
-                            <div class="font-semibold text-sm">{{ $historyItem->name_th }}</div>
-                            <div class="text-xs text-ink-faint">{{ $historyItem->item_code }}</div>
-                        </div>
-                        <button type="button" wire:click="$set('historyItemUlid', null)"
-                                class="text-xs font-semibold text-accent hover:text-accent-strong">
-                            {{ __('reports.item_issue_history_change') }}
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <input type="date" wire:model.live="historyFrom" aria-label="{{ __('reports.field_from') }}"
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label for="history-item-search" class="block text-xs text-ink-muted mb-2">{{ __('reports.item_issue_history_pick') }}</label>
+                        <input type="text" id="history-item-search" wire:model.live.debounce.400ms="historyItemSearch"
+                               placeholder="{{ __('reports.item_issue_history_search') }}"
                                class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                        <input type="date" wire:model.live="historyTo" aria-label="{{ __('reports.field_to') }}"
-                               class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                        @if ($restrictedLabId === null)
-                            <select wire:model.live="labId" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                                <option value="">{{ __('reports.all_labs') }}</option>
-                                @foreach ($labs as $lab)
-                                    <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
+                        <div class="mt-2 max-h-64 overflow-y-auto" tabindex="0">
+                            <ul class="divide-y divide-border">
+                                @foreach ($historyCandidates as $candidate)
+                                    <li>
+                                        <button type="button" wire:click="$set('historyItemUlid', '{{ $candidate->ulid }}')"
+                                                class="w-full text-left px-2 py-2 rounded-lg hover:bg-surface-alt {{ $historyItem?->id === $candidate->id ? 'bg-accent-soft text-accent-soft-ink' : '' }}">
+                                            <span class="text-sm">{{ $candidate->name_th }}</span>
+                                            <span class="text-xs text-ink-faint ml-2">{{ $candidate->item_code }}</span>
+                                        </button>
+                                    </li>
                                 @endforeach
-                            </select>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="sm:col-span-2">
+                        @if ($historyItem)
+                            <div class="font-semibold text-sm">{{ $historyItem->name_th }}</div>
+                            <div class="text-xs text-ink-faint mb-3">{{ $historyItem->item_code }}</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <input type="date" wire:model.live="historyFrom" aria-label="{{ __('reports.field_from') }}"
+                                       class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                <input type="date" wire:model.live="historyTo" aria-label="{{ __('reports.field_to') }}"
+                                       class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                @if ($restrictedLabId === null)
+                                    <select wire:model.live="labId" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                        <option value="">{{ __('reports.all_labs') }}</option>
+                                        @foreach ($labs as $lab)
+                                            <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <p class="text-xs text-ink-faint self-center">{{ __('reports.restricted_to_own_lab') }}</p>
+                                @endif
+                            </div>
                         @else
-                            <p class="text-xs text-ink-faint self-center">{{ __('reports.restricted_to_own_lab') }}</p>
+                            <p class="text-sm text-ink-muted">{{ __('reports.item_issue_history_pick') }}</p>
                         @endif
                     </div>
-                @else
-                    <label for="history-item-search" class="block text-xs text-ink-muted mb-2">{{ __('reports.item_issue_history_pick') }}</label>
-                    <input type="text" id="history-item-search" wire:model.live.debounce.400ms="historyItemSearch"
-                           placeholder="{{ __('reports.item_issue_history_search') }}"
-                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                    <div class="mt-3 max-h-64 overflow-y-auto" tabindex="0">
-                        <ul class="divide-y divide-border">
-                            @foreach ($historyCandidates as $candidate)
-                                <li>
-                                    <button type="button" wire:click="$set('historyItemUlid', '{{ $candidate->ulid }}')"
-                                            class="w-full text-left px-2 py-2 hover:bg-surface-alt rounded-lg">
-                                        <span class="text-sm">{{ $candidate->name_th }}</span>
-                                        <span class="text-xs text-ink-faint ml-2">{{ $candidate->item_code }}</span>
-                                    </button>
-                                </li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+                </div>
                 @break
 
             @case('usage_summary')
@@ -489,5 +491,42 @@
                 <p class="text-xs text-ink-faint mt-2">{{ __('reports.showing_of_total', ['shown' => $rows->count(), 'total' => $total]) }}</p>
             @endif
         </div>
+
+        {{-- User-requested 2026-09-22: receiving history (IMS requisition number) appended
+             below the dispensing table on the same tab — "แนบท้ายรายงาน", not a separate page. --}}
+        @if ($tab === 'item_issue_history')
+            <div class="bg-surface border border-border rounded-xl p-5 mt-5">
+                <h2 class="font-semibold text-sm mb-3">{{ __('reports.item_receiving_history_title') }}</h2>
+                @if ($receivingRows->isEmpty())
+                    <p class="text-xs text-ink-faint">{{ __('reports.item_receiving_history_empty') }}</p>
+                @else
+                    <div class="overflow-x-auto" tabindex="0">
+                        <table class="w-full text-xs">
+                            <thead class="text-left text-ink-faint uppercase tracking-wide">
+                                <tr>
+                                    <th class="py-1 pr-3">{{ __('reports.col_date') }}</th>
+                                    <th class="py-1 pr-3">{{ __('reports.col_ims_doc_no') }}</th>
+                                    <th class="py-1 pr-3">{{ __('reports.col_received_by') }}</th>
+                                    <th class="py-1 pr-3">{{ __('reports.col_qty_received') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-border">
+                                @foreach ($receivingRows as $row)
+                                    <tr>
+                                        <td class="py-1 pr-3 whitespace-nowrap">{{ $row->txn_date->format('d/m/Y') }}</td>
+                                        <td class="py-1 pr-3 font-mono">{{ $row->remark }}</td>
+                                        <td class="py-1 pr-3">{{ $row->creator?->full_name }}</td>
+                                        <td class="py-1 pr-3 whitespace-nowrap">
+                                            {{ rtrim(rtrim((string) $row->qty_in_base, '0'), '.') }}
+                                            {{ $historyItem?->baseUnit?->code }}
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        @endif
     @endif
 </div>

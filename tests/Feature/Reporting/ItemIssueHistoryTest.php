@@ -203,3 +203,117 @@ test('a SCIENTIST still cannot reach the new PDF route', function () {
         ->get(route('reports.item-issue-history.pdf', $item))
         ->assertStatus(403);
 });
+
+test('user-reported 2026-09-22: the Excel export trims trailing zeros from the quantity', function () {
+    $item = makeItem();
+    $issuer = auditorUser();
+    $requester = staffUser();
+    issueOnce($item, '10.000000', $requester, $issuer);
+
+    $export = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
+    $row = $export->collection()->first();
+
+    expect($row)->toContain('10');
+    expect($row)->not->toContain('10.000000');
+});
+
+test('user-requested 2026-09-22: the receiving history lists IMS requisition numbers from the stock-in remark', function () {
+    $item = makeItem();
+    $lab = makeLab();
+    $manager = auditorUser(['lab_id' => $lab->id]);
+    $location = makeLocationForLab($lab);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        $container->id,
+        '100.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id, remark: 'IMS-2569-00042'),
+    );
+
+    $export = new \App\Domain\Reporting\Exports\ItemReceivingHistoryExport($item, new DateRangeFilter(null, null));
+    $rows = $export->collection();
+
+    expect($rows)->toHaveCount(1);
+    expect($rows->first())->toContain('IMS-2569-00042');
+    // Trimmed, same convention as the dispensing side.
+    expect($rows->first())->toContain('100')->not->toContain('100.000000');
+});
+
+test('the receiving history is branch-scoped the same way as the dispensing history', function () {
+    $item = makeItem();
+    $labA = makeLab();
+    $labB = makeLab();
+    $locationA = makeLocationForLab($labA);
+    $locationB = makeLocationForLab($labB);
+    $manager = auditorUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $containerA = makeContainer(['item_id' => $item->id, 'location_id' => $locationA->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive($containerA->id, '10.000000', new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id, remark: 'IMS-A'));
+
+    $containerB = makeContainer(['item_id' => $item->id, 'location_id' => $locationB->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive($containerB->id, '5.000000', new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id, remark: 'IMS-B'));
+
+    $export = new \App\Domain\Reporting\Exports\ItemReceivingHistoryExport($item, new DateRangeFilter(null, null), $labA->id);
+
+    expect($export->results())->toHaveCount(1);
+    expect($export->collection()->first())->toContain('IMS-A');
+});
+
+test('the Excel export includes the receiving history as a second sheet', function () {
+    $item = makeItem();
+    $manager = auditorUser(['lab_id' => makeLab()->id]);
+
+    $response = $this->actingAs($manager)->get(route('reports.item-issue-history.excel', $item));
+
+    $response->assertOk();
+    $response->assertHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+});
+
+test('the PDF includes the receiving history section', function () {
+    $item = makeItem();
+    $lab = makeLab();
+    $manager = auditorUser(['lab_id' => $lab->id]);
+    $location = makeLocationForLab($lab);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        $container->id,
+        '20.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id, remark: 'IMS-9999'),
+    );
+
+    $response = $this->actingAs($manager)->get(route('reports.item-issue-history.pdf', $item));
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'application/pdf');
+});
+
+test('user-requested 2026-09-22: switching to a different chemical is a single click, no "change item" step first', function () {
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $manager = auditorUser(['lab_id' => $lab->id]);
+
+    $itemA = makeItem(['name_th' => 'สาร A สำหรับสลับ']);
+    makeContainer(['item_id' => $itemA->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10']);
+    $itemB = makeItem(['name_th' => 'สาร B สำหรับสลับ']);
+    makeContainer(['item_id' => $itemB->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10']);
+
+    $component = Livewire::actingAs($manager)
+        ->test(ReportsDashboard::class)
+        ->set('tab', 'item_issue_history')
+        ->set('historyItemUlid', $itemA->ulid)
+        ->assertSee('สาร A สำหรับสลับ')
+        // The candidate list — including the OTHER chemical — stays visible after picking one.
+        ->assertSee('สาร B สำหรับสลับ');
+
+    // Switching directly to another candidate, without clearing the selection first.
+    $component->set('historyItemUlid', $itemB->ulid)
+        ->assertSee('สาร B สำหรับสลับ')
+        ->assertSee('สาร A สำหรับสลับ');
+});

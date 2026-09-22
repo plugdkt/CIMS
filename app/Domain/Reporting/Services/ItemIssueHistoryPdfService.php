@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Domain\Reporting\Services;
 
 use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
+use App\Domain\Reporting\Exports\ItemReceivingHistoryExport;
 use App\Models\IssueTransaction;
 use App\Models\Item;
+use App\Models\StockLedger;
 use Illuminate\Support\Collection;
 use Mpdf\Output\Destination;
 
@@ -24,10 +26,16 @@ use Mpdf\Output\Destination;
  */
 final class ItemIssueHistoryPdfService
 {
-    public function render(ItemIssueHistoryExport $export): string
+    /**
+     * User-requested 2026-09-22: "รายงานสารแต่ละตัวเนี่ย เราต้องเอาแนบท้ายรายงานตามใบเบิกนี้ด้วยครับ" —
+     * the receiving history (IMS requisition number, from the stock-in form's remark field)
+     * is appended as a second table at the end of the same document, not a separate file.
+     */
+    public function render(ItemIssueHistoryExport $issueExport, ItemReceivingHistoryExport $receivingExport): string
     {
-        $item = $export->itemFor();
-        $rows = $export->results();
+        $item = $issueExport->itemFor();
+        $issueRows = $issueExport->results();
+        $receivingRows = $receivingExport->results();
 
         $mpdf = MpdfFactory::make([
             'format' => 'A4',
@@ -39,25 +47,27 @@ final class ItemIssueHistoryPdfService
         ]);
 
         $mpdf->SetTitle((string) __('reports.item_issue_history_title').' — '.$item->name_th);
-        $mpdf->WriteHTML($this->buildHtml($item, $rows, $export));
+        $mpdf->WriteHTML($this->issueHtml($item, $issueRows, $issueExport));
+        $mpdf->WriteHTML($this->receivingHtml($receivingRows));
 
         return $mpdf->Output('', Destination::STRING_RETURN);
     }
 
     /** @param  Collection<int, IssueTransaction>  $rows */
-    private function buildHtml(Item $item, Collection $rows, ItemIssueHistoryExport $export): string
+    private function issueHtml(Item $item, Collection $rows, ItemIssueHistoryExport $export): string
     {
         $title = e(__('reports.item_issue_history_title'));
         $header = $this->headerHtml($item, $export);
 
         $bodyRows = $rows->isEmpty()
             ? '<tr><td colspan="5" style="text-align:center;padding:8px;">'.e(__('reports.item_issue_history_empty')).'</td></tr>'
-            : $rows->map(fn (IssueTransaction $row) => $this->rowHtml($row))->implode('');
+            : $rows->map(fn (IssueTransaction $row) => $this->issueRowHtml($row))->implode('');
 
         return <<<HTML
             <style>
                 body { font-size: 9pt; }
                 h1 { font-size: 13pt; margin-bottom: 4px; }
+                h2 { font-size: 11pt; margin-top: 10px; margin-bottom: 4px; }
                 .header-table td { padding: 1px 6px 1px 0; font-size: 8.5pt; }
                 table.report { border-collapse: collapse; width: 100%; margin-top: 8px; }
                 table.report th, table.report td { border: 0.2mm solid #999; padding: 3px 4px; font-size: 8pt; }
@@ -83,6 +93,33 @@ final class ItemIssueHistoryPdfService
             HTML;
     }
 
+    /** @param  Collection<int, StockLedger>  $rows */
+    private function receivingHtml(Collection $rows): string
+    {
+        $title = e(__('reports.item_receiving_history_title'));
+
+        $bodyRows = $rows->isEmpty()
+            ? '<tr><td colspan="4" style="text-align:center;padding:8px;">'.e(__('reports.item_receiving_history_empty')).'</td></tr>'
+            : $rows->map(fn (StockLedger $row) => $this->receivingRowHtml($row))->implode('');
+
+        return <<<HTML
+            <h2>{$title}</h2>
+            <table class="report">
+                <thead>
+                    <tr>
+                        <th>{$this->col('col_date')}</th>
+                        <th>{$this->col('col_ims_doc_no')}</th>
+                        <th>{$this->col('col_received_by')}</th>
+                        <th class="num">{$this->col('col_qty_received')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {$bodyRows}
+                </tbody>
+            </table>
+            HTML;
+    }
+
     /** Same field set as Fr03PdfService's own item info block, for a consistent look. */
     private function headerHtml(Item $item, ItemIssueHistoryExport $export): string
     {
@@ -99,8 +136,8 @@ final class ItemIssueHistoryPdfService
             ->map(fn (?string $value, string $label) => '<td><b>'.e(__('ledger.'.$label)).':</b> '.e($value ?? '—').'</td>')
             ->implode('');
 
-        $totalIssued = e($export->totalIssued().' '.$unit);
-        $balance = e($export->remainingBalance().' '.$unit);
+        $totalIssued = e(ItemIssueHistoryExport::trimQty($export->totalIssued()).' '.$unit);
+        $balance = e(ItemIssueHistoryExport::trimQty($export->remainingBalance()).' '.$unit);
 
         return '<table class="header-table"><tr>'.$cells.'</tr><tr>'
             .'<td><b>'.e(__('reports.summary_total_issued')).':</b> '.$totalIssued.'</td>'
@@ -113,7 +150,7 @@ final class ItemIssueHistoryPdfService
         return e(__('reports.'.$key));
     }
 
-    private function rowHtml(IssueTransaction $row): string
+    private function issueRowHtml(IssueTransaction $row): string
     {
         $requisitionItem = $row->requisitionItem()->firstOrFail();
         $requisition = $requisitionItem->requisition()->firstOrFail();
@@ -123,7 +160,7 @@ final class ItemIssueHistoryPdfService
         $docNo = e($requisition->doc_no);
         $requesterName = e($requester->full_name);
         $faculty = e((string) ($requisition->faculty ?? '—'));
-        $qty = e((string) $row->qty_issued_base);
+        $qty = e(ItemIssueHistoryExport::trimQty((string) $row->qty_issued_base));
 
         return <<<HTML
             <tr>
@@ -131,6 +168,26 @@ final class ItemIssueHistoryPdfService
                 <td>{$docNo}</td>
                 <td>{$requesterName}</td>
                 <td>{$faculty}</td>
+                <td class="num">{$qty}</td>
+            </tr>
+            HTML;
+    }
+
+    private function receivingRowHtml(StockLedger $row): string
+    {
+        $creator = $row->creator()->first();
+        $creatorName = $creator === null ? '—' : $creator->full_name;
+
+        $date = e($row->txn_date->format('d/m/Y'));
+        $docNo = e((string) ($row->remark ?? '—'));
+        $receivedBy = e($creatorName);
+        $qty = e(ItemIssueHistoryExport::trimQty((string) $row->qty_in_base));
+
+        return <<<HTML
+            <tr>
+                <td>{$date}</td>
+                <td>{$docNo}</td>
+                <td>{$receivedBy}</td>
                 <td class="num">{$qty}</td>
             </tr>
             HTML;

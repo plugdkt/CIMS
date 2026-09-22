@@ -98,6 +98,18 @@ final class ItemIssueHistoryExport implements FromCollection, WithHeadings, With
         return $total;
     }
 
+    /**
+     * User-reported 2026-09-22: exports still showed the full `DECIMAL(18,6)` precision
+     * (e.g. `10.000000`) — the same trim-trailing-zeros convention already applied to the
+     * on-screen table (this Livewire view) and the FR-RQ-05 balance display, just missing
+     * from the Excel/PDF output. Display only — `totalIssued()`/`remainingBalance()` (used
+     * for the actual reconciliation, and by callers that need the full value) are untouched.
+     */
+    public static function trimQty(string $value): string
+    {
+        return rtrim(rtrim($value, '0'), '.');
+    }
+
     /** @return array<int, string> */
     private function rowToArray(IssueTransaction $row): array
     {
@@ -110,7 +122,7 @@ final class ItemIssueHistoryExport implements FromCollection, WithHeadings, With
             CsvInjectionGuard::sanitize($requisition->doc_no),
             CsvInjectionGuard::sanitize($requester->full_name),
             CsvInjectionGuard::sanitize($requisition->faculty ?? ''),
-            (string) $row->qty_issued_base,
+            self::trimQty((string) $row->qty_issued_base),
         ];
     }
 

@@ -11,6 +11,7 @@ use App\Domain\Reporting\Exports\ControlledSubstancesExport;
 use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
 use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
+use App\Domain\Reporting\Exports\ItemReceivingHistoryExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
@@ -161,6 +162,11 @@ final class ReportsDashboard extends Component
             'historySummary' => $historyItem === null
                 ? null
                 : $this->historySummaryFor($historyItem, $effectiveLabId),
+            // User-requested 2026-09-22: the receiving history (IMS requisition number)
+            // appended below the dispensing table, on the same tab — not a separate page.
+            'receivingRows' => $historyItem === null
+                ? collect()
+                : $this->receivingExportFor($historyItem, $effectiveLabId)->results()->take(self::ROW_LIMIT),
         ]);
     }
 
@@ -220,6 +226,15 @@ final class ReportsDashboard extends Component
     private function historyExportFor(Item $item, ?int $labId): ItemIssueHistoryExport
     {
         return new ItemIssueHistoryExport(
+            $item,
+            new DateRangeFilter(dateFrom: $this->historyFrom ?: null, dateTo: $this->historyTo ?: null),
+            $labId,
+        );
+    }
+
+    private function receivingExportFor(Item $item, ?int $labId): ItemReceivingHistoryExport
+    {
+        return new ItemReceivingHistoryExport(
             $item,
             new DateRangeFilter(dateFrom: $this->historyFrom ?: null, dateTo: $this->historyTo ?: null),
             $labId,
