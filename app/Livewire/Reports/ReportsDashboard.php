@@ -157,7 +157,7 @@ final class ReportsDashboard extends Component
                 : StockTake::orderByDesc('id')->limit(50)->get(),
             'restrictedLabId' => $restrictedLabId,
             'historyItem' => $historyItem,
-            'historyCandidates' => $this->tab === 'item_issue_history' ? $this->historyCandidates() : collect(),
+            'historyCandidates' => $this->tab === 'item_issue_history' ? $this->historyCandidates($effectiveLabId) : collect(),
             'historySummary' => $historyItem === null
                 ? null
                 : $this->historySummaryFor($historyItem, $effectiveLabId),
@@ -178,16 +178,27 @@ final class ReportsDashboard extends Component
     }
 
     /**
-     * Candidates for the item picker — searchable, since the catalog runs to thousands of rows.
+     * User-reported 2026-09-22 (twice): the picker must not offer the whole chemical
+     * catalog, and should draw from "คลังสารเคมีของฉัน (สต็อกคงคลัง)" — the same real,
+     * in-stock inventory `LabInventoryTable` shows, branch-scoped the same way. A chemical
+     * with no stock physically in this branch right now isn't offered here, even if it
+     * has stock elsewhere or has been dispensed before.
      *
      * @return Collection<int, Item>
      */
-    private function historyCandidates(): Collection
+    private function historyCandidates(?int $labId): Collection
     {
         $search = trim($this->historyItemSearch);
 
+        $itemIdsInStock = Container::query()
+            ->select('item_id')
+            ->distinct()
+            ->whereIn('status', ['SEALED', 'IN_USE'])
+            ->where('remaining_qty_base', '>', 0)
+            ->when($labId !== null, fn ($q) => $q->whereHas('location', fn ($l) => $l->where('lab_id', $labId)));
+
         return Item::query()
-            ->where('is_active', true)
+            ->whereIn('id', $itemIdsInStock)
             ->when($search !== '', fn ($q) => $q->where(
                 fn ($w) => $w->where('name_th', 'like', '%'.$search.'%')
                     ->orWhere('item_code', 'like', '%'.$search.'%'),

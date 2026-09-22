@@ -2237,3 +2237,22 @@ stock-summary and usage-summary tabs.
   silently reorder itself between runs.
 - Verified: Pest 568/568 green, Pint clean (372 files), PHPStan level 8 clean, `composer audit`
   clean.
+
+## Fix — Dispensing-history item picker sourced from the chemical catalog, not real stock (2026-09-22)
+
+User caught this immediately after the report shipped: "ทำไมไม่เอามาจากข้อมูลที่เบิกจริงหละ ไปดึงสารเคมีในทะเบียนมาทำไม".
+The picker's first version listed every active `Item`, so it offered thousands of chemicals
+this branch has never physically held. First fix scoped it to items with a real
+`IssueTransaction`; the user then redirected once more: "ไปดึงข้อมูลในคลังสารเคมีของฉัน (สต็อกคงคลัง) ก็ได้
+แบบแยกสาขาด้วยนะ" — source it from the same real in-stock inventory `LabInventoryTable`
+("สต็อกคงคลังย่อยของฉัน") already shows, not from dispensing history either.
+
+- `ReportsDashboard::historyCandidates()` now filters to items with at least one `SEALED`/
+  `IN_USE` container holding `remaining_qty_base > 0`, branch-scoped via the container's
+  `location.lab_id` — the exact same query shape `LabInventoryTable` already uses for "what's
+  physically in my branch's warehouse right now". A chemical that has been fully dispensed,
+  disposed, or never stocked in this branch is correctly absent from the picker even if it has
+  stock elsewhere.
+- Tests rewritten to match: the picker is asserted against real containers/locations, not
+  `IssueTransaction` fixtures.
+- Verified: Pest 570/570 green, Pint clean, PHPStan level 8 clean, `composer audit` clean.

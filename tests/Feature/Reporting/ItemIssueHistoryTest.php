@@ -111,6 +111,47 @@ test('the lab filter narrows to requisitions raised in that branch', function ()
     expect($export->totalIssued())->toBe('10.000000');
 });
 
+test('user-reported 2026-09-22 (twice): the picker draws from real in-stock inventory, not the whole catalog', function () {
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $manager = auditorUser(['lab_id' => $lab->id]);
+
+    $inStock = makeItem(['name_th' => 'สารที่มีสต็อกอยู่']);
+    makeContainer(['item_id' => $inStock->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '50']);
+
+    $neverStocked = makeItem(['name_th' => 'สารที่ไม่เคยมีสต็อก']);
+
+    $emptiedOut = makeItem(['name_th' => 'สารที่หมดสต็อกแล้ว']);
+    makeContainer(['item_id' => $emptiedOut->id, 'location_id' => $location->id, 'status' => 'EMPTY', 'remaining_qty_base' => '0']);
+
+    Livewire::actingAs($manager)
+        ->test(ReportsDashboard::class)
+        ->set('tab', 'item_issue_history')
+        ->assertSee('สารที่มีสต็อกอยู่')
+        ->assertDontSee('สารที่ไม่เคยมีสต็อก')
+        ->assertDontSee('สารที่หมดสต็อกแล้ว');
+});
+
+test('the picker is branch-scoped, same as the "คลังสารเคมีของฉัน" inventory it draws from', function () {
+    $labA = makeLab();
+    $labB = makeLab();
+    $locationA = makeLocationForLab($labA);
+    $locationB = makeLocationForLab($labB);
+    $managerA = auditorUser(['lab_id' => $labA->id]);
+
+    $itemA = makeItem(['name_th' => 'สารสาขา A']);
+    makeContainer(['item_id' => $itemA->id, 'location_id' => $locationA->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10']);
+
+    $itemB = makeItem(['name_th' => 'สารสาขา B']);
+    makeContainer(['item_id' => $itemB->id, 'location_id' => $locationB->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10']);
+
+    Livewire::actingAs($managerA)
+        ->test(ReportsDashboard::class)
+        ->set('tab', 'item_issue_history')
+        ->assertSee('สารสาขา A')
+        ->assertDontSee('สารสาขา B');
+});
+
 test('the reports page shows the history once a chemical is picked, and prompts before that', function () {
     $item = makeItem(['name_th' => 'สารสำหรับทดสอบประวัติ']);
     $issuer = auditorUser(['lab_id' => makeLab()->id]);
