@@ -53,15 +53,16 @@ test('an AUDITOR of a different branch gets 403 approving a disposal in another 
     $location = makeLocationForLab($lab);
     $item = makeItem();
     $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
-    $scientist = scientistUser();
+    // disposal.request moved off SCIENTIST on 2026-09-22 — the requester is a manager now.
+    $requester = auditorUser(['lab_id' => $lab->id]);
     $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
     app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
         $container->id,
         '50.000000',
-        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $scientist->id),
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $requester->id),
     );
 
-    $this->actingAs($scientist)->post(route('disposals.store'), [
+    $this->actingAs($requester)->post(route('disposals.store'), [
         'barcode' => $container->fresh()->barcode,
         'qty' => '20.000000',
         'reason' => 'EXPIRED',

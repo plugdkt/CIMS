@@ -4,9 +4,11 @@
             <h1 class="font-display text-lg font-bold">{{ __('adjustments.index_title') }}</h1>
             <p class="text-sm text-ink-muted mt-1">{{ __('adjustments.index_subtitle') }}</p>
         </div>
-        <a href="{{ route('adjustments.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
-            {{ __('adjustments.new_adjustment') }}
-        </a>
+        @can('adjust', App\Models\StockLedger::class)
+            <a href="{{ route('adjustments.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
+                {{ __('adjustments.new_adjustment') }}
+            </a>
+        @endcan
     </div>
 
     <div class="bg-surface border border-border rounded-xl overflow-hidden">

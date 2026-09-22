@@ -61,7 +61,7 @@
                     {{ __('nav.disposals') }}
                 </a>
             @endcan
-            @can('adjust', App\Models\StockLedger::class)
+            @can('viewAdjustments', App\Models\StockLedger::class)
                 <a href="{{ route('adjustments.index') }}"
                    class="flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('adjustments.*') ? 'bg-accent-soft text-accent-soft-ink' : 'text-ink-muted hover:bg-surface-alt hover:text-ink' }}">
                     {{ __('nav.adjustments') }}

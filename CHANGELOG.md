@@ -2138,3 +2138,71 @@ people work at. `UnitConverter::toItemBase()` then faithfully converted 500 mL i
   **An item already stocked in the wrong unit cannot be corrected in place**; it needs a new item
   record. `AS197823` on production is in exactly that state.
 - Verified: Pest 548/548 green, Pint clean, PHPStan level 8 clean, `composer audit` clean.
+
+## Post-launch — Reports and warehouse menus handed to the warehouse managers (2026-09-22)
+
+User-requested: "ในหน้ารายงาน ผมอยากให้จำกัดเฉพาะสาขาของตนเอง มีแค่ผู้ดูแลคลังเท่านั้นที่ดูรายงานได้ และ admin
+เห็นทั้งหมด และเลือกดูแต่ละสาขาได้ด้วย และเมนู ตรวจนับสต็อก ทำลาย/ตัดจำหน่าย ปรับปรุงยอด ให้เฉพาะผู้ดูแลคลัง
+และ admin เท่านั้น"
+
+### Permissions
+
+- **SCIENTIST loses `report.view`, `stocktake.manage` and `disposal.request`.** Together with
+  2026-09-21's changes, SCIENTIST is now purely the dispensing role: create and view their own
+  requisitions, issue against approved ones in their own branch, and read the item ledger.
+- **LAB_MANAGER / AUDITOR gain `disposal.request`** — they already approved disposals but could
+  never raise one, so handing them the menu without this would have produced a queue nobody
+  could feed.
+- **ADMIN gains `report.view` and `disposal.request`** (and already had `stocktake.manage`).
+- All three SCIENTIST removals were added to `PermissionSeeder`'s detach list;
+  `syncWithoutDetaching()` is additive-only and would otherwise leave them in place on an
+  already-seeded database.
+
+### ADMIN reads these areas but never writes the ledger
+
+Asked explicitly, because the alternative reversed a standing decision: spec §3 says ADMIN
+"ไม่มีสิทธิ์แตะ Ledger" and this project has honored it since T-005. User chose to keep it
+("เห็นได้ แต่อนุมัติไม่ได้"). So ADMIN can open all four areas and request a disposal or run a
+stock-take round, but holds neither `ledger.adjust` nor `disposal.approve` and therefore cannot
+approve an adjustment, a stock take, or a disposal — each of those writes to `stock_ledger`.
+
+- **`StockLedgerPolicy::viewAdjustments()`** is new, splitting "read the adjustment history" from
+  `adjust()` ("create one"). Without it the adjustments menu — gated on `adjust` — would have been
+  invisible to ADMIN, and granting `ledger.adjust` to make it appear was exactly the reversal being
+  avoided. The nav entry and `AdjustmentController::index()` use the new ability; the "new
+  adjustment" button and `create()`/`store()` still require `adjust()`.
+
+### Disposal lost its separation of duties, deliberately
+
+The requester/approver split used to be enforced only by the two permissions living on different
+roles (T-042 chose that over a BR-06-style distinct-actor check). Moving both onto the warehouse
+managers collapses it, so the user was asked whether to add the explicit check instead and chose
+not to ("คนเดียวทำได้จบ"). One warehouse manager can now request and approve the same disposal.
+CLAUDE.md's T-042 note has been amended so the superseded reasoning isn't re-derived later.
+
+### Reports scoping
+
+No code change was needed: `ReportController::labIdFor()` and `ReportsDashboard::restrictedLabId()`
+already force a branch manager's own `lab_id` over anything the query string carries, and the lab
+picker already renders only for non-branch-managers. Removing `report.view` from SCIENTIST is what
+makes "own branch only" true in practice, since SCIENTIST was the one `report.view` holder that
+`User::isBranchManager()` does not cover. ADMIN is not a branch manager either — which is the
+point: they see every branch and get the picker.
+
+### Fixed: an intermittent out-of-memory fatal that had been masking a full-suite run
+
+`phpunit.xml` now sets `memory_limit` to 512M. The container's CLI limit is 128M, which the whole
+suite in one PHP process outgrows — the Excel writer then asks zipstream-php for a 16MB chunk and
+dies. It only ever appeared partway through a full run, never when the export test ran alone,
+which is what accumulation looks like rather than a leak; the real queued export already raises its
+own limit to 1536M. **This had been hiding test failures**: the fatal aborted the run before
+`tests/Feature/Notifications` was reached, so those tests were silently not running in full-suite
+runs. They pass.
+
+- Fixtures updated across `StockTakeControllerTest`, `DisposalControllerTest`, `ReportControllerTest`,
+  `ReportsDashboardTest`, `DashboardControllerTest`, `NotificationServiceTest`,
+  `NotifyExpiryCommandTest` and `RoleScopingTest` — all used `scientistUser()` for work SCIENTIST no
+  longer does. New `WarehouseMenuAccessTest` pins who reaches each of the four areas, that the menus
+  disappear from a SCIENTIST's sidebar, and that ADMIN gets the adjustment list without the form.
+- Verified: Pest 560/560 green, Pint clean (370 files), PHPStan level 8 clean, `composer audit` clean.
+  `PermissionSeeder` re-run against the dev database.

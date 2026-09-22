@@ -18,6 +18,17 @@
         </include>
     </source>
     <php>
+        <!--
+            The container's CLI memory_limit is 128M, which the whole suite running in a
+            single PHP process outgrows: PHPUnit/Pest hold every test object for the run,
+            and the Excel writer then asks for a 16MB chunk in one go
+            (zipstream-php/src/File.php) and dies with "Allowed memory size exhausted".
+            It surfaced as an intermittent fatal partway through a full run — never when
+            the export test was run on its own — which is exactly what accumulation looks
+            like. Not a leak in app code: the real queued export raises its own limit to
+            1536M (GenerateLedgerPdfExportJob), so only the harness needed headroom.
+        -->
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_URL" value="http://localhost"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

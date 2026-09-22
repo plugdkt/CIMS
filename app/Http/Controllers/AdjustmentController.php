@@ -18,7 +18,7 @@ final class AdjustmentController extends Controller
 {
     public function index(): View
     {
-        $this->authorize('adjust', StockLedger::class);
+        $this->authorize('viewAdjustments', StockLedger::class);
 
         $adjustments = StockLedger::with(['item', 'container', 'creator', 'approver'])
             ->whereIn('txn_type', ['ADJUST_IN', 'ADJUST_OUT'])

@@ -64,14 +64,14 @@ test('emailOnly skips email when user email is empty', function () {
 });
 
 test('usersWithAnyPermission returns active users holding at least one of the given permissions, deduplicated', function () {
-    $labManager = labManagerUser(); // item.manage, ledger.adjust, ...
-    $scientist = scientistUser(); // disposal.request, ...
+    $labManager = labManagerUser(); // item.manage, disposal.request, ledger.adjust, ...
+    $admin = adminUser(); // disposal.request only, since 2026-09-22
     $inactive = labManagerUser();
     $inactive->update(['is_active' => false]);
 
     $recipients = app(NotificationService::class)->usersWithAnyPermission('item.manage', 'disposal.request');
 
-    expect($recipients->pluck('id')->all())->toContain($labManager->id, $scientist->id);
+    expect($recipients->pluck('id')->all())->toContain($labManager->id, $admin->id);
     expect($recipients->pluck('id')->all())->not->toContain($inactive->id);
     expect($recipients->pluck('id')->unique()->count())->toBe($recipients->count());
 });

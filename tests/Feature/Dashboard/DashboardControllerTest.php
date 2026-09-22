@@ -33,10 +33,10 @@ test('§7.9: a logged-in STUDENT sees the dashboard with a pending-requisitions 
     $response->assertDontSee(__('home.below_reorder'));
 });
 
-test('§7.9: a SCIENTIST (report.view) sees the full dashboard with all analytics cards', function () {
-    $scientist = scientistUser();
+test('§7.9: a warehouse manager (report.view) sees the full dashboard with all analytics cards', function () {
+    $manager = auditorUser();
 
-    $response = $this->actingAs($scientist)->get('/');
+    $response = $this->actingAs($manager)->get('/');
 
     $response->assertOk()->assertViewIs('home');
     $response->assertViewHas('belowReorderCount');
@@ -48,7 +48,7 @@ test('§7.9: a SCIENTIST (report.view) sees the full dashboard with all analytic
 });
 
 test('§7.9 (user-requested 2026-09-21): the dashboard names which items are actually low/expiring, not just a count', function () {
-    $scientist = scientistUser();
+    $manager = auditorUser();
     $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
     $ledgerUser = \App\Models\User::factory()->create();
 
@@ -62,7 +62,7 @@ test('§7.9 (user-requested 2026-09-21): the dashboard names which items are act
     $expiringItem = makeItem(['name_th' => 'สารใกล้หมดอายุสำหรับทดสอบ']);
     makeContainer(['item_id' => $expiringItem->id, 'status' => 'IN_USE', 'expiry_date' => now()->addDays(5)->toDateString()]);
 
-    $response = $this->actingAs($scientist)->get('/');
+    $response = $this->actingAs($manager)->get('/');
 
     $response->assertOk()
         ->assertSee('สารใกล้หมดสำหรับทดสอบ')

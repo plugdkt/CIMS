@@ -64,17 +64,27 @@ final class PermissionSeeder extends Seeder
             'STUDENT' => ['requisition.create', 'requisition.view_own', 'item.view'],
             'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view'],
             'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view'],
+            // User-requested 2026-09-22: stock takes, disposals, adjustments and the reports
+            // page all belong to the warehouse managers (LAB_MANAGER/AUDITOR) and ADMIN.
+            // SCIENTIST is now purely the dispensing role — create/view their own
+            // requisitions, issue against approved ones, and read the item ledger.
             'SCIENTIST' => [
                 'requisition.create', 'requisition.view_own', 'requisition.issue',
-                'stocktake.manage', 'ledger.view', 'disposal.request',
-                'item.view', 'report.view',
+                'ledger.view', 'item.view',
             ],
             'LAB_MANAGER' => [
                 'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
-                'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
+                'disposal.request', 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
-            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'receiving.manage', 'stocktake.manage', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view'],
+            // ADMIN sees every branch's reports (the reports page's own lab picker lets them
+            // narrow to one) and reaches the stock-take/disposal/adjustment menus, but still
+            // holds no ledger.* write permission — spec §3's "ไม่มีสิทธิ์แตะ Ledger", kept
+            // deliberately when this area was handed to the warehouse managers (2026-09-22).
+            // So: no ledger.adjust (cannot approve an adjustment or a stock take) and no
+            // disposal.approve. See StockLedgerPolicy::viewAdjustments() for how the
+            // adjustments menu stays visible without granting the write.
+            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'receiving.manage', 'stocktake.manage', 'disposal.request', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view', 'report.view'],
             // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the
             // spec-described read-only oversight role — it's now a second,
             // independently-assignable flavor of branch-scoped warehouse manager
@@ -82,7 +92,7 @@ final class PermissionSeeder extends Seeder
             // See User::isBranchManager() for the scoping side of this change.
             'AUDITOR' => [
                 'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
-                'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
+                'disposal.request', 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members',
             ],
         ];
@@ -93,15 +103,20 @@ final class PermissionSeeder extends Seeder
             $role->permissions()->syncWithoutDetaching($permissionIds);
         }
 
-        // syncWithoutDetaching() above is additive-only, so explicitly detach
-        // requisition.approve_scientist, requisition.view_all, and receiving.manage from SCIENTIST role
-        // (requisition approval, viewing all requisitions, and stock-in/receiving are reserved for warehouse managers).
+        // syncWithoutDetaching() above is additive-only, so every grant SCIENTIST has lost
+        // has to be detached explicitly from an already-seeded database. Requisition
+        // approval, viewing all requisitions and stock-in/receiving moved to the warehouse
+        // managers on 2026-09-21; stock takes, disposals and the reports page followed on
+        // 2026-09-22.
         $scientistRole = Role::where('code', 'SCIENTIST')->first();
         if ($scientistRole !== null) {
             $staleScientistPermissionIds = Permission::whereIn('code', [
                 'requisition.approve_scientist',
                 'requisition.view_all',
                 'receiving.manage',
+                'stocktake.manage',
+                'disposal.request',
+                'report.view',
             ])->pluck('id');
             $scientistRole->permissions()->detach($staleScientistPermissionIds);
         }

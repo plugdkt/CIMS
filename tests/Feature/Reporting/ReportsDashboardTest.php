@@ -14,9 +14,9 @@ uses(RefreshDatabase::class);
 // docs/qa_finding_2026-09-17_test_suite_fatal_redeclare.md).
 
 test('the reports index defaults to the item stock summary tab', function () {
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $this->actingAs($scientist)->get(route('reports.index'))
+    $this->actingAs($manager)->get(route('reports.index'))
         ->assertOk()
         ->assertSee(__('reports.item_stock_summary_title'));
 });
@@ -44,8 +44,8 @@ test('the item stock summary tab shows used/remaining per item, lowest balance f
         'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('h', 64),
     ]);
 
-    $scientist = scientistUser();
-    $response = $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'item_stock_summary']));
+    $manager = auditorUser();
+    $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'item_stock_summary']));
 
     $response->assertOk()
         ->assertSeeInOrder(['สารใกล้หมดทดสอบ', 'สารคงเหลือเยอะทดสอบ'])
@@ -59,13 +59,13 @@ test('the item stock summary tab shows used/remaining per item, lowest balance f
 test('the usage summary tab live-filters by requester name', function () {
     $staff = staffUser(['full_name' => 'สมชาย ใจดี']);
     issueOneLine(approvedRequisition($staff)->fresh(['items']));
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'usage_summary']))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'usage_summary']))
         ->assertOk()
         ->assertSee('สมชาย ใจดี');
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'usage_summary', 'usageRequesterName' => 'ไม่มีตัวตน']))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'usage_summary', 'usageRequesterName' => 'ไม่มีตัวตน']))
         ->assertOk()
         ->assertDontSee('สมชาย ใจดี');
 });
@@ -78,13 +78,13 @@ test('the expiring stock tab live-filters by date range', function () {
         'remaining_qty_base' => '10.000000',
         'expiry_date' => now()->addDays(10)->toDateString(),
     ]);
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'expiring_stock']))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'expiring_stock']))
         ->assertOk()
         ->assertSee('สารทดสอบใกล้หมดอายุ');
 
-    $this->actingAs($scientist)->get(route('reports.index', [
+    $this->actingAs($manager)->get(route('reports.index', [
         'tab' => 'expiring_stock',
         'expiringFrom' => now()->addDays(30)->toDateString(),
     ]))->assertOk()->assertDontSee('สารทดสอบใกล้หมดอายุ');
@@ -114,11 +114,11 @@ test('the below-reorder tab live-filters by lab, and a LAB_MANAGER never sees th
         'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('b', 64),
     ]);
 
-    $scientist = scientistUser();
-    $response = $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'below_reorder']));
+    $manager = auditorUser();
+    $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'below_reorder']));
     $response->assertOk()->assertSee('สารสาขา A')->assertSee('สารสาขา B');
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'below_reorder', 'labId' => $labA->id]))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'below_reorder', 'labId' => $labA->id]))
         ->assertOk()->assertSee('สารสาขา A')->assertDontSee('สารสาขา B');
 
     $manager = labManagerUser(['lab_id' => $labA->id]);
@@ -140,9 +140,9 @@ test('the dead stock tab lists a container with no recent movement', function ()
         'display_unit_id' => Unit::where('code', 'g')->value('id'), 'created_by' => User::factory()->create()->id,
         'created_at' => now()->subMonths(13), 'prev_row_hash' => null, 'row_hash' => str_repeat('c', 64),
     ]);
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'dead_stock']))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'dead_stock']))
         ->assertOk()
         ->assertSee('สารค้างสต็อกทดสอบ');
 });
@@ -159,9 +159,9 @@ test('the controlled substances tab only lists movements for controlled items', 
             'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat((string) $i, 64),
         ]);
     }
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $response = $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'controlled_substances']));
+    $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'controlled_substances']));
     $response->assertOk()->assertSee('สารควบคุมทดสอบ')->assertDontSee('สารทั่วไปทดสอบ');
 });
 
@@ -172,14 +172,14 @@ test('the stock take variance tab shows nothing until a round is selected, then 
     makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10.000000']);
     $user = User::factory()->create();
     $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $user);
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'stock_take_variance']))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'stock_take_variance']))
         ->assertOk()
         ->assertSee(__('reports.select_stock_take_first'))
         ->assertDontSee('สารตรวจนับทดสอบ');
 
-    $this->actingAs($scientist)->get(route('reports.index', ['tab' => 'stock_take_variance', 'stockTakeUlid' => $stockTake->ulid]))
+    $this->actingAs($manager)->get(route('reports.index', ['tab' => 'stock_take_variance', 'stockTakeUlid' => $stockTake->ulid]))
         ->assertOk()
         ->assertSee('สารตรวจนับทดสอบ');
 });

@@ -16,37 +16,37 @@ test('a user without stocktake.manage gets 403 on the create page', function () 
     $this->actingAs($staff)->get(route('stock-takes.create'))->assertStatus(403);
 });
 
-test('a scientist can create a round and see it in the list', function () {
+test('a warehouse manager can create a round and see it in the list', function () {
     $lab = makeLab();
-    $scientist = scientistUser();
+    $manager = auditorUser();
 
-    $this->actingAs($scientist)->post(route('stock-takes.store'), [
+    $this->actingAs($manager)->post(route('stock-takes.store'), [
         'lab_id' => $lab->id,
         'count_date' => now()->toDateString(),
     ])->assertRedirect();
 
-    $this->actingAs($scientist)->get(route('stock-takes.index'))->assertOk()->assertSee($lab->name_th);
+    $this->actingAs($manager)->get(route('stock-takes.index'))->assertOk()->assertSee($lab->name_th);
 });
 
 test('the mobile scan page records a count via barcode and loops back for the next one', function () {
     $lab = makeLab();
     $location = makeLocationForLab($lab);
     $item = makeItem();
-    $scientist = scientistUser();
+    $manager = auditorUser();
     $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '50']);
 
-    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $scientist);
+    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $manager);
 
-    $this->actingAs($scientist)->get(route('stock-takes.scan', $stockTake))
+    $this->actingAs($manager)->get(route('stock-takes.scan', $stockTake))
         ->assertOk()
         ->assertSee(__('stock_takes.scan_progress', ['counted' => 0, 'total' => 1]));
 
-    $this->actingAs($scientist)->post(route('stock-takes.count', $stockTake), [
+    $this->actingAs($manager)->post(route('stock-takes.count', $stockTake), [
         'barcode' => $container->barcode,
         'counted_qty' => '48',
     ])->assertRedirect(route('stock-takes.scan', $stockTake));
 
-    $this->actingAs($scientist)->get(route('stock-takes.scan', $stockTake))
+    $this->actingAs($manager)->get(route('stock-takes.scan', $stockTake))
         ->assertSee(__('stock_takes.all_counted'));
 });
 
@@ -54,13 +54,13 @@ test('a barcode not part of this round is rejected with a clear error', function
     $lab = makeLab();
     $location = makeLocationForLab($lab);
     $item = makeItem();
-    $scientist = scientistUser();
+    $manager = auditorUser();
     makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '50']);
     $otherContainer = makeContainer(['item_id' => $item->id, 'location_id' => null, 'status' => 'IN_USE', 'remaining_qty_base' => '10']);
 
-    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $scientist);
+    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $manager);
 
-    $this->actingAs($scientist)->post(route('stock-takes.count', $stockTake), [
+    $this->actingAs($manager)->post(route('stock-takes.count', $stockTake), [
         'barcode' => $otherContainer->barcode,
         'counted_qty' => '10',
     ])->assertSessionHasErrors('barcode');
@@ -71,19 +71,19 @@ test('full round trip: create, count, submit, approve writes the adjustment', fu
     $location = makeLocationForLab($lab);
     $item = makeItem();
     $g = Unit::where('code', 'g')->firstOrFail();
-    $scientist = scientistUser();
+    $manager = auditorUser();
     $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '0']);
-    app(LedgerService::class)->receive($container->id, '50.000000', new LedgerEntryData(displayUnitId: $g->id, createdBy: $scientist->id));
+    app(LedgerService::class)->receive($container->id, '50.000000', new LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id));
 
-    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $scientist);
+    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $manager);
 
-    $this->actingAs($scientist)->post(route('stock-takes.count', $stockTake), [
+    $this->actingAs($manager)->post(route('stock-takes.count', $stockTake), [
         'barcode' => $container->fresh()->barcode,
         'counted_qty' => '45',
         'reason' => 'พบของหายบางส่วน',
     ])->assertRedirect();
 
-    $this->actingAs($scientist)->post(route('stock-takes.submit', $stockTake))->assertRedirect();
+    $this->actingAs($manager)->post(route('stock-takes.submit', $stockTake))->assertRedirect();
 
     $labManager = labManagerUser();
     $this->actingAs($labManager)->post(route('stock-takes.approve', $stockTake))
@@ -91,4 +91,25 @@ test('full round trip: create, count, submit, approve writes the adjustment', fu
 
     expect($container->fresh()->remaining_qty_base)->toBe('45.000000');
     expect($stockTake->fresh()->status)->toBe('APPROVED');
+});
+
+test('spec §3: an ADMIN can run a round but never approve it — approving writes the adjustment', function () {
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $item = makeItem();
+    $admin = adminUser();
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '50']);
+
+    $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $admin);
+
+    $this->actingAs($admin)->post(route('stock-takes.count', $stockTake), [
+        'barcode' => $container->barcode,
+        'counted_qty' => '45',
+        'reason' => 'พบของหายบางส่วน',
+    ])->assertRedirect();
+
+    $this->actingAs($admin)->post(route('stock-takes.submit', $stockTake))->assertRedirect();
+
+    $this->actingAs($admin)->post(route('stock-takes.approve', $stockTake))->assertStatus(403);
+    expect($stockTake->fresh()->status)->toBe('PENDING_APPROVAL');
 });

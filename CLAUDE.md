@@ -455,6 +455,15 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   per `PermissionSeeder`, which is the separation-of-duties mechanism spec's §3 actually names for this
   case — adding a same-person check on top would be enforcing a rule spec never asked for here. Revisit
   if a later spec reading or a real incident shows disposal needs the same explicit protection.
+  - **Superseded 2026-09-22**: that separation no longer exists. Disposals moved wholesale to the
+    warehouse managers, so LAB_MANAGER/AUDITOR now hold **both** `disposal.request` and
+    `disposal.approve` and one person can request and approve the same disposal. The user was asked
+    directly whether to add a BR-06-style distinct-actor check to replace the lost role separation
+    and chose not to ("คนเดียวทำได้จบ"). So disposal today has **no** separation of duties at all —
+    don't re-derive one from the paragraph above, and don't "restore" it without asking.
+  - ADMIN holds `disposal.request` but deliberately **not** `disposal.approve`, because approving
+    writes an `ADJUST_OUT` row and spec §3 keeps ADMIN off the ledger. Same reason ADMIN has
+    `stocktake.manage` but cannot approve a stock take.
 - **`Disposal::reject()` stores no rejection reason** — spec's own `disposals` DDL has no column for
   one (unlike `requisitions.reject_reason`), so none is invented. The `status` flip to REJECTED plus
   `approved_by`/`approved_at` (who decided, and when) is the entire record spec's schema provides for;
