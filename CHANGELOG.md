@@ -2330,3 +2330,19 @@ directly on each chemical's row in the picker, no need to click into its detail 
   pointing straight at that item's export routes — downloadable with zero prior selection.
 - Verified: Pest 579/579 green, Pint clean (375 files), PHPStan level 8 clean, `composer audit`
   clean.
+
+## Fix — PDF order: receiving first, dispensing second, balance at the very end (2026-09-22)
+
+User-requested: "เราควรเอา ประวัติการรับเข้าเป็นตารางด้านบนไหม แล้วต่อด้วย ประวัติการเบิก และท้ายตารางบอกจำนวนคงเหลือไว้ด้วยครับ".
+
+- `ItemIssueHistoryPdfService` reordered: title + item info block, then receiving history,
+  then dispensing history, then a balance footer after both tables — previously the balance
+  sat in the header before either table, and the receiving table was appended last.
+- The footer now shows both total issued and current balance together, since dropping total
+  issued from the old header position would have quietly removed a number nobody asked to
+  lose.
+- Refactored into a single `buildHtml()` (matching `Fr01PdfService`'s testable shape) instead
+  of four separate `WriteHTML()` calls, so the ordering itself is pinned by a reflection-based
+  test rather than only "the sections all render somewhere."
+- Verified: Pest 580/580 green, Pint clean (375 files), PHPStan level 8 clean, `composer audit`
+  clean.

@@ -337,3 +337,41 @@ test('user-reported 2026-09-22: each chemical in the list has its own download l
         ->get(route('reports.item-issue-history.excel', $item))
         ->assertOk();
 });
+
+test('user-requested 2026-09-22: the PDF lists receiving history first, then dispensing history, then the balance', function () {
+    $item = makeItem();
+    $lab = makeLab();
+    $manager = auditorUser(['lab_id' => $lab->id]);
+    $location = makeLocationForLab($lab);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $container = makeContainer(['item_id' => $item->id, 'location_id' => $location->id]);
+    app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
+        $container->id,
+        '50.000000',
+        new \App\Domain\Inventory\DTO\LedgerEntryData(displayUnitId: $g->id, createdBy: $manager->id, remark: 'IMS-ORDER-TEST'),
+    );
+    issueOnce($item, '20.000000', staffUser(['lab_id' => $lab->id]), $manager, $lab->id);
+
+    $issueExport = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
+    $receivingExport = new \App\Domain\Reporting\Exports\ItemReceivingHistoryExport($item, new DateRangeFilter(null, null));
+
+    $service = app(\App\Domain\Reporting\Services\ItemIssueHistoryPdfService::class);
+    $buildHtml = new ReflectionMethod($service, 'buildHtml');
+    $html = $buildHtml->invoke($service, $item, $issueExport->results(), $receivingExport->results(), $issueExport);
+
+    $receivingPos = strpos($html, __('reports.item_receiving_history_title'));
+    $issuePos = strpos($html, __('reports.col_doc_no'));
+    $balancePos = strpos($html, __('reports.summary_balance'));
+
+    expect($receivingPos)->not->toBeFalse();
+    expect($issuePos)->not->toBeFalse();
+    expect($balancePos)->not->toBeFalse();
+    expect($receivingPos)->toBeLessThan($issuePos);
+    expect($issuePos)->toBeLessThan($balancePos);
+
+    // issueOnce() stocks its own container and fully issues it (net zero); only the
+    // manual +50 receive above changes the overall balance, so it should read 50, trimmed.
+    expect((float) $issueExport->remainingBalance())->toEqual(50.0);
+    expect($html)->toContain('IMS-ORDER-TEST');
+});

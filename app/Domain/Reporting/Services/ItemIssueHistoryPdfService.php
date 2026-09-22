@@ -27,9 +27,10 @@ use Mpdf\Output\Destination;
 final class ItemIssueHistoryPdfService
 {
     /**
-     * User-requested 2026-09-22: "รายงานสารแต่ละตัวเนี่ย เราต้องเอาแนบท้ายรายงานตามใบเบิกนี้ด้วยครับ" —
-     * the receiving history (IMS requisition number, from the stock-in form's remark field)
-     * is appended as a second table at the end of the same document, not a separate file.
+     * User-requested 2026-09-22: "ประวัติการรับเข้าเป็นตารางด้านบน แล้วต่อด้วยประวัติการเบิก และท้ายตาราง
+     * บอกจำนวนคงเหลือไว้ด้วย" — receiving history first (it's the earlier event in the item's
+     * life), dispensing history below it, and the current balance at the very end of the
+     * document, after both tables.
      */
     public function render(ItemIssueHistoryExport $issueExport, ItemReceivingHistoryExport $receivingExport): string
     {
@@ -47,21 +48,18 @@ final class ItemIssueHistoryPdfService
         ]);
 
         $mpdf->SetTitle((string) __('reports.item_issue_history_title').' — '.$item->name_th);
-        $mpdf->WriteHTML($this->issueHtml($item, $issueRows, $issueExport));
-        $mpdf->WriteHTML($this->receivingHtml($receivingRows));
+        $mpdf->WriteHTML($this->buildHtml($item, $issueRows, $receivingRows, $issueExport));
 
         return $mpdf->Output('', Destination::STRING_RETURN);
     }
 
-    /** @param  Collection<int, IssueTransaction>  $rows */
-    private function issueHtml(Item $item, Collection $rows, ItemIssueHistoryExport $export): string
+    /**
+     * @param  Collection<int, IssueTransaction>  $issueRows
+     * @param  Collection<int, StockLedger>  $receivingRows
+     */
+    private function buildHtml(Item $item, Collection $issueRows, Collection $receivingRows, ItemIssueHistoryExport $export): string
     {
         $title = e(__('reports.item_issue_history_title'));
-        $header = $this->headerHtml($item, $export);
-
-        $bodyRows = $rows->isEmpty()
-            ? '<tr><td colspan="5" style="text-align:center;padding:8px;">'.e(__('reports.item_issue_history_empty')).'</td></tr>'
-            : $rows->map(fn (IssueTransaction $row) => $this->issueRowHtml($row))->implode('');
 
         return <<<HTML
             <style>
@@ -73,24 +71,31 @@ final class ItemIssueHistoryPdfService
                 table.report th, table.report td { border: 0.2mm solid #999; padding: 3px 4px; font-size: 8pt; }
                 table.report th { background-color: #F0E0FC; text-align: left; }
                 .num { text-align: right; }
+                .balance-footer { margin-top: 10px; font-size: 10pt; text-align: right; }
             </style>
             <h1>{$title}</h1>
-            {$header}
-            <table class="report">
-                <thead>
-                    <tr>
-                        <th>{$this->col('col_date')}</th>
-                        <th>{$this->col('col_doc_no')}</th>
-                        <th>{$this->col('col_requester')}</th>
-                        <th>{$this->col('col_faculty')}</th>
-                        <th class="num">{$this->col('col_qty_issued')}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {$bodyRows}
-                </tbody>
-            </table>
+            {$this->itemInfoHtml($item)}
+            {$this->receivingHtml($receivingRows)}
+            {$this->issueHtml($issueRows)}
+            {$this->balanceFooterHtml($item, $export)}
             HTML;
+    }
+
+    /** Same field set as Fr03PdfService's own item info block, for a consistent look. */
+    private function itemInfoHtml(Item $item): string
+    {
+        $fields = [
+            'header_category' => $item->category?->name_th,
+            'header_item' => $item->name_th.' ('.$item->item_code.')',
+            'header_brand' => $item->brand,
+            'header_grade' => $item->grade,
+        ];
+
+        $cells = collect($fields)
+            ->map(fn (?string $value, string $label) => '<td><b>'.e(__('ledger.'.$label)).':</b> '.e($value ?? '—').'</td>')
+            ->implode('');
+
+        return '<table class="header-table"><tr>'.$cells.'</tr></table>';
     }
 
     /** @param  Collection<int, StockLedger>  $rows */
@@ -120,29 +125,44 @@ final class ItemIssueHistoryPdfService
             HTML;
     }
 
-    /** Same field set as Fr03PdfService's own item info block, for a consistent look. */
-    private function headerHtml(Item $item, ItemIssueHistoryExport $export): string
+    /** @param  Collection<int, IssueTransaction>  $rows */
+    private function issueHtml(Collection $rows): string
+    {
+        $title = e(__('reports.item_issue_history_title'));
+
+        $bodyRows = $rows->isEmpty()
+            ? '<tr><td colspan="5" style="text-align:center;padding:8px;">'.e(__('reports.item_issue_history_empty')).'</td></tr>'
+            : $rows->map(fn (IssueTransaction $row) => $this->issueRowHtml($row))->implode('');
+
+        return <<<HTML
+            <h2>{$title}</h2>
+            <table class="report">
+                <thead>
+                    <tr>
+                        <th>{$this->col('col_date')}</th>
+                        <th>{$this->col('col_doc_no')}</th>
+                        <th>{$this->col('col_requester')}</th>
+                        <th>{$this->col('col_faculty')}</th>
+                        <th class="num">{$this->col('col_qty_issued')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {$bodyRows}
+                </tbody>
+            </table>
+            HTML;
+    }
+
+    private function balanceFooterHtml(Item $item, ItemIssueHistoryExport $export): string
     {
         $unit = $item->baseUnit?->code;
-
-        $fields = [
-            'header_category' => $item->category?->name_th,
-            'header_item' => $item->name_th.' ('.$item->item_code.')',
-            'header_brand' => $item->brand,
-            'header_grade' => $item->grade,
-        ];
-
-        $cells = collect($fields)
-            ->map(fn (?string $value, string $label) => '<td><b>'.e(__('ledger.'.$label)).':</b> '.e($value ?? '—').'</td>')
-            ->implode('');
-
         $totalIssued = e(ItemIssueHistoryExport::trimQty($export->totalIssued()).' '.$unit);
         $balance = e(ItemIssueHistoryExport::trimQty($export->remainingBalance()).' '.$unit);
 
-        return '<table class="header-table"><tr>'.$cells.'</tr><tr>'
-            .'<td><b>'.e(__('reports.summary_total_issued')).':</b> '.$totalIssued.'</td>'
-            .'<td><b>'.e(__('reports.summary_balance')).':</b> '.$balance.'</td>'
-            .'</tr></table>';
+        return '<p class="balance-footer">'
+            .'<b>'.e(__('reports.summary_total_issued')).':</b> '.$totalIssued.'&nbsp;&nbsp;&nbsp;'
+            .'<b>'.e(__('reports.summary_balance')).':</b> '.$balance
+            .'</p>';
     }
 
     private function col(string $key): string
