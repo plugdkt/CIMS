@@ -2065,3 +2065,76 @@ introduced.
   The `zipstream-php` memory-exhaustion fatal seen during the first post-merge full-suite run did not
   reproduce across three subsequent full runs — treated as transient memory pressure from running the
   whole suite in one process, not a real defect; re-investigate only if it recurs in isolation.
+
+## Fix — Nobody could reach the issue page; stock-in ignored the unit it was received in (2026-09-22)
+
+Two user-reported problems, found while answering "ระบบเบิกจ่ายไม่น่าจะมีปัญหาแล้วนะ".
+
+### The dispensing workflow was unreachable
+
+`requisition.issue` is held by **SCIENTIST only**; `requisition.view_all` is held by
+**LAB_MANAGER / AUDITOR / ADMIN only** — after 2026-09-21's restructuring these two sets no
+longer overlap at all, and the whole dispensing path runs through pages gated on *viewing*:
+
+- `RequisitionTable` filtered a non-`view_all` viewer down to `requester_id = me OR advisor_id
+  = me`, so an approved requisition never appeared in the dispenser's list.
+- `RequisitionPolicy::view()` returned false for it, so `/requisitions/{id}` answered 403.
+- The only link to `/requisitions/{id}/issue` lives on that show page, so the issue page — whose
+  own gate checks `requisition.issue` and would have passed — was reachable only by typing the
+  URL from memory.
+- `DashboardService::pendingRequisitionsCount()` counted the issuance queue *inside* the
+  `requisition.view_all` branch, so the dispenser's own card read 0 no matter how much work was
+  waiting. A warehouse manager who could see everything got 403 at the issue page instead.
+
+Fixed by making "may act on it" a reason to see it, without widening anything else:
+
+- **`RequisitionPolicy`**: new `canAct()` (issue-or-return), consulted by `view()`. A
+  requisition is visible to whoever may actually dispense or accept a return against it —
+  `APPROVED`, `PARTIALLY_ISSUED`, `ISSUED` only. A DRAFT or SUBMITTED requisition still
+  awaiting a decision stays invisible, so 2026-09-21's visibility restriction is intact.
+- **Dispensing is own-branch work** (user-decided 2026-09-22): the new `sharesBranch()` check
+  lives on `issue()` and `return()` **themselves**, not on the pages that display them — scoping
+  only the visibility would have left a dispenser able to POST against another branch's
+  requisition simply by knowing its URL, which is the same hidden-button-still-works hole this
+  whole entry is about. `RequisitionTable` and the dashboard count mirror the same rule.
+  - This is deliberately *not* routed through `User::isBranchManager()`, which excludes
+    SCIENTIST by design (it means "manages a branch", not "belongs to one"). Dispensing scopes
+    on plain `users.lab_id`.
+  - **A dispenser with no `lab_id` can now see and dispense nothing at all.** That is an
+    account-configuration gap to fix at `/admin/users`, not a case to wave through — but it is
+    silent, so a SCIENTIST reporting "ใบเบิกหายไปหมด" should have their branch checked first.
+    Pinned by a test so the behavior can't drift unnoticed.
+- **`DashboardService::pendingRequisitionsCount()`**: the issuance queue moved out of the
+  `view_all` branch, so it counts for anyone holding `requisition.issue`. This restores T-046's
+  original design ("sums every action-queue the viewer's permissions make them responsible
+  for") which 2c3b076 had narrowed. `DashboardControllerTest`'s "a SCIENTIST only sees their
+  own" case was updated accordingly — that assertion *was* the bug.
+- **Existing dispensing tests needed branch-aligned fixtures**: every `scientistUser()` in
+  `RequisitionIssueControllerTest`/`RequisitionReturnControllerTest` predates branch scoping and
+  had no `lab_id`, so all 13 started 403'ing. They now take the requisition's own `lab_id` —
+  worth knowing that **any future dispensing test must put the scientist in the requisition's
+  branch**, or it will fail for a reason that has nothing to do with what it is testing.
+- **Why no test caught it**: every existing dispensing test POSTs straight to the route or calls
+  the service. None walked list → show → issue link the way a person does. The new
+  `IssuerVisibilityTest` walks that path — the same class of gap already recorded for T-040.
+
+### Stock-in rescaled a real receipt into the catalog's guessed unit
+
+User-reported: `AS197823` was received in **mL** but stored and displayed as **L** — and real
+dispensing for it happens at mL scale. `StockInController::store()` only backfilled
+`base_unit_id` when it was `null`, and the chemical catalog import parses a unit out of a
+free-text product name ("... 1 L /ขวด") — a statement about packaging, not about the scale
+people work at. `UnitConverter::toItemBase()` then faithfully converted 500 mL into 0.5 L.
+
+- **`StockInController`**: the first receipt against an item with **no ledger history** now
+  adopts the unit it was received in, replacing a guessed catalog unit. New `adoptBaseUnit()`
+  also rescales `reorder_point_base` (stored in the item's own base unit) so its meaning
+  survives; `package_size` is left alone (it is expressed in `package_unit_id`, not base units).
+  Crossing MASS↔VOLUME without a density clears the reorder point rather than silently
+  asserting a threshold nobody set (1 g quietly becoming 1 mL).
+- **Bounded on purpose**: once a single `stock_ledger` row exists the base unit is frozen, because
+  every `_base` column is stored in the item's own base unit and the ledger is append-only
+  (AGENT RULE #6) — changing the unit later would reinterpret rows that can never be rewritten.
+  **An item already stocked in the wrong unit cannot be corrected in place**; it needs a new item
+  record. `AS197823` on production is in exactly that state.
+- Verified: Pest 548/548 green, Pint clean, PHPStan level 8 clean, `composer audit` clean.

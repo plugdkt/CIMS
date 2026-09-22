@@ -33,8 +33,27 @@ final class RequisitionPolicy extends Policy
             }
         }
 
+        // User-reported 2026-09-22: requisition.view_all was removed from SCIENTIST on
+        // 2026-09-21, but SCIENTIST is the only role holding requisition.issue — which left
+        // the dispenser unable to open, or even list, the requisitions they are supposed to
+        // dispense (the only link to the issue page lives on this very page). Whoever may
+        // act on a requisition must be able to see it; this stays narrow on purpose —
+        // it never exposes a DRAFT/SUBMITTED requisition still awaiting a decision.
+        if ($this->canAct($user, $requisition)) {
+            return true;
+        }
+
         return $this->hasPermission($user, 'requisition.view_own')
             && ($requisition->requester_id === $user->id || $requisition->advisor_id === $user->id);
+    }
+
+    /**
+     * True when this user holds an ability that actually applies to this requisition right
+     * now — the shared basis for "may open it" (view) and for the dashboard's pending count.
+     */
+    public function canAct(User $user, Requisition $requisition): bool
+    {
+        return $this->issue($user, $requisition) || $this->return($user, $requisition);
     }
 
     public function create(User $user): bool
@@ -92,6 +111,7 @@ final class RequisitionPolicy extends Policy
     public function issue(User $user, Requisition $requisition): bool
     {
         return $this->hasPermission($user, 'requisition.issue')
+            && $this->sharesBranch($user, $requisition)
             && in_array($requisition->status, ['APPROVED', 'PARTIALLY_ISSUED'], true);
     }
 
@@ -99,6 +119,20 @@ final class RequisitionPolicy extends Policy
     public function return(User $user, Requisition $requisition): bool
     {
         return $this->hasPermission($user, 'requisition.issue')
+            && $this->sharesBranch($user, $requisition)
             && in_array($requisition->status, ['PARTIALLY_ISSUED', 'ISSUED'], true);
+    }
+
+    /**
+     * User-requested 2026-09-22: dispensing is branch work — a dispenser handles their own
+     * branch's stock only. Checked on the abilities themselves, not just on the pages that
+     * display them, so a hidden action can't still be reached by POSTing to it directly.
+     *
+     * A dispenser with no branch assigned matches nothing and can dispense nothing; that is
+     * an account-configuration gap to fix at /admin/users, not a case to wave through.
+     */
+    private function sharesBranch(User $user, Requisition $requisition): bool
+    {
+        return $user->lab_id !== null && $requisition->lab_id === $user->lab_id;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\DTO\LedgerEntryData;
+use App\Domain\Inventory\Exceptions\MissingDensityException;
 use App\Domain\Inventory\Services\LedgerService;
 use App\Domain\Labeling\Services\ContainerLabelPdfService;
 use App\Domain\Shared\UnitConverter;
@@ -12,6 +13,7 @@ use App\Http\Requests\StockInRequest;
 use App\Models\Container;
 use App\Models\Item;
 use App\Models\Location;
+use App\Models\StockLedger;
 use App\Models\Unit;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -69,11 +71,13 @@ final class StockInController extends Controller
         abort_if($user === null, 401);
         $userId = (int) $user->id;
 
-        if ($item->base_unit_id === null) {
-            $item->base_unit_id = $unit->id;
-            $item->package_unit_id ??= $unit->id;
-            $item->save();
-            $item->refresh();
+        // User-reported 2026-09-22: an item stocked in as mL was stored and displayed as L.
+        // The catalog import parses a base unit out of a free-text product name ("... 1 L
+        // /ขวด"), which is a guess about packaging, not about the scale people actually
+        // work at — real dispensing happens in mL. The unit someone physically receives
+        // stock in is the authoritative one, so the first real receipt adopts it.
+        if ($item->base_unit_id === null || ! StockLedger::where('item_id', $item->id)->exists()) {
+            $this->adoptBaseUnit($item, $unit);
         }
 
         /** @var list<int> $createdContainerIds */
@@ -173,6 +177,49 @@ final class StockInController extends Controller
         }
 
         return $redirect;
+    }
+
+    /**
+     * Only ever called before the item has any ledger history — every "_base" column is
+     * stored in the item's own base unit and `stock_ledger` is append-only (AGENT RULE #6),
+     * so once a single row exists that unit can never be reinterpreted. `reorder_point_base`
+     * is the one stored value that has to move with the unit; `package_size` does not (it is
+     * expressed in `package_unit_id`, which is left alone).
+     */
+    private function adoptBaseUnit(Item $item, Unit $unit): void
+    {
+        $previousBaseUnit = $item->baseUnit()->first();
+
+        $item->base_unit_id = $unit->id;
+        $item->package_unit_id ??= $unit->id;
+
+        /** @var numeric-string $reorderPoint */
+        $reorderPoint = $item->reorder_point_base;
+
+        if ($previousBaseUnit !== null
+            && $previousBaseUnit->id !== $unit->id
+            && bccomp($reorderPoint, '0', 6) > 0
+        ) {
+            try {
+                $item->reorder_point_base = $this->converter->fromBase(
+                    $this->converter->crossDimension(
+                        $this->converter->toBase($reorderPoint, $previousBaseUnit),
+                        $previousBaseUnit->dimension,
+                        $unit->dimension,
+                        $item->density_g_per_ml !== null ? (float) $item->density_g_per_ml : null,
+                    ),
+                    $unit,
+                );
+            } catch (MissingDensityException) {
+                // Crossing MASS<->VOLUME without a density can't be converted. Keeping the
+                // old number would silently assert a threshold nobody set (1 g becoming
+                // 1 mL), so the alert is cleared instead and can be re-entered by hand.
+                $item->reorder_point_base = '0.000000';
+            }
+        }
+
+        $item->save();
+        $item->refresh();
     }
 
     public function labels(Request $request, string $size, ContainerLabelPdfService $service): Response

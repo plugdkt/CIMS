@@ -69,18 +69,28 @@ test('§7.9 (user-requested 2026-09-21): the dashboard names which items are act
         ->assertSee('สารใกล้หมดอายุสำหรับทดสอบ');
 });
 
-test('dashboard: a SCIENTIST only sees their own pending requisitions count', function () {
-    $scientist = scientistUser();
-    $student = studentUser();
+test('dashboard (updated 2026-09-22): a SCIENTIST sees their own requisitions plus their branch\'s waiting to be dispensed', function () {
+    $lab = makeLab();
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    $student = studentUser(['lab_id' => $lab->id]);
 
-    // Student has an approved requisition in the system
-    makeRequisition($student, ['status' => 'APPROVED']);
+    // Awaiting issuance in their own branch — genuinely this scientist's pending work.
+    makeRequisition($student, ['lab_id' => $lab->id, 'status' => 'APPROVED']);
 
-    // Scientist has one draft/submitted requisition
-    makeRequisition($scientist, ['status' => 'SUBMITTED']);
+    // Their own in-flight requisition.
+    makeRequisition($scientist, ['lab_id' => $lab->id, 'status' => 'SUBMITTED']);
+
+    // Another branch's, awaiting issuance — not theirs to dispense.
+    makeRequisition(studentUser(), ['lab_id' => makeLab()->id, 'status' => 'APPROVED']);
+
+    // Someone else's, still awaiting a warehouse-manager decision — not the scientist's queue.
+    makeRequisition(studentUser(), ['lab_id' => $lab->id, 'status' => 'SUBMITTED']);
+
+    // Already finished — nothing left to do.
+    makeRequisition(studentUser(), ['lab_id' => $lab->id, 'status' => 'ISSUED']);
 
     $response = $this->actingAs($scientist)->get('/');
-    $response->assertOk()->assertViewHas('pendingRequisitions', 1);
+    $response->assertOk()->assertViewHas('pendingRequisitions', 2);
 });
 
 test('dashboard: a warehouse manager (AUDITOR) only sees pending requisitions in their own branch', function () {

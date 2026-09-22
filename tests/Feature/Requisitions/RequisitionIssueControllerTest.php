@@ -24,7 +24,7 @@ test('a user without requisition.issue gets 403 on the issue page', function () 
 test('the issue page is not reachable for a DRAFT requisition', function () {
     $staff = staffUser();
     $requisition = makeRequisition($staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
 
     $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))->assertStatus(403);
 });
@@ -35,7 +35,7 @@ test('user-requested 2026-09-21: the issue page warns when an item\'s stock has 
     $line = $requisition->items->first();
     $line->item()->update(['reorder_point_base' => '100.000000']);
     stockedContainer($line->item_id, '50.000000', $staff); // below the 100 reorder point
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
 
     $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
         ->assertOk()
@@ -48,7 +48,7 @@ test('the issue page does not warn when stock is still above the reorder point',
     $line = $requisition->items->first();
     $line->item()->update(['reorder_point_base' => '10.000000']);
     stockedContainer($line->item_id, '50.000000', $staff); // above the 10 reorder point
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
 
     $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
         ->assertOk()
@@ -60,7 +60,7 @@ test('a scientist can record a full issue via barcode and a drawn signature', fu
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
     $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
@@ -80,7 +80,7 @@ test('FR-RQ-11: a receiver can be confirmed via emailed OTP instead of a signatu
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
     $this->actingAs($scientist)->post(route('requisitions.receiver-otp.send', $requisition))
@@ -109,7 +109,7 @@ test('an incorrect OTP is rejected', function () {
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
     app(ReceiverOtpService::class)->send($staff, $requisition);
 
@@ -128,7 +128,7 @@ test('neither a signature nor an OTP is rejected by validation', function () {
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
     $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
@@ -143,7 +143,7 @@ test('the issue page lets a scientist click a container row to select it, and tr
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '500.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
 
     $response = $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition));
 
@@ -163,7 +163,7 @@ test('an unknown barcode is rejected with a validation error', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
     $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
@@ -179,7 +179,7 @@ test('issuing more than the container holds surfaces InsufficientStockException 
     $requisition = approvedRequisition($staff, '100.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '10.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
     $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [

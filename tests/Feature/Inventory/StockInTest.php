@@ -179,6 +179,87 @@ test('stock-in automatically sets base_unit_id on item if it was not specified',
     expect($itemWithoutUnit->fresh()->base_unit_id)->toBe($this->unitG->id);
 });
 
+test('user-reported 2026-09-22: the first real stock-in adopts the unit it was received in, overriding a guessed catalog unit', function () {
+    $litre = Unit::where('code', 'L')->firstOrFail();
+    $millilitre = Unit::where('code', 'mL')->firstOrFail();
+
+    // What the chemical catalog import produces: a base unit parsed out of a product name.
+    $imported = Item::create([
+        'item_code' => 'AS-UNIT-01',
+        'name_th' => 'สารทดสอบหน่วย 1 L /ขวด',
+        'category_id' => \App\Models\ItemCategory::first()->id ?? 1,
+        'base_unit_id' => $litre->id,
+        'storage_class' => 'OTHER',
+        'reorder_point_base' => '0.000000',
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->auditor)
+        ->post(route('stock-in.store'), [
+            'item_id' => $imported->id,
+            'tracking_type' => 'BULK',
+            'qty' => '500',
+            'unit_id' => $millilitre->id,
+            'location_id' => $this->location->id,
+        ])->assertRedirect(route('items.show', $imported));
+
+    expect($imported->fresh()->base_unit_id)->toBe($millilitre->id);
+
+    // 500 mL stays 500, not 0.5 — the stored value is in the item's own base unit.
+    $ledger = StockLedger::where('item_id', $imported->id)->firstOrFail();
+    expect((float) $ledger->qty_in_base)->toEqual(500.0);
+    expect((float) $ledger->balance_base)->toEqual(500.0);
+});
+
+test('user-reported 2026-09-22: adopting a new base unit rescales the reorder point so it keeps its meaning', function () {
+    $litre = Unit::where('code', 'L')->firstOrFail();
+    $millilitre = Unit::where('code', 'mL')->firstOrFail();
+
+    $imported = Item::create([
+        'item_code' => 'AS-UNIT-02',
+        'name_th' => 'สารทดสอบจุดสั่งซื้อ',
+        'category_id' => \App\Models\ItemCategory::first()->id ?? 1,
+        'base_unit_id' => $litre->id,
+        'storage_class' => 'OTHER',
+        'reorder_point_base' => '2.000000', // 2 L
+        'is_active' => true,
+    ]);
+
+    $this->actingAs($this->auditor)
+        ->post(route('stock-in.store'), [
+            'item_id' => $imported->id,
+            'tracking_type' => 'BULK',
+            'qty' => '500',
+            'unit_id' => $millilitre->id,
+            'location_id' => $this->location->id,
+        ])->assertRedirect();
+
+    expect((float) $imported->fresh()->reorder_point_base)->toEqual(2000.0); // 2 L === 2000 mL
+});
+
+test('an item that already has ledger history keeps its base unit — stock_ledger is append-only', function () {
+    $kilogram = Unit::where('code', 'kg')->firstOrFail();
+    $originalBaseUnitId = $this->item->base_unit_id;
+
+    $payload = [
+        'item_id' => $this->item->id,
+        'tracking_type' => 'BULK',
+        'qty' => '100',
+        'unit_id' => $this->unitG->id,
+        'location_id' => $this->location->id,
+    ];
+
+    $this->actingAs($this->auditor)->post(route('stock-in.store'), $payload)->assertRedirect();
+
+    // A second receipt in a different unit must NOT reinterpret the rows already written.
+    $this->actingAs($this->auditor)->post(route('stock-in.store'), array_merge($payload, [
+        'qty' => '50',
+        'unit_id' => $kilogram->id,
+    ]));
+
+    expect($this->item->fresh()->base_unit_id)->toBe($originalBaseUnitId);
+});
+
 test('branch scoping: a LAB_MANAGER only sees their own branch\'s locations on the stock-in page', function () {
     $lab = makeLab();
     $otherLab = makeLab();

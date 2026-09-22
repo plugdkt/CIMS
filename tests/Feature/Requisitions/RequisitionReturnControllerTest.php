@@ -10,7 +10,7 @@ test('a scientist can record a return via the HTTP layer', function () {
     $requisition = approvedRequisition($staff, '50.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '100.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
     app(\App\Domain\Requisition\Services\IssueService::class)->issue($line, $container, '50.000000', $g, $scientist, $staff, hash('sha256', 'x'));
 
@@ -28,7 +28,7 @@ test('the issue/return page stays reachable once a requisition is fully ISSUED, 
     $requisition = approvedRequisition($staff, '50.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '100.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
     app(\App\Domain\Requisition\Services\IssueService::class)->issue($line, $container, '50.000000', $g, $scientist, $staff, hash('sha256', 'x'));
     expect($requisition->fresh()->status)->toBe('ISSUED');
@@ -58,7 +58,7 @@ test('returning more than was issued surfaces a form error, not a 500', function
     $requisition = approvedRequisition($staff, '50.000000');
     $line = $requisition->items->first();
     $container = stockedContainer($line->item_id, '100.000000', $staff);
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
     app(\App\Domain\Requisition\Services\IssueService::class)->issue($line, $container, '50.000000', $g, $scientist, $staff, hash('sha256', 'x'));
 

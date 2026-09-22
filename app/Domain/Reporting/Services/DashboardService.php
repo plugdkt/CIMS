@@ -25,15 +25,27 @@ final class DashboardService
     }
 
     /**
-     * Sums action-queue requisitions for warehouse managers (AUDITOR/LAB_MANAGER/ADMIN)
-     * scoped to branch; for requesters without requisition.view_all (SCIENTIST, STUDENT, STAFF),
-     * scopes strictly to their own pending requisitions (and advisees for ADVISOR).
+     * Sums every action-queue this viewer's own permissions make them responsible for,
+     * branch-scoped for warehouse managers (AUDITOR/LAB_MANAGER). A viewer without
+     * requisition.view_all also counts their own in-flight requisitions (and advisees
+     * for ADVISOR), since those are the only ones they can otherwise see.
      */
     public function pendingRequisitionsCount(User $user): int
     {
-        if ($user->can('requisition.view_all')) {
-            $count = 0;
+        $count = 0;
 
+        // User-reported 2026-09-22: the issuance queue is real pending work for whoever
+        // holds requisition.issue (SCIENTIST) — it must be counted whether or not they
+        // also hold requisition.view_all, which SCIENTIST lost on 2026-09-21. Dispensing
+        // is always own-branch work (RequisitionPolicy::sharesBranch()), so a dispenser
+        // with no branch assigned has nothing to dispense and counts nothing.
+        if ($user->can('requisition.issue') && $user->lab_id !== null) {
+            $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
+                ->where('lab_id', $user->lab_id)
+                ->count();
+        }
+
+        if ($user->can('requisition.view_all')) {
             if ($user->can('requisition.approve_scientist')) {
                 $count += Requisition::where(function ($q) {
                     $q->where('status', 'ADVISOR_APPROVED')
@@ -41,12 +53,6 @@ final class DashboardService
                 })
                 ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
                 ->count();
-            }
-
-            if ($user->can('requisition.issue')) {
-                $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
-                    ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
-                    ->count();
             }
 
             if ($count > 0) {
@@ -58,7 +64,7 @@ final class DashboardService
                 ->count();
         }
 
-        $count = Requisition::where('requester_id', $user->id)
+        $count += Requisition::where('requester_id', $user->id)
             ->whereNotIn('status', ['ISSUED', 'REJECTED', 'CANCELLED'])
             ->count();
 
