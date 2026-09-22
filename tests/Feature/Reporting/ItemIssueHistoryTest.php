@@ -317,3 +317,23 @@ test('user-requested 2026-09-22: switching to a different chemical is a single c
         ->assertSee('สาร B สำหรับสลับ')
         ->assertSee('สาร A สำหรับสลับ');
 });
+
+test('user-reported 2026-09-22: each chemical in the list has its own download links, no need to open it first', function () {
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $manager = auditorUser(['lab_id' => $lab->id]);
+    $item = makeItem(['name_th' => 'สารสำหรับทดสอบปุ่มดาวน์โหลด']);
+    makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10']);
+
+    Livewire::actingAs($manager)
+        ->test(ReportsDashboard::class)
+        ->set('tab', 'item_issue_history')
+        ->assertSee('สารสำหรับทดสอบปุ่มดาวน์โหลด')
+        ->assertSee(route('reports.item-issue-history.excel', $item), false)
+        ->assertSee(route('reports.item-issue-history.pdf', $item), false);
+
+    // The link on the row actually works — no selection required first.
+    $this->actingAs($manager)
+        ->get(route('reports.item-issue-history.excel', $item))
+        ->assertOk();
+});

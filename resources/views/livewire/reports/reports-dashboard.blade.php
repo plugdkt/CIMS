@@ -63,12 +63,20 @@
                         <div class="mt-2 max-h-64 overflow-y-auto" tabindex="0">
                             <ul class="divide-y divide-border">
                                 @foreach ($historyCandidates as $candidate)
-                                    <li>
+                                    <li class="flex items-center gap-1 px-1">
                                         <button type="button" wire:click="$set('historyItemUlid', '{{ $candidate->ulid }}')"
-                                                class="w-full text-left px-2 py-2 rounded-lg hover:bg-surface-alt {{ $historyItem?->id === $candidate->id ? 'bg-accent-soft text-accent-soft-ink' : '' }}">
+                                                class="flex-1 min-w-0 text-left px-1 py-2 rounded-lg hover:bg-surface-alt {{ $historyItem?->id === $candidate->id ? 'bg-accent-soft text-accent-soft-ink' : '' }}">
                                             <span class="text-sm">{{ $candidate->name_th }}</span>
                                             <span class="text-xs text-ink-faint ml-2">{{ $candidate->item_code }}</span>
                                         </button>
+                                        {{-- User-requested 2026-09-22: a download button right on the row —
+                                             no need to click into the item's detail view first. --}}
+                                        <a href="{{ route('reports.item-issue-history.excel', ['item' => $candidate, 'lab_id' => $labId]) }}"
+                                           title="{{ __('reports.download_excel') }}"
+                                           class="shrink-0 text-xs font-semibold text-accent hover:text-accent-strong px-1.5 py-1">Excel</a>
+                                        <a href="{{ route('reports.item-issue-history.pdf', ['item' => $candidate, 'lab_id' => $labId]) }}" target="_blank"
+                                           title="{{ __('reports.download_pdf') }}"
+                                           class="shrink-0 text-xs font-semibold text-ink-muted hover:text-ink px-1.5 py-1">PDF</a>
                                     </li>
                                 @endforeach
                             </ul>

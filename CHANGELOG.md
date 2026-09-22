@@ -2319,3 +2319,14 @@ key was removed.
 
 - Verified (all three entries above together): Pest 578/578 green, Pint clean (375 files),
   PHPStan level 8 clean, `composer audit` clean.
+
+## Fix — Download buttons on each row, not another layout change (2026-09-22)
+
+User pushed back on the previous fix ("ผมแค่ต้องการปุ่ม download คุณทำอะไรมาให้ผมเนี่ย") — the
+always-visible-list restructuring was more than was asked for. Clarified: a download button
+directly on each chemical's row in the picker, no need to click into its detail view first.
+
+- Each row in the `item_issue_history` candidate list now has its own "Excel" and "PDF" links,
+  pointing straight at that item's export routes — downloadable with zero prior selection.
+- Verified: Pest 579/579 green, Pint clean (375 files), PHPStan level 8 clean, `composer audit`
+  clean.
