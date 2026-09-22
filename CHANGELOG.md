@@ -2206,3 +2206,34 @@ runs. They pass.
   disappear from a SCIENTIST's sidebar, and that ADMIN gets the adjustment list without the form.
 - Verified: Pest 560/560 green, Pint clean (370 files), PHPStan level 8 clean, `composer audit` clean.
   `PermissionSeeder` re-run against the dev database.
+
+## Post-launch — New report: per-chemical dispensing history (2026-09-22)
+
+User-requested: "รายงานการขอเบิกสารเคมีแต่ละตัวด้วยครับ ว่าใครเบิก วันที่เบิก จำนวนเท่าไหร่ และสรุปยอดคงเหลือด้วยครับ" —
+a stock-card view of one chemical: every dispensing against it (who, when, how much) plus what
+is left right now. New tab "ประวัติการเบิกรายสาร" on the reports page, between the existing
+stock-summary and usage-summary tabs.
+
+- **`ItemIssueHistoryExport`** (new) — takes one `Item`, an optional date range and an optional
+  `lab_id`. `results()` walks `IssueTransaction` (not `requisition_items`), so a requisition that
+  is APPROVED but never issued correctly does not appear — it moved no stock. `totalIssued()`
+  sums exactly the rows `results()` returns (not the item's all-time total), so the on-screen
+  summary and the table below it always reconcile even when a date range or branch narrows
+  what's shown. `remainingBalance()` reads the same `stock_ledger` tail every other report uses —
+  global per item, same as `ItemStockSummaryExport`, since the schema has no per-lab split.
+- **User-decided**: quantities are what was actually **dispensed**, not requested — asked directly
+  because the two numbers can differ (BR-04 partial issuance), and "dispensed" is what actually
+  changed the balance shown beside it.
+- **User-decided**: the page picks one chemical at a time (search by name or code, the catalog
+  runs to thousands of rows) rather than listing every chemical's history on one page.
+- `ReportsDashboard` gained the `item_issue_history` tab, an item search/picker, and the
+  date-range + lab filters every other tab already has. `ReportController::itemIssueHistoryExcel()`
+  is the matching download route — same `report.view` gate, same branch-forcing via `labIdFor()`
+  as every other export.
+- **Real ordering bug found by the full suite, not the isolated test**: `results()` originally
+  sorted by `issued_at` alone. Two dispensings created within the same second (routine under
+  Pest's fast fixtures) could come back in either order, which the isolated test never triggered
+  but the full suite did once — fixed by adding `id` as the tiebreaker, so the same report can't
+  silently reorder itself between runs.
+- Verified: Pest 568/568 green, Pint clean (372 files), PHPStan level 8 clean, `composer audit`
+  clean.

@@ -19,6 +19,15 @@ return [
 
     'item_stock_summary_title' => 'คงเหลือ/การใช้รายสาร',
     'item_stock_summary_desc' => 'สารเคมีแต่ละตัวใช้ไปเท่าไหร่ คงเหลือเท่าไหร่ เรียงจากคงเหลือน้อยที่สุดก่อน',
+    'item_issue_history_title' => 'ประวัติการเบิกรายสาร',
+    'item_issue_history_desc' => 'เลือกสารเคมี 1 ตัว เพื่อดูว่าใครเบิก วันที่เท่าไหร่ จำนวนเท่าไหร่ พร้อมยอดคงเหลือปัจจุบัน',
+    'item_issue_history_pick' => 'ค้นหาและเลือกสารเคมีที่ต้องการดูประวัติ',
+    'item_issue_history_search' => 'ค้นชื่อสารหรือรหัส',
+    'item_issue_history_empty' => 'ยังไม่มีการเบิกสารนี้ในช่วงเวลาที่เลือก',
+    'item_issue_history_change' => 'เปลี่ยนสาร',
+    'summary_total_issued' => 'เบิกไปแล้วรวม',
+    'summary_balance' => 'คงเหลือปัจจุบัน',
+
     'usage_summary_title' => 'สรุปการใช้',
     'usage_summary_desc' => 'รายการเบิกจ่าย กรองตามผู้เบิก/โครงการ/รายวิชา/คณะ/ช่วงเวลา',
     'expiring_stock_title' => 'สารใกล้หมดอายุ',

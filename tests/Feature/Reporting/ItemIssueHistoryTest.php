@@ -1,0 +1,144 @@
+<?php
+
+use App\Domain\Reporting\DTO\DateRangeFilter;
+use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
+use App\Domain\Requisition\Services\IssueService;
+use App\Livewire\Reports\ReportsDashboard;
+use App\Models\Unit;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
+
+/**
+ * User-requested 2026-09-22: per-chemical dispensing history — who took it, when, how much,
+ * plus what is left. Quantities are what was actually dispensed, so the detail lines and the
+ * balance beside them always reconcile.
+ */
+function issueOnce(\App\Models\Item $item, string $qty, \App\Models\User $requester, \App\Models\User $issuer, ?int $labId = null): \App\Models\Requisition
+{
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $requisition = makeRequisition($requester, array_filter(['lab_id' => $labId]));
+    app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $g, $qty);
+    $requisition->update(['status' => 'APPROVED']);
+    $line = $requisition->fresh(['items'])->items()->firstOrFail();
+
+    $container = stockedContainer($item->id, $qty, $issuer);
+    app(IssueService::class)->issue($line, $container, $qty, $g, $issuer, $requester, hash('sha256', 'sig'));
+
+    return $requisition->fresh();
+}
+
+test('the export lists every dispensing of one chemical with who, when and how much', function () {
+    $item = makeItem();
+    $issuer = auditorUser();
+    $somchai = staffUser(['full_name' => 'สมชาย ใจดี']);
+    $malee = staffUser(['full_name' => 'มาลี รักเรียน']);
+
+    $first = issueOnce($item, '10.000000', $somchai, $issuer);
+    $second = issueOnce($item, '4.000000', $malee, $issuer);
+
+    // A different chemical must not bleed into this report.
+    issueOnce(makeItem(), '99.000000', $somchai, $issuer);
+
+    $export = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
+    $rows = $export->collection();
+
+    expect($rows)->toHaveCount(2);
+    expect($rows->first())->toContain('สมชาย ใจดี', $first->doc_no);
+    expect($rows->last())->toContain('มาลี รักเรียน', $second->doc_no);
+});
+
+test('the summary totals exactly the rows listed, and reports the current balance', function () {
+    $item = makeItem();
+    $issuer = auditorUser();
+    $staff = staffUser();
+
+    issueOnce($item, '10.000000', $staff, $issuer);
+    issueOnce($item, '4.000000', $staff, $issuer);
+
+    $export = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
+
+    expect($export->totalIssued())->toBe('14.000000');
+    // Each issue stocked exactly what it then took, so nothing is left.
+    expect((float) $export->remainingBalance())->toEqual(0.0);
+});
+
+test('the date range filter narrows both the rows and the total', function () {
+    $item = makeItem();
+    $issuer = auditorUser();
+    $staff = staffUser();
+
+    issueOnce($item, '10.000000', $staff, $issuer);
+    \App\Models\IssueTransaction::query()->update(['issued_at' => now()->subMonths(6)]);
+    issueOnce($item, '4.000000', $staff, $issuer);
+
+    $export = new ItemIssueHistoryExport(
+        $item,
+        new DateRangeFilter(now()->subMonth()->toDateString(), now()->toDateString()),
+    );
+
+    expect($export->results())->toHaveCount(1);
+    expect($export->totalIssued())->toBe('4.000000');
+});
+
+test('a requisition that is approved but never issued does not appear — it moved no stock', function () {
+    $item = makeItem();
+    $staff = staffUser();
+    $requisition = makeRequisition($staff);
+    $g = Unit::where('code', 'g')->firstOrFail();
+    app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $g, '25.000000');
+    $requisition->update(['status' => 'APPROVED']);
+
+    $export = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null));
+
+    expect($export->results())->toHaveCount(0);
+    expect($export->totalIssued())->toBe('0.000000');
+});
+
+test('the lab filter narrows to requisitions raised in that branch', function () {
+    $item = makeItem();
+    $issuer = auditorUser();
+    $labA = makeLab();
+    $labB = makeLab();
+
+    issueOnce($item, '10.000000', staffUser(['lab_id' => $labA->id]), $issuer, $labA->id);
+    issueOnce($item, '4.000000', staffUser(['lab_id' => $labB->id]), $issuer, $labB->id);
+
+    $export = new ItemIssueHistoryExport($item, new DateRangeFilter(null, null), $labA->id);
+
+    expect($export->results())->toHaveCount(1);
+    expect($export->totalIssued())->toBe('10.000000');
+});
+
+test('the reports page shows the history once a chemical is picked, and prompts before that', function () {
+    $item = makeItem(['name_th' => 'สารสำหรับทดสอบประวัติ']);
+    $issuer = auditorUser(['lab_id' => makeLab()->id]);
+    $requisition = issueOnce($item, '10.000000', staffUser(['full_name' => 'สมชาย ใจดี']), $issuer, $issuer->lab_id);
+
+    Livewire::actingAs($issuer)
+        ->test(ReportsDashboard::class)
+        ->set('tab', 'item_issue_history')
+        ->assertSee(__('reports.item_issue_history_pick'))
+        ->set('historyItemUlid', $item->ulid)
+        ->assertSee('สมชาย ใจดี')
+        ->assertSee($requisition->doc_no);
+});
+
+test('a SCIENTIST still cannot reach the new report route', function () {
+    $item = makeItem();
+    $scientist = scientistUser(['lab_id' => makeLab()->id]);
+
+    $this->actingAs($scientist)
+        ->get(route('reports.item-issue-history.excel', $item))
+        ->assertStatus(403);
+});
+
+test('the Excel route downloads for a warehouse manager', function () {
+    $item = makeItem();
+    $manager = auditorUser(['lab_id' => makeLab()->id]);
+
+    $this->actingAs($manager)
+        ->get(route('reports.item-issue-history.excel', $item))
+        ->assertOk();
+});

@@ -10,11 +10,13 @@ use App\Domain\Reporting\Exports\BelowReorderPointExport;
 use App\Domain\Reporting\Exports\ControlledSubstancesExport;
 use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
+use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
 use App\Domain\Reporting\Services\ControlledSubstancesPdfService;
 use App\Domain\Reporting\Services\StockTakeVariancePdfService;
+use App\Models\Item;
 use App\Models\StockTake;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -53,6 +55,16 @@ final class ReportController extends Controller
         return Excel::download(
             new ItemStockSummaryExport($this->dateRangeFrom($request), $this->labIdFor($request)),
             'item-stock-summary.xlsx',
+        );
+    }
+
+    public function itemIssueHistoryExcel(Request $request, Item $item): BinaryFileResponse
+    {
+        $this->authorize('report.view');
+
+        return Excel::download(
+            new ItemIssueHistoryExport($item, $this->dateRangeFrom($request), $this->labIdFor($request)),
+            'item-issue-history-'.$item->item_code.'.xlsx',
         );
     }
 

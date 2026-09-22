@@ -10,6 +10,7 @@ use App\Domain\Reporting\Exports\BelowReorderPointExport;
 use App\Domain\Reporting\Exports\ControlledSubstancesExport;
 use App\Domain\Reporting\Exports\DeadStockExport;
 use App\Domain\Reporting\Exports\ExpiringStockExport;
+use App\Domain\Reporting\Exports\ItemIssueHistoryExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
@@ -45,8 +46,8 @@ final class ReportsDashboard extends Component
 
     /** @var array<int, string> */
     private const TABS = [
-        'item_stock_summary', 'usage_summary', 'expiring_stock', 'below_reorder', 'dead_stock',
-        'controlled_substances', 'stock_take_variance',
+        'item_stock_summary', 'item_issue_history', 'usage_summary', 'expiring_stock', 'below_reorder',
+        'dead_stock', 'controlled_substances', 'stock_take_variance',
     ];
 
     #[Url]
@@ -91,6 +92,19 @@ final class ReportsDashboard extends Component
     #[Url]
     public ?string $stockTakeUlid = null;
 
+    /** The chemical whose dispensing history the `item_issue_history` tab shows, by ULID. */
+    #[Url]
+    public ?string $historyItemUlid = null;
+
+    #[Url]
+    public string $historyItemSearch = '';
+
+    #[Url]
+    public string $historyFrom = '';
+
+    #[Url]
+    public string $historyTo = '';
+
     public function mount(): void
     {
         $this->authorize('report.view');
@@ -122,6 +136,7 @@ final class ReportsDashboard extends Component
 
         [$rows, $total] = match ($this->tab) {
             'item_stock_summary' => $this->itemStockSummaryData($effectiveLabId),
+            'item_issue_history' => $this->itemIssueHistoryData($effectiveLabId),
             'usage_summary' => $this->usageSummaryData($effectiveLabId),
             'expiring_stock' => $this->expiringStockData($effectiveLabId),
             'below_reorder' => $this->belowReorderData($effectiveLabId),
@@ -131,6 +146,8 @@ final class ReportsDashboard extends Component
             default => [collect(), 0],
         };
 
+        $historyItem = $this->tab === 'item_issue_history' ? $this->selectedHistoryItem() : null;
+
         return view('livewire.reports.reports-dashboard', [
             'rows' => $rows,
             'total' => $total,
@@ -139,7 +156,77 @@ final class ReportsDashboard extends Component
                 ? StockTake::where('lab_id', $restrictedLabId)->orderByDesc('id')->limit(50)->get()
                 : StockTake::orderByDesc('id')->limit(50)->get(),
             'restrictedLabId' => $restrictedLabId,
+            'historyItem' => $historyItem,
+            'historyCandidates' => $this->tab === 'item_issue_history' ? $this->historyCandidates() : collect(),
+            'historySummary' => $historyItem === null
+                ? null
+                : $this->historySummaryFor($historyItem, $effectiveLabId),
         ]);
+    }
+
+    /** @return array{issued: string, balance: string, unit: string} */
+    private function historySummaryFor(Item $item, ?int $labId): array
+    {
+        $export = $this->historyExportFor($item, $labId);
+        $unit = $item->baseUnit;
+
+        return [
+            'issued' => $export->totalIssued(),
+            'balance' => $export->remainingBalance(),
+            'unit' => $unit === null ? '' : $unit->code,
+        ];
+    }
+
+    /**
+     * Candidates for the item picker — searchable, since the catalog runs to thousands of rows.
+     *
+     * @return Collection<int, Item>
+     */
+    private function historyCandidates(): Collection
+    {
+        $search = trim($this->historyItemSearch);
+
+        return Item::query()
+            ->where('is_active', true)
+            ->when($search !== '', fn ($q) => $q->where(
+                fn ($w) => $w->where('name_th', 'like', '%'.$search.'%')
+                    ->orWhere('item_code', 'like', '%'.$search.'%'),
+            ))
+            ->orderBy('name_th')
+            ->limit(30)
+            ->get();
+    }
+
+    private function selectedHistoryItem(): ?Item
+    {
+        if ($this->historyItemUlid === null) {
+            return null;
+        }
+
+        return Item::where('ulid', $this->historyItemUlid)->first();
+    }
+
+    private function historyExportFor(Item $item, ?int $labId): ItemIssueHistoryExport
+    {
+        return new ItemIssueHistoryExport(
+            $item,
+            new DateRangeFilter(dateFrom: $this->historyFrom ?: null, dateTo: $this->historyTo ?: null),
+            $labId,
+        );
+    }
+
+    /** @return array{0: Collection<int, IssueTransaction>, 1: int} */
+    private function itemIssueHistoryData(?int $labId): array
+    {
+        $item = $this->selectedHistoryItem();
+
+        if ($item === null) {
+            return [collect(), 0];
+        }
+
+        $results = $this->historyExportFor($item, $labId)->results();
+
+        return [$results->take(self::ROW_LIMIT), $results->count()];
     }
 
     /**
