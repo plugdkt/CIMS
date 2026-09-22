@@ -15,6 +15,7 @@ use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
 use App\Domain\Reporting\Services\ControlledSubstancesPdfService;
+use App\Domain\Reporting\Services\ItemIssueHistoryPdfService;
 use App\Domain\Reporting\Services\StockTakeVariancePdfService;
 use App\Models\Item;
 use App\Models\StockTake;
@@ -66,6 +67,20 @@ final class ReportController extends Controller
             new ItemIssueHistoryExport($item, $this->dateRangeFrom($request), $this->labIdFor($request)),
             'item-issue-history-'.$item->item_code.'.xlsx',
         );
+    }
+
+    /** User-requested 2026-09-22: printed in the same form style as F-03 (see ItemIssueHistoryPdfService). */
+    public function itemIssueHistoryPdf(Request $request, Item $item, ItemIssueHistoryPdfService $service): Response
+    {
+        $this->authorize('report.view');
+
+        $export = new ItemIssueHistoryExport($item, $this->dateRangeFrom($request), $this->labIdFor($request));
+        $pdf = $service->render($export);
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="item-issue-history-'.$item->item_code.'.pdf"',
+        ]);
     }
 
     public function expiringStockExcel(Request $request): BinaryFileResponse

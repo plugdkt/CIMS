@@ -183,3 +183,23 @@ test('the Excel route downloads for a warehouse manager', function () {
         ->get(route('reports.item-issue-history.excel', $item))
         ->assertOk();
 });
+
+test('user-requested 2026-09-22: a PDF version is available, styled like F-03, with real dispensing rows', function () {
+    $item = makeItem();
+    $manager = auditorUser(['lab_id' => makeLab()->id]);
+    $requisition = issueOnce($item, '10.000000', staffUser(['full_name' => 'สมชาย ใจดี']), $manager, $manager->lab_id);
+
+    $response = $this->actingAs($manager)->get(route('reports.item-issue-history.pdf', $item));
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'application/pdf');
+});
+
+test('a SCIENTIST still cannot reach the new PDF route', function () {
+    $item = makeItem();
+    $scientist = scientistUser(['lab_id' => makeLab()->id]);
+
+    $this->actingAs($scientist)
+        ->get(route('reports.item-issue-history.pdf', $item))
+        ->assertStatus(403);
+});

@@ -2256,3 +2256,23 @@ this branch has never physically held. First fix scoped it to items with a real
 - Tests rewritten to match: the picker is asserted against real containers/locations, not
   `IssueTransaction` fixtures.
 - Verified: Pest 570/570 green, Pint clean, PHPStan level 8 clean, `composer audit` clean.
+
+## Post-launch — PDF export for the dispensing-history report, styled like F-03 (2026-09-22)
+
+User-requested: "ในการ export รายงาน ให้อ้างอิงตามแบบฟอร์ม F-03 ได้ไหมครับ" — clarified to mean the
+document's visual style (title, item info header block, bordered table), not a merge with F-03's
+own ledger data. F-03 covers every ledger transaction type for an item; this report is
+specifically dispensing history, so its own columns (date/doc no/requester/faculty/qty issued)
+stay as they are — only the printed form now looks the same as F-03.
+
+- New `ItemIssueHistoryPdfService`, reusing `Fr03PdfService`'s header block fields (category,
+  item, brand, grade) plus this report's own summary (total issued, current balance) inline in
+  the header. Uses ordinary `WriteHTML()` (like `ControlledSubstancesPdfService`), not
+  `Fr03PdfService`'s `Cell()`-based renderer — that optimization exists for a 100,000-row ledger
+  and this report's row count is naturally bounded to one item's dispensing history.
+- `ItemIssueHistoryExport::itemFor()` (new) exposes the item to the PDF service, which needs the
+  item's own fields alongside the rows the export already produces.
+- New route `reports.item-issue-history.pdf`, same `report.view` gate and branch scoping via
+  `labIdFor()` as the Excel route. "ดาวน์โหลด PDF" now sits next to "ดาวน์โหลด Excel" on the tab.
+- Verified: Pest 572/572 green, Pint clean (373 files), PHPStan level 8 clean, `composer audit`
+  clean.

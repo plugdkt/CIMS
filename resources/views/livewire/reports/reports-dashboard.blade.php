@@ -196,6 +196,8 @@
                 @if ($historyItem)
                     <a href="{{ route('reports.item-issue-history.excel', ['item' => $historyItem, 'from' => $historyFrom, 'to' => $historyTo, 'lab_id' => $labId]) }}"
                        class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">{{ __('reports.download_excel') }}</a>
+                    <a href="{{ route('reports.item-issue-history.pdf', ['item' => $historyItem, 'from' => $historyFrom, 'to' => $historyTo, 'lab_id' => $labId]) }}" target="_blank"
+                       class="rounded-lg border border-border hover:bg-surface-alt text-sm font-semibold px-4 py-2">{{ __('reports.download_pdf') }}</a>
                 @endif
                 @break
             @case('usage_summary')

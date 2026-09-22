@@ -225,6 +225,7 @@ Route::middleware('auth')->prefix('reports')->name('reports.')->group(function (
     Route::get('/', ReportsDashboard::class)->name('index');
     Route::get('/item-stock-summary/excel', [ReportController::class, 'itemStockSummaryExcel'])->name('item-stock-summary.excel');
     Route::get('/item-issue-history/{item}/excel', [ReportController::class, 'itemIssueHistoryExcel'])->name('item-issue-history.excel');
+    Route::get('/item-issue-history/{item}/pdf', [ReportController::class, 'itemIssueHistoryPdf'])->name('item-issue-history.pdf');
     Route::get('/usage-summary/excel', [ReportController::class, 'usageSummaryExcel'])->name('usage-summary.excel');
     Route::get('/expiring-stock/excel', [ReportController::class, 'expiringStockExcel'])->name('expiring-stock.excel');
     Route::get('/below-reorder-point/excel', [ReportController::class, 'belowReorderPointExcel'])->name('below-reorder-point.excel');

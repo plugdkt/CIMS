@@ -38,6 +38,12 @@ final class ItemIssueHistoryExport implements FromCollection, WithHeadings, With
     ) {
     }
 
+    /** For a PDF twin that needs the item's own fields (name, brand, grade, …) alongside the rows. */
+    public function itemFor(): Item
+    {
+        return $this->item;
+    }
+
     /** @return Collection<int, array<int, string>> */
     public function collection(): Collection
     {
