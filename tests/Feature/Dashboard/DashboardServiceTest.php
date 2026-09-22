@@ -20,25 +20,33 @@ test('§7.9: an ADVISOR sees only their own SUBMITTED advisees as pending', func
     expect(app(DashboardService::class)->pendingRequisitionsCount($advisor))->toBe(1);
 });
 
-test('§7.9: a SCIENTIST sees ADVISOR_APPROVED plus non-student SUBMITTED requisitions, system-wide', function () {
-    $scientist = scientistUser();
-    $student = studentUser();
-    $staff = staffUser();
+test('§7.9 (updated 2026-09-21: requisition review moved from SCIENTIST to warehouse managers): a warehouse manager (AUDITOR) sees ADVISOR_APPROVED plus non-student SUBMITTED requisitions in their own branch', function () {
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $student = studentUser(['lab_id' => $lab->id]);
+    $staff = staffUser(['lab_id' => $lab->id]);
 
-    submittedRequisition($student)->update(['status' => 'ADVISOR_APPROVED']);
-    submittedRequisition($staff); // non-student, stays SUBMITTED — scientist can act directly
-    submittedRequisition($student); // student, still SUBMITTED — advisor hasn't acted, not scientist's turn yet
+    submittedRequisition($student, ['lab_id' => $lab->id])->update(['status' => 'ADVISOR_APPROVED']);
+    submittedRequisition($staff, ['lab_id' => $lab->id]); // non-student, stays SUBMITTED — warehouse manager can act directly
+    submittedRequisition($student, ['lab_id' => $lab->id]); // student, still SUBMITTED — advisor hasn't acted, not their turn yet
 
-    expect(app(DashboardService::class)->pendingRequisitionsCount($scientist))->toBe(2);
+    expect(app(DashboardService::class)->pendingRequisitionsCount($auditor))->toBe(2);
 });
 
-test('§7.9: a SCIENTIST also counts requisitions awaiting issuance (APPROVED/PARTIALLY_ISSUED)', function () {
-    $scientist = scientistUser();
-    submittedRequisition(staffUser())->update(['status' => 'APPROVED']);
-    submittedRequisition(staffUser())->update(['status' => 'PARTIALLY_ISSUED']);
-    submittedRequisition(staffUser())->update(['status' => 'ISSUED']);
+test('§7.9 (updated 2026-09-21): pendingRequisitionsCount also counts requisitions awaiting issuance (APPROVED/PARTIALLY_ISSUED) for a requisition.view_all holder who also holds requisition.issue', function () {
+    // No seeded role currently combines requisition.view_all with requisition.issue — this
+    // exercises DashboardService's own branch directly rather than asserting it against
+    // a real-world role combination that doesn't exist post-2026-09-21 restructuring.
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    Role::where('code', 'AUDITOR')->firstOrFail()->permissions()
+        ->attach(\App\Models\Permission::where('code', 'requisition.issue')->firstOrFail());
 
-    expect(app(DashboardService::class)->pendingRequisitionsCount($scientist))->toBe(2);
+    submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'APPROVED']);
+    submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'PARTIALLY_ISSUED']);
+    submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'ISSUED']);
+
+    expect(app(DashboardService::class)->pendingRequisitionsCount($auditor->fresh()))->toBe(2);
 });
 
 test('§7.9: a plain requester (no action permission) sees only their own in-flight requisitions', function () {

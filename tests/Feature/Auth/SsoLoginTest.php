@@ -156,12 +156,26 @@ test('when SSO verify returns empty or missing email, it falls back to username@
 });
 
 test('multiple users with empty SSO email can log in without unique constraint violation', function () {
+    // Fixed 2026-09-21: calling fakeSsoVerifySuccess() twice for the same URL doesn't work —
+    // Http::fake() matches the FIRST registered stub for a matching URL pattern
+    // (PendingRequest::buildStubHandler() resolves via ->filter()->first()), so a second
+    // fakeSsoVerifySuccess() call is silently ignored and both requests would return the
+    // first payload. Http::fakeSequence() returns responses in call order instead, which is
+    // what this test actually needs (two distinct users provisioned in the same test run).
+    Http::fakeSequence(config('services.sso.verify_url'))
+        ->push(['status' => 'success', 'user' => [
+            'user_id' => 7172, 'username' => 'user.one', 'name' => 'สมชาย ใจดี',
+            'pos_name' => 'อาจารย์', 'div_name' => 'ภาควิชาเคมี', 'email' => '',
+        ]])
+        ->push(['status' => 'success', 'user' => [
+            'user_id' => 7173, 'username' => 'user.two', 'name' => 'สมชาย ใจดี',
+            'pos_name' => 'อาจารย์', 'div_name' => 'ภาควิชาเคมี', 'email' => '',
+        ]]);
+
     $this->withSession(['sso_state' => 'state-1']);
-    fakeSsoVerifySuccess(['user_id' => 7172, 'username' => 'user.one', 'email' => '']);
     $this->get('/sso/callback?token=validtoken&state=state-1');
 
     $this->withSession(['sso_state' => 'state-2']);
-    fakeSsoVerifySuccess(['user_id' => 7173, 'username' => 'user.two', 'email' => '']);
     $this->get('/sso/callback?token=validtoken&state=state-2');
 
     expect(User::where('username', 'user.one')->firstOrFail()->email)->toBe('user.one@up.ac.th');

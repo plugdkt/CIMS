@@ -2020,3 +2020,48 @@ Following the earlier requisition and warehouse scoping changes, the main dashbo
   - Added test verifying scientists only see their own pending requisitions count.
   - Added tests verifying warehouse managers (`AUDITOR`) only see pending requisitions and expiring containers within their branch.
 - Verified: Pint clean; full test suite green.
+
+## Fix — Stale tests after the 2026-09-21 warehouse-manager restructuring (2026-09-22)
+
+Running the full suite after merging the seven server-side commits from 2026-09-21 surfaced five
+failures across four files. Four of them were tests written against the *old* permission model and
+one was a real bug in a newly added test. No application code changed — every failure was in the
+test layer, and the behavior each test now asserts is the behavior the merged commits deliberately
+introduced.
+
+- **`DashboardServiceTest`** (2 cases): both asserted a SCIENTIST sees the system-wide approval and
+  issuance queues. `requisition.approve_scientist` and `requisition.view_all` were both removed from
+  SCIENTIST on 2026-09-21, so `pendingRequisitionsCount()` now correctly routes a SCIENTIST down the
+  own-requisitions-only branch. Rewritten against `auditorUser()` with an explicit `lab_id`, since
+  that branch is also lab-scoped via `User::isBranchManager()`.
+  - The second case exercises `pendingRequisitionsCount()`'s `requisition.issue` sub-branch, which no
+    seeded role can currently reach (`LAB_MANAGER`/`AUDITOR`/`ADMIN` hold `requisition.view_all` but
+    only `requisition.issue_override`, never plain `requisition.issue`). It now grants that one
+    permission to the AUDITOR role inside the test so the service branch itself stays covered rather
+    than being asserted through a role combination that no longer exists. **If that branch is ever
+    intentionally retired, delete this test with it** — it is deliberately testing code that is
+    currently unreachable in production.
+- **`RequisitionNotificationTest`** (2 cases): both asserted the "pending review" notification pool is
+  every SCIENTIST. `NotificationService::usersWithAnyPermission('requisition.approve_scientist')` now
+  resolves to AUDITOR + LAB_MANAGER only, so the fixtures were switched to those two roles. The pool
+  is deliberately *not* lab-scoped (unlike the dashboard count) — that is pre-existing behavior, not
+  something this fix changed.
+- **`StockTakeControllerTest`** (1 case): the "a user without `stocktake.manage` gets 403" negative
+  case used `labManagerUser()`, but commit `e2a9e8b` granted `stocktake.manage` to LAB_MANAGER (and
+  AUDITOR) as part of consolidating warehouse duties — so the fixture no longer lacked the permission
+  it was meant to lack. Confirmed with the user 2026-09-22 that the grant is intentional; the test now
+  uses `staffUser()` (a requester-only role) for the negative case instead.
+- **`SsoLoginTest`** — a genuine bug in a test added by commit `6c8b475`, not a stale assumption: the
+  "multiple users with empty SSO email" case called `fakeSsoVerifySuccess()` twice for the same URL,
+  expecting the second call to replace the first. It does not. `Http::fake()` appends stubs and
+  `PendingRequest::buildStubHandler()` resolves them with `->filter()->first()`, so the **first**
+  matching stub wins for every subsequent request — both callbacks received user.one's payload, the
+  second user was never provisioned, and the assertion died on `firstOrFail()`. Rewritten with
+  `Http::fakeSequence()`, which returns responses in call order. The test must stay a single case
+  (splitting it in two would lose the point: two empty-email users coexisting in one database state).
+  **Any future test that fakes the same URL more than once in one case needs `fakeSequence()`** —
+  a second `Http::fake()` for an already-stubbed URL is silently ignored.
+- Verified: Pest 539/539 green, Pint clean (368 files), PHPStan level 8 clean, `composer audit` clean.
+  The `zipstream-php` memory-exhaustion fatal seen during the first post-merge full-suite run did not
+  reproduce across three subsequent full runs — treated as transient memory pressure from running the
+  whole suite in one process, not a real defect; re-investigate only if it recurs in isolation.

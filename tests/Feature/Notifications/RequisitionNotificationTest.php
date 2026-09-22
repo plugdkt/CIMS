@@ -41,31 +41,31 @@ test('FR-NT-03: submitting a STUDENT requisition notifies the advisor in-app (em
     Mail::assertNotQueued(NotificationMail::class); // no duplicate generic email for the advisor step
 });
 
-test('FR-NT-03: submitting a non-student requisition notifies every SCIENTIST in-app and by email', function () {
+test('FR-NT-03 (updated 2026-09-21: review moved from SCIENTIST to warehouse managers): submitting a non-student requisition notifies every warehouse manager in-app and by email', function () {
     Mail::fake();
     $staff = staffUser();
-    $scientist1 = scientistUser();
-    $scientist2 = scientistUser();
+    $auditor = auditorUser();
+    $labManager = labManagerUser();
     $requisition = withOneLine(makeRequisition($staff));
 
     app(RequisitionService::class)->submit($requisition);
 
-    expect(Notification::where('user_id', $scientist1->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
-    expect(Notification::where('user_id', $scientist2->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $labManager->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
     Mail::assertQueued(NotificationMail::class, 2);
 });
 
-test('FR-NT-04 + FR-NT-03: an advisor approving notifies the requester of the result and every SCIENTIST that it is now pending', function () {
+test('FR-NT-04 + FR-NT-03 (updated 2026-09-21): an advisor approving notifies the requester of the result and every warehouse manager that it is now pending', function () {
     Mail::fake();
     $student = studentUser();
-    $scientist = scientistUser();
+    $auditor = auditorUser();
     $requisition = withOneLine(makeRequisition($student, ['status' => 'SUBMITTED', 'submitted_at' => now()]));
     $advisor = $requisition->advisor;
 
     app(ApprovalService::class)->advisorDecide($requisition, $advisor, 'APPROVE');
 
     expect(Notification::where('user_id', $student->id)->where('type', 'requisition.decision')->exists())->toBeTrue();
-    expect(Notification::where('user_id', $scientist->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
 });
 
 test('FR-NT-04: an advisor rejecting notifies the requester but not the scientist pool', function () {

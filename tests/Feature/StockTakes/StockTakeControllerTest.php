@@ -9,9 +9,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 test('a user without stocktake.manage gets 403 on the create page', function () {
-    $labManager = labManagerUser();
+    // 2026-09-21: LAB_MANAGER/AUDITOR both gained stocktake.manage (warehouse
+    // managers run stock takes too) — use a requester-only role for the negative case.
+    $staff = staffUser();
 
-    $this->actingAs($labManager)->get(route('stock-takes.create'))->assertStatus(403);
+    $this->actingAs($staff)->get(route('stock-takes.create'))->assertStatus(403);
 });
 
 test('a scientist can create a round and see it in the list', function () {
