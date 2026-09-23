@@ -15,6 +15,7 @@ use App\Models\Requisition;
 use App\Models\RequisitionItem;
 use App\Models\Unit;
 use App\Models\User;
+use Illuminate\Support\Collection;
 
 /**
  * FR-RQ-09/10: issues stock against one requisition line from one container at a time —
@@ -102,6 +103,88 @@ final class IssueService
         $this->advanceRequisitionStatus($requisition);
 
         return $issueTransaction;
+    }
+
+    /**
+     * User-requested 2026-09-23: "ให้ระบบแนะนำ/จ่ายจากหลายขวดในคลิกเดียว" — one submission that
+     * dispenses a single total quantity across several containers automatically, instead of
+     * the issuer repeating {@see issue()} once per container by hand. Greedily fills
+     * `$containersInOrder` in the order given (the caller passes FEFO order via
+     * `FefoContainerSelector` — this method has no opinion on ordering, only on how much to
+     * take from each), stopping once the requested total is met or the containers run out.
+     *
+     * One receiver confirmation (`$signatureHash`/`$signatureImagePath`) covers the whole
+     * batch — it is the same physical hand-off event, just split across containers because
+     * no single one held enough. Each container still gets its own `issue_transactions` row
+     * and its own {@see issue()} call, so BR-04's tolerance check runs exactly as it would
+     * for a manual multi-step issue: against the line's running cumulative, per call — a
+     * batch that crosses the ceiling is caught the same way a single manual issue would be,
+     * not silently waved through because it happened inside one loop.
+     *
+     * Under-fulfillment (not enough total stock across every eligible container) is not an
+     * error — it issues whatever is actually available and stops; the caller reports how
+     * much was actually dispensed against how much was asked for.
+     *
+     * @param  Collection<int, Container>  $containersInOrder  eligible only, already ordered — this method doesn't sort
+     * @param  numeric-string  $qtyRequested  in $unit, the TOTAL to dispense across containers
+     * @return list<IssueTransaction>
+     */
+    public function issueAcrossContainers(
+        RequisitionItem $line,
+        Collection $containersInOrder,
+        string $qtyRequested,
+        Unit $unit,
+        User $issuer,
+        User $receiver,
+        string $signatureHash,
+        ?string $signatureImagePath = null,
+        ?string $remark = null,
+        ?int $overageApprovedBy = null,
+    ): array {
+        $item = $line->item()->firstOrFail();
+        $neededBase = $this->converter->toItemBase($item, $unit, $qtyRequested);
+        $itemBaseUnit = $item->baseUnit()->firstOrFail();
+
+        /** @var list<IssueTransaction> $transactions */
+        $transactions = [];
+
+        foreach ($containersInOrder as $container) {
+            if (bccomp($neededBase, '0', self::SCALE) <= 0) {
+                break;
+            }
+
+            /** @var numeric-string $containerRemaining */
+            $containerRemaining = $container->remaining_qty_base;
+            $takeBase = bccomp($containerRemaining, $neededBase, self::SCALE) < 0
+                ? $containerRemaining
+                : $neededBase;
+
+            if (bccomp($takeBase, '0', self::SCALE) <= 0) {
+                continue;
+            }
+
+            // Recorded in the item's own base unit, not $unit — $takeBase is already in
+            // those terms (container.remaining_qty_base always is), so this is the one
+            // unit where handing it straight to issue() needs no further conversion at all,
+            // rather than converting it out to $unit only for issue() to convert it right
+            // back via toItemBase() a moment later.
+            $transactions[] = $this->issue(
+                $line,
+                $container,
+                $takeBase,
+                $itemBaseUnit,
+                $issuer,
+                $receiver,
+                $signatureHash,
+                $signatureImagePath,
+                $remark,
+                $overageApprovedBy,
+            );
+
+            $neededBase = bcsub($neededBase, $takeBase, self::SCALE);
+        }
+
+        return $transactions;
     }
 
     /**

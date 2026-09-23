@@ -191,3 +191,81 @@ test('issuing more than the container holds surfaces InsufficientStockException 
 
     expect($requisition->fresh()->status)->toBe('APPROVED');
 });
+
+test('user-requested 2026-09-23: auto-issue draws from multiple containers in one submission, no barcode needed', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '2000.000000');
+    $line = $requisition->items->first();
+    stockedContainer($line->item_id, '1000.000000', $staff);
+    stockedContainer($line->item_id, '1000.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
+        'qty_issued' => '2000.000000',
+        'unit_id' => $g->id,
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertRedirect(route('requisitions.issue.create', $requisition));
+
+    expect($requisition->fresh()->status)->toBe('ISSUED');
+    expect($line->fresh()->qty_issued_base)->toBe('2000.000000');
+    expect(\App\Models\IssueTransaction::where('requisition_item_id', $line->id)->count())->toBe(2);
+});
+
+test('user-requested 2026-09-23: auto-issue reports a partial result when total stock falls short', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '2000.000000');
+    $line = $requisition->items->first();
+    stockedContainer($line->item_id, '500.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
+        'qty_issued' => '2000.000000',
+        'unit_id' => $g->id,
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertRedirect(route('requisitions.issue.create', $requisition));
+
+    expect($requisition->fresh()->status)->toBe('PARTIALLY_ISSUED');
+    expect($line->fresh()->qty_issued_base)->toBe('500.000000');
+});
+
+test('auto-issue with no containers in stock at all reports an error, not a 500', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '100.000000');
+    $line = $requisition->items->first();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
+        'qty_issued' => '100.000000',
+        'unit_id' => $g->id,
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertSessionHasErrors('issue');
+});
+
+test('a user without requisition.issue gets 403 on the auto-issue route', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    $labManager = labManagerUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($labManager)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
+        'qty_issued' => '50.000000',
+        'unit_id' => $g->id,
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertStatus(403);
+});
+
+test('user-requested 2026-09-23: the issue page shows both the auto and manual modes', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
+        ->assertOk()
+        ->assertSee(__('requisitions.issue_mode_auto'))
+        ->assertSee(__('requisitions.issue_mode_manual'))
+        ->assertSee(__('requisitions.field_qty_issued_total'));
+});

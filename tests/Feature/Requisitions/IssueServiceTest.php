@@ -170,3 +170,125 @@ test('issuing against a requisition that is not APPROVED/PARTIALLY_ISSUED is rej
     expect(fn () => app(IssueService::class)->issue($line, $container, '10.000000', $g, $scientist, $staff, TEST_SIGNATURE_HASH))
         ->toThrow(InvalidRequisitionTransitionException::class);
 });
+
+test('user-requested 2026-09-23: issueAcrossContainers fills multiple containers in the given order, in one call', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '2000.000000');
+    $line = $requisition->items->first();
+    $bottleA = stockedContainer($line->item_id, '1000.000000', $staff);
+    $bottleB = stockedContainer($line->item_id, '1000.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $transactions = app(IssueService::class)->issueAcrossContainers(
+        $line,
+        collect([$bottleA, $bottleB]),
+        '2000.000000',
+        $g,
+        $scientist,
+        $staff,
+        TEST_SIGNATURE_HASH,
+    );
+
+    expect($transactions)->toHaveCount(2);
+    expect($bottleA->fresh()->remaining_qty_base)->toBe('0.000000');
+    expect($bottleB->fresh()->remaining_qty_base)->toBe('0.000000');
+    expect($line->fresh()->qty_issued_base)->toBe('2000.000000');
+    expect($requisition->fresh()->status)->toBe('ISSUED');
+});
+
+test('issueAcrossContainers takes only as much as needed from the last container, leaving the rest', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '1200.000000');
+    $line = $requisition->items->first();
+    $bottleA = stockedContainer($line->item_id, '1000.000000', $staff);
+    $bottleB = stockedContainer($line->item_id, '1000.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $transactions = app(IssueService::class)->issueAcrossContainers(
+        $line,
+        collect([$bottleA, $bottleB]),
+        '1200.000000',
+        $g,
+        $scientist,
+        $staff,
+        TEST_SIGNATURE_HASH,
+    );
+
+    expect($transactions)->toHaveCount(2);
+    expect($bottleA->fresh()->remaining_qty_base)->toBe('0.000000');
+    expect($bottleB->fresh()->remaining_qty_base)->toBe('800.000000'); // only 200 taken
+    expect($line->fresh()->qty_issued_base)->toBe('1200.000000');
+});
+
+test('issueAcrossContainers stops after exactly enough containers, never touching ones it did not need', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '500.000000');
+    $line = $requisition->items->first();
+    $bottleA = stockedContainer($line->item_id, '1000.000000', $staff);
+    $bottleB = stockedContainer($line->item_id, '1000.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $transactions = app(IssueService::class)->issueAcrossContainers(
+        $line,
+        collect([$bottleA, $bottleB]),
+        '500.000000',
+        $g,
+        $scientist,
+        $staff,
+        TEST_SIGNATURE_HASH,
+    );
+
+    expect($transactions)->toHaveCount(1);
+    expect($bottleA->fresh()->remaining_qty_base)->toBe('500.000000');
+    expect($bottleB->fresh()->remaining_qty_base)->toBe('1000.000000'); // untouched
+});
+
+test('user-requested 2026-09-23: not enough total stock issues what is available and stops, not an error', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '2000.000000');
+    $line = $requisition->items->first();
+    $bottleA = stockedContainer($line->item_id, '500.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $transactions = app(IssueService::class)->issueAcrossContainers(
+        $line,
+        collect([$bottleA]),
+        '2000.000000', // more than the single available container holds
+        $g,
+        $scientist,
+        $staff,
+        TEST_SIGNATURE_HASH,
+    );
+
+    expect($transactions)->toHaveCount(1);
+    expect($line->fresh()->qty_issued_base)->toBe('500.000000');
+    expect($bottleA->fresh()->remaining_qty_base)->toBe('0.000000');
+    expect($requisition->fresh()->status)->toBe('PARTIALLY_ISSUED');
+});
+
+test('issueAcrossContainers still enforces BR-04 against the line\'s cumulative, across the whole batch', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '100.000000');
+    $line = $requisition->items->first();
+    $bottleA = stockedContainer($line->item_id, '60.000000', $staff);
+    $bottleB = stockedContainer($line->item_id, '60.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    // 115 total against a 100 request is 15% over — past BR-04's 10% tolerance, needs override.
+    expect(fn () => app(IssueService::class)->issueAcrossContainers(
+        $line,
+        collect([$bottleA, $bottleB]),
+        '115.000000',
+        $g,
+        $scientist,
+        $staff,
+        TEST_SIGNATURE_HASH,
+        null,
+        'จ่ายเกินเพราะขวดสุดท้ายเหลือน้อย',
+    ))->toThrow(ExcessiveIssueQuantityException::class);
+});

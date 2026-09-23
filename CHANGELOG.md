@@ -2423,3 +2423,40 @@ User-requested: "ผู้ดูแลคลังบอกว่า ฉัน�
 - **User-confirmed**: the approved quantity (when reduced) shows on the requisition show page and the
   issue page, not on the F-01 print form.
 - Verified: Pest 590/590 green, Pint clean (377 files), PHPStan level 8 clean, `composer audit` clean.
+
+## Post-launch — Auto-issue: dispense from multiple containers in one submission (2026-09-23)
+
+User-requested: "ให้ระบบแนะนำ/จ่ายจากหลายขวดในคลิกเดียว" — a real gap the class docblock for
+`IssueService` had already named without solving ("FR-RQ-10: ... call it once per container when a
+line is split across several") — the issuer had to repeat the entire single-container form by hand
+for every bottle a large request happened to span.
+
+- New `IssueService::issueAcrossContainers()` — takes one total quantity and an already-FEFO-ordered
+  list of eligible containers, greedily fills them in the order given, and stops once the total is met
+  or the containers run out. Each container still gets its own `issue()` call and its own
+  `issue_transactions` row, so BR-04's tolerance check runs exactly as it would for a manual multi-step
+  issue — against the line's running cumulative, per call, not silently bypassed because it happened
+  inside one loop.
+- **Internally allocates in the item's own base unit, not the unit the issuer picked** —
+  `container.remaining_qty_base` is already in those terms, so handing it straight to `issue()`
+  (passing `$item->baseUnit` as the unit) needs no further conversion, rather than converting a
+  base-unit amount out to the display unit only for `issue()` to convert it right back a moment later.
+  The originally-requested total is still converted from the issuer's chosen unit exactly once, up
+  front.
+- **Under-fulfillment (not enough total stock) is not an error** — it issues whatever is actually
+  available across every eligible container and stops, leaving the requisition `PARTIALLY_ISSUED`;
+  the redirect message reports how much was actually dispensed against how much was asked for.
+- One receiver confirmation (signature or OTP) covers the whole batch — it's the same physical
+  hand-off event, just split across containers because no single one held enough.
+- New route `requisitions.items.issue-auto` / `RequisitionAutoIssueRequest` (identical shape to the
+  existing manual `RequisitionIssueRequest`, minus `barcode` — the containers are chosen
+  automatically). The issue page now has an "จ่ายอัตโนมัติ (แนะนำ)" / "เลือกภาชนะเอง" toggle (Alpine,
+  auto is the default); manual stays available for an issuer who wants to hand-pick a specific
+  container (e.g. to force one FEFO wouldn't normally recommend).
+- The receiver-confirmation widget (signature canvas + OTP toggle) was extracted into
+  `resources/views/requisitions/partials/receiver-signature.blade.php` so the new auto form doesn't
+  need its markup hand-copied — but the Alpine `x-data`/`x-init`/`@submit` logic that widget depends
+  on stays on each `<form>` tag itself (duplicated, not extracted): a `submit` event only bubbles up
+  to ancestors, never down into a child partial's own scope, so the wiring can't live inside the
+  partial. Same "don't over-abstract a two-instance case" precedent as elsewhere in this app.
+- Verified: Pest 600/600 green, Pint clean (378 files), PHPStan level 8 clean, `composer audit` clean.

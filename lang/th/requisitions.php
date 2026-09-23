@@ -119,6 +119,17 @@ return [
     'record_issue' => 'บันทึกการจ่าย',
     'issue_recorded' => 'บันทึกการจ่ายเรียบร้อยแล้ว',
 
+    // User-requested 2026-09-23: auto-allocate one total quantity across several FEFO
+    // containers in one submission, instead of resubmitting the manual form per container
+    'issue_mode_auto' => 'จ่ายอัตโนมัติ (แนะนำ)',
+    'issue_mode_auto_desc' => 'ระบบจะเลือกภาชนะให้ตามลำดับ FEFO และหักจากหลายขวดให้อัตโนมัติ',
+    'issue_mode_manual' => 'เลือกภาชนะเอง',
+    'field_qty_issued_total' => 'จำนวนที่ต้องการจ่ายทั้งหมด',
+    'auto_issue_preview_title' => 'ลำดับภาชนะที่จะใช้ (FEFO)',
+    'record_issue_auto' => 'บันทึกการจ่าย (อัตโนมัติ)',
+    'issue_recorded_multi' => 'บันทึกการจ่ายเรียบร้อยแล้ว (:containers ภาชนะ)',
+    'issue_recorded_partial' => 'จ่ายได้ :issued :unit จาก :containers ภาชนะ — สต็อกไม่พอสำหรับจำนวนที่ขอทั้งหมด',
+
     // FR-ST-01 / BR-05: returning unused material back into its original container
     'return_title' => 'คืนของ',
     'returnable' => 'คืนได้สูงสุด',
@@ -175,5 +186,6 @@ return [
         'container_required' => 'กรุณาเลือกภาชนะที่จะคืนเข้า',
         'qty_returned_required' => 'กรุณาระบุปริมาณที่คืน',
         'qty_returned_gt' => 'ปริมาณที่คืนต้องมากกว่า 0',
+        'no_stock_available' => 'ไม่มีภาชนะที่มีสต็อกให้จ่ายในขณะนี้',
     ],
 ];

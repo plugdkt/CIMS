@@ -176,6 +176,9 @@ Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(
     Route::post('/{requisition}/scientist-decide', [RequisitionApprovalController::class, 'scientistDecide'])->name('scientist-decide');
     Route::get('/{requisition}/issue', [RequisitionIssueController::class, 'create'])->name('issue.create');
     Route::post('/{requisition}/items/{requisition_item}/issue', [RequisitionIssueController::class, 'store'])->name('items.issue');
+    // User-requested 2026-09-23: one total quantity, dispensed across several FEFO-ordered
+    // containers automatically, instead of resubmitting `items.issue` once per container.
+    Route::post('/{requisition}/items/{requisition_item}/issue-auto', [RequisitionIssueController::class, 'storeAuto'])->name('items.issue-auto');
     Route::post('/{requisition}/items/{requisition_item}/return', [RequisitionReturnController::class, 'store'])->name('items.return');
     // FR-RQ-11 OTP fallback: rate limited so a scientist can't spam a receiver's inbox.
     Route::post('/{requisition}/receiver-otp', [RequisitionIssueController::class, 'sendReceiverOtp'])
