@@ -74,7 +74,14 @@ final class RequisitionApprovalController extends Controller
         $scientist = $request->user();
 
         try {
-            $service->scientistDecide($requisition, $scientist, $data['decision'], $data['reason'] ?? null, $request->ip());
+            $service->scientistDecide(
+                $requisition,
+                $scientist,
+                $data['decision'],
+                $data['reason'] ?? null,
+                $request->ip(),
+                $data['qty_approved'] ?? [],
+            );
         } catch (InvalidApprovalDecisionException $e) {
             return back()->withErrors(['decision' => $e->getMessage()]);
         }

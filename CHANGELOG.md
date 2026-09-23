@@ -2398,3 +2398,28 @@ to explain where the extra 50 came from.
   just issued and balance — so the reconciliation is visible without doing arithmetic by hand.
 - Verified with the exact reported scenario: Pest 583/583 green, Pint clean (376 files),
   PHPStan level 8 clean, `composer audit` clean.
+
+## Post-launch — Warehouse manager can approve less than what was requested (2026-09-23)
+
+User-requested: "ผู้ดูแลคลังบอกว่า ฉันต้องการอนุมัติตามจำนวนที่เห็นว่าเหมาะสม เช่น ผู้เบิกขอมา 100 แต่ผู้ดูแลคลังดูแล้ว
+ควรใช้แค่ 50 ก็อยากอนุมัติแค่ 50" — a real architectural addition, not a spec task.
+
+- New nullable `requisition_items.qty_approved`/`qty_approved_base` columns, entered per line at the
+  warehouse-manager decision step (FR-RQ-08 only — the advisor step is untouched, since it was never
+  about quantity). `RequisitionItem::approvedCeilingBase()` (`qty_approved_base ?? qty_requested_base`)
+  is the single fallback point for lines decided before this feature shipped.
+- The ceiling changed everywhere it's actually used, not just at the decision: `IssueService::
+  assertWithinTolerance()` (BR-04's 10% tolerance), `advanceRequisitionStatus()`'s "fully issued" check,
+  and `RequisitionIssueController`'s `remaining_base` all switched from `qty_requested_base` to
+  `approvedCeilingBase()`. Missing either of the first two would have been a real silent bug: BR-04
+  would never trigger below the original request, and a reduced line could never leave
+  PARTIALLY_ISSUED once its approved amount was fully issued.
+- A zero-approved line (a manager approves the requisition but decides this one line isn't warranted at
+  all) skips straight to requiring `requisition.issue_override` rather than computing a percentage
+  against a zero ceiling, which would otherwise divide by zero.
+- **User-confirmed**: reducing a line requires a reason, mirroring BR-04's remark requirement for the
+  opposite case. Approving *more* than requested is rejected outright. Every line is validated before
+  any of them are written, so a rejected submission never leaves a partial write behind.
+- **User-confirmed**: the approved quantity (when reduced) shows on the requisition show page and the
+  issue page, not on the F-01 print form.
+- Verified: Pest 590/590 green, Pint clean (377 files), PHPStan level 8 clean, `composer audit` clean.

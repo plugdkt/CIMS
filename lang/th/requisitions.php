@@ -84,6 +84,10 @@ return [
     'scientist_approve_decision' => 'เห็นควรให้เบิก',
     'scientist_reject_decision' => 'ไม่เห็นควรให้เบิก',
     'scientist_decision_recorded' => 'บันทึกผลการพิจารณาเรียบร้อยแล้ว',
+    // User-requested 2026-09-23: approving a different (usually lower) quantity per line
+    'field_qty_approved' => 'จำนวนที่อนุมัติ',
+    'qty_approved_hint' => 'แก้ไขได้ถ้าต้องการอนุมัติน้อยกว่าที่ขอ (ห้ามมากกว่าที่ขอ)',
+    'qty_approved_reduced_reason_hint' => 'กรุณาระบุเหตุผลเมื่ออนุมัติจำนวนน้อยกว่าที่ขอเบิก',
     'mail_advisor_subject' => 'ขออนุมัติใบเบิก :doc_no',
     'mail_advisor_greeting' => 'เรียน :name',
     'mail_advisor_body' => 'นิสิต :student ได้ส่งใบขอเบิกเลขที่ :doc_no มาเพื่อขอความอนุเคราะห์พิจารณาอนุมัติในฐานะอาจารย์ที่ปรึกษา',

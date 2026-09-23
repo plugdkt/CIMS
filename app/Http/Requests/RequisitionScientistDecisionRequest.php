@@ -19,12 +19,22 @@ final class RequisitionScientistDecisionRequest extends FormRequest
         return $user !== null && $requisition instanceof Requisition && $user->can('scientistDecide', $requisition);
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * `qty_approved.*` is validated only for shape here (a plain non-negative number) —
+     * whether it exceeds what was requested, and whether reducing it needed a reason, are
+     * BR-04-style business rules checked in `ApprovalService::scientistDecide()` itself,
+     * the same way REJECT's reason requirement is split between here (present) and the
+     * service (non-empty after trimming).
+     *
+     * @return array<string, mixed>
+     */
     public function rules(): array
     {
         return [
             'decision' => ['required', Rule::in(['APPROVE', 'REJECT'])],
             'reason' => ['nullable', 'string', 'max:500', 'required_if:decision,REJECT'],
+            'qty_approved' => ['nullable', 'array'],
+            'qty_approved.*' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

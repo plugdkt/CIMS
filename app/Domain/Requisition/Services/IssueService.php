@@ -105,10 +105,16 @@ final class IssueService
     }
 
     /**
-     * BR-04: up to 10% over `qty_requested_base` just needs a remark; past 10% the
+     * BR-04: up to 10% over the approved ceiling just needs a remark; past 10% the
      * approver must actually hold `requisition.issue_override` (LAB_MANAGER per
      * PermissionSeeder) — mirrors BR-06's distinct, authorized approver, checked here in
      * the service rather than only at the Policy layer, same as `ApprovalService`.
+     *
+     * User-requested 2026-09-23: the ceiling is `RequisitionItem::approvedCeilingBase()`
+     * (a warehouse manager's approved quantity, if they set one lower than requested — or
+     * `qty_requested_base` otherwise), not `qty_requested_base` directly. Otherwise a line
+     * approved for 50 of a 100 request could still be issued all the way up to 100 before
+     * this check ever triggered, silently ignoring the reduced approval.
      *
      * @param  numeric-string  $newCumulative
      */
@@ -119,7 +125,9 @@ final class IssueService
         ?string $remark,
         ?int $overageApprovedBy,
     ): void {
-        if (bccomp($newCumulative, $line->qty_requested_base, self::SCALE) <= 0) {
+        $ceiling = $line->approvedCeilingBase();
+
+        if (bccomp($newCumulative, $ceiling, self::SCALE) <= 0) {
             return;
         }
 
@@ -127,11 +135,18 @@ final class IssueService
             throw new ExcessiveIssueQuantityException('จ่ายเกินจำนวนที่ขอต้องระบุหมายเหตุ (BR-04)');
         }
 
-        $overage = bcsub($newCumulative, $line->qty_requested_base, self::SCALE);
-        $overagePercent = bcdiv($overage, $line->qty_requested_base, self::SCALE + 2);
+        $overage = bcsub($newCumulative, $ceiling, self::SCALE);
 
-        if (bccomp($overagePercent, self::OVERAGE_APPROVAL_THRESHOLD, self::SCALE + 2) <= 0) {
-            return;
+        // A zero ceiling (a line approved for none of it) has no percentage to compute
+        // against — bcdiv() by zero throws. Any issuance at all against it is already past
+        // the point a percentage-based tolerance is meaningful, so it goes straight to
+        // requiring an override, the same as a percentage over the threshold would.
+        if (bccomp($ceiling, '0', self::SCALE) > 0) {
+            $overagePercent = bcdiv($overage, $ceiling, self::SCALE + 2);
+
+            if (bccomp($overagePercent, self::OVERAGE_APPROVAL_THRESHOLD, self::SCALE + 2) <= 0) {
+                return;
+            }
         }
 
         if ($overageApprovedBy === null) {
@@ -157,8 +172,11 @@ final class IssueService
     private function advanceRequisitionStatus(Requisition $requisition): void
     {
         $requisition->load('items');
+        // User-requested 2026-09-23: "fully issued" means fully issued against what was
+        // actually approved, not what was originally requested — otherwise a line approved
+        // for 50 of a 100 request could never leave PARTIALLY_ISSUED once all 50 is out.
         $fullyIssued = $requisition->items->every(
-            fn (RequisitionItem $item) => bccomp($item->qty_issued_base, $item->qty_requested_base, self::SCALE) >= 0
+            fn (RequisitionItem $item) => bccomp($item->qty_issued_base, $item->approvedCeilingBase(), self::SCALE) >= 0
         );
 
         $event = $fullyIssued ? 'issueFull' : 'issuePartial';

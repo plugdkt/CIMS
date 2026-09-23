@@ -121,3 +121,145 @@ test('user-requested 2026-09-21: the requisition review page shows each line ite
         ->assertSee(__('requisitions.current_balance'))
         ->assertSee('42 ');
 });
+
+test('user-requested 2026-09-23: a warehouse manager can approve less than what was requested, per line', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff); // one line, qty_requested = 5 g
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+        'qty_approved' => [$line->id => '2'],
+        'reason' => 'ใช้จริงแค่บางส่วนตามที่เห็นสมควร',
+    ])->assertRedirect(route('requisitions.show', $requisition));
+
+    $fresh = $line->fresh();
+    expect($fresh->qty_approved)->toBe('2.000000');
+    expect($fresh->qty_approved_base)->toBe('2.000000');
+    expect($requisition->fresh()->status)->toBe('APPROVED');
+});
+
+test('user-requested 2026-09-23: reducing the approved quantity without a reason is rejected', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+        'qty_approved' => [$line->id => '2'],
+    ])->assertSessionHasErrors('decision');
+
+    expect($requisition->fresh()->status)->toBe('SUBMITTED');
+    expect($line->fresh()->qty_approved_base)->toBeNull();
+});
+
+test('user-requested 2026-09-23: approving more than what was requested is rejected', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+        'qty_approved' => [$line->id => '999'],
+    ])->assertSessionHasErrors('decision');
+
+    expect($requisition->fresh()->status)->toBe('SUBMITTED');
+});
+
+test('user-requested 2026-09-23: leaving qty_approved unset for a line approves the full requested amount, as before', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+    ])->assertRedirect(route('requisitions.show', $requisition));
+
+    expect($line->fresh()->qty_approved_base)->toBe('5.000000'); // same as qty_requested_base
+});
+
+test('user-requested 2026-09-23: issuing up to the reduced approved ceiling completes the requisition, not the original request', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff); // 5 g requested
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+        'qty_approved' => [$line->id => '2'],
+        'reason' => 'อนุมัติเท่าที่จำเป็น',
+    ]);
+
+    $item = $line->fresh()->item()->firstOrFail();
+    $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+    $container = stockedContainer($item->id, '2.000000', $auditor);
+
+    app(\App\Domain\Requisition\Services\IssueService::class)->issue(
+        $line->fresh(),
+        $container,
+        '2.000000',
+        $g,
+        $auditor,
+        $staff,
+        hash('sha256', 'sig'),
+    );
+
+    // Fully issued against the 2 g approved, not stuck at PARTIALLY_ISSUED waiting for 5 g.
+    expect($requisition->fresh()->status)->toBe('ISSUED');
+});
+
+test('user-requested 2026-09-23: issuing past the reduced approved ceiling still triggers BR-04, relative to that ceiling', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+        'qty_approved' => [$line->id => '2'],
+        'reason' => 'อนุมัติเท่าที่จำเป็น',
+    ]);
+
+    $item = $line->fresh()->item()->firstOrFail();
+    $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+    $container = stockedContainer($item->id, '3.000000', $auditor);
+
+    // Issuing 3 g against a 2 g approved ceiling (50% over) with no remark must fail —
+    // it was well within the original 5 g request, but that's no longer the ceiling.
+    expect(fn () => app(\App\Domain\Requisition\Services\IssueService::class)->issue(
+        $line->fresh(),
+        $container,
+        '3.000000',
+        $g,
+        $auditor,
+        $staff,
+        hash('sha256', 'sig'),
+    ))->toThrow(\App\Domain\Requisition\Exceptions\ExcessiveIssueQuantityException::class);
+});
+
+test('user-requested 2026-09-23: the reduced approved quantity is visible on the show page and the issue page', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $line = $requisition->items()->firstOrFail();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+        'qty_approved' => [$line->id => '2'],
+        'reason' => 'อนุมัติเท่าที่จำเป็น',
+    ]);
+
+    $this->actingAs($auditor)->get(route('requisitions.show', $requisition))
+        ->assertOk()
+        ->assertSee(__('requisitions.field_qty_approved'))
+        ->assertSee('2 ');
+
+    $dispenser = scientistUser(['lab_id' => $requisition->lab_id]);
+    $this->actingAs($dispenser)->get(route('requisitions.issue.create', $requisition))
+        ->assertOk()
+        ->assertSee(__('requisitions.field_qty_approved'));
+});

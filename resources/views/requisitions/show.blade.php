@@ -1,4 +1,9 @@
 <x-layout>
+    @php
+        // User-requested 2026-09-23: computed once so the "จำนวนที่อนุมัติ" column header
+        // and each row's cell never disagree about whether to render it.
+        $canDecideScientist = auth()->user()?->can('scientistDecide', $requisition) ?? false;
+    @endphp
     <div class="max-w-4xl">
         <div class="mb-5">
             <a href="{{ route('requisitions.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('requisitions.back_to_list') }}</a>
@@ -78,6 +83,9 @@
                                 <th class="px-3 py-2 font-semibold">#</th>
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_item') }}</th>
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_qty_requested') }}</th>
+                                @if ($canDecideScientist || $requisition->items->contains(fn ($l) => $l->qty_approved_base !== null))
+                                    <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_qty_approved') }}</th>
+                                @endif
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.current_balance') }}</th>
                                 <th class="px-3 py-2 font-semibold">{{ __('requisitions.field_reference_doc') }}</th>
                                 <th class="px-3 py-2"></th>
@@ -114,6 +122,26 @@
                                         </div>
                                     </td>
                                     <td class="px-3 py-2 align-top">{{ rtrim(rtrim((string) $line->qty_requested, '0'), '.') }} {{ $line->unit?->code }}</td>
+                                    @if ($canDecideScientist)
+                                        <td class="px-3 py-2 align-top">
+                                            <input type="number" step="any" min="0" max="{{ rtrim(rtrim((string) $line->qty_requested, '0'), '.') }}"
+                                                   name="qty_approved[{{ $line->id }}]" form="scientist_decide_form"
+                                                   value="{{ old('qty_approved.'.$line->id, rtrim(rtrim((string) ($line->qty_approved ?? $line->qty_requested), '0'), '.')) }}"
+                                                   aria-label="{{ __('requisitions.field_qty_approved') }} — {{ $line->item?->name_th }}"
+                                                   class="w-24 rounded-lg border border-border bg-surface px-2 py-1 text-sm">
+                                            {{ $line->unit?->code }}
+                                        </td>
+                                    @elseif ($requisition->items->contains(fn ($l) => $l->qty_approved_base !== null))
+                                        <td class="px-3 py-2 align-top">
+                                            @if ($line->qty_approved !== null && bccomp($line->qty_approved_base, $line->qty_requested_base, 6) < 0)
+                                                <span class="text-warning-ink font-semibold">
+                                                    {{ rtrim(rtrim((string) $line->qty_approved, '0'), '.') }} {{ $line->unit?->code }}
+                                                </span>
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
+                                    @endif
                                     <td class="px-3 py-2 align-top">
                                         @if ($line->item !== null && isset($balances[$line->item->id]))
                                             {{ rtrim(rtrim((string) $balances[$line->item->id], '0'), '.') }} {{ $line->item->baseUnit?->code }}
@@ -310,7 +338,15 @@
         @can('scientistDecide', $requisition)
             <div class="bg-surface border border-border rounded-xl p-6 mt-6">
                 <h2 class="font-display text-base font-bold mb-3">{{ __('requisitions.scientist_decision_title') }}</h2>
-                <form method="POST" action="{{ route('requisitions.scientist-decide', $requisition) }}" class="space-y-3">
+                {{--
+                    User-requested 2026-09-23: the per-line "จำนวนที่อนุมัติ" inputs live in
+                    the lines table above (so they sit next to what they're adjusting), not
+                    inside this form element — HTML forbids nesting a <form> inside another,
+                    and the table already renders above this one. The `form="scientist_decide_form"`
+                    attribute on each of those inputs is what associates them with this form
+                    despite not being physically inside its markup.
+                --}}
+                <form id="scientist_decide_form" method="POST" action="{{ route('requisitions.scientist-decide', $requisition) }}" class="space-y-3">
                     @csrf
                     <div>
                         <label class="flex items-center gap-2 text-sm mb-2">
@@ -322,9 +358,11 @@
                             {{ __('requisitions.scientist_reject_decision') }}
                         </label>
                     </div>
+                    <p class="text-xs text-ink-faint">{{ __('requisitions.qty_approved_hint') }}</p>
                     <div>
                         <label class="block text-xs font-medium mb-1" for="scientist_reason">{{ __('requisitions.field_reject_reason') }}</label>
                         <textarea name="reason" id="scientist_reason" rows="2" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">{{ old('reason') }}</textarea>
+                        <p class="text-xs text-ink-faint mt-1">{{ __('requisitions.qty_approved_reduced_reason_hint') }}</p>
                     </div>
                     <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">
                         {{ __('requisitions.submit_decision') }}

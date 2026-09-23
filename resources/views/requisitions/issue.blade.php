@@ -52,6 +52,13 @@
                     </div>
                     <span class="text-xs text-ink-muted">
                         {{ __('requisitions.field_qty_requested') }} {{ rtrim(rtrim((string) $line->qty_requested_base, '0'), '.') }}
+                        @if ($line->qty_approved_base !== null && bccomp($line->qty_approved_base, $line->qty_requested_base, 6) < 0)
+                            {{-- User-requested 2026-09-23: shown wherever the requested quantity is,
+                                 whenever a warehouse manager approved less than what was asked. --}}
+                            <span class="text-warning-ink font-semibold">
+                                ({{ __('requisitions.field_qty_approved') }} {{ rtrim(rtrim((string) $line->qty_approved_base, '0'), '.') }})
+                            </span>
+                        @endif
                         / {{ __('requisitions.issued_so_far') }} {{ rtrim(rtrim((string) $line->qty_issued_base, '0'), '.') }}
                         ({{ __('requisitions.remaining') }} {{ rtrim(rtrim((string) $row['remaining_base'], '0'), '.') }})
                     </span>

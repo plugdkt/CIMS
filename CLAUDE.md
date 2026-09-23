@@ -1229,3 +1229,46 @@ code — see the conversation, not repeated here). Both share one `PubChemClient
   silently break (return no GHS data at all, not an error) the next time they do.
 - **All 11 new tests use `Http::fake()` — none make a real network call**, matching
   `SsoLoginTest`'s existing precedent for faking an external HTTP dependency in this app.
+
+## Post-launch — Warehouse manager can approve less than what was requested (2026-09-23)
+
+User-requested: "ในขั้นตอนอนุมัติ ผู้ดูแลคลังบอกว่า ฉันต้องการอนุมัติตามจำนวนที่เห็นว่าเหมาะสม เช่น ผู้เบิกขอมา 100
+แต่ผู้ดูแลคลังดูแล้ว ควรใช้แค่ 50 ก็อยากอนุมัติแค่ 50" — a real architectural addition, not a spec task, so its
+judgment calls are recorded here the same way the multi-branch and working-stock features above are.
+
+- **`requisition_items.qty_approved`/`qty_approved_base`** (new, both nullable) — same shape as
+  `qty_requested`/`qty_requested_base`: the approver enters a number in the line's own unit, converted
+  to base the same way via `UnitConverter::toItemBase()`. Nullable so a line decided before this
+  feature shipped reads correctly without a backfill — `RequisitionItem::approvedCeilingBase()`
+  (`qty_approved_base ?? qty_requested_base`) is the one place that fallback lives; every downstream
+  check reads through it, never `qty_requested_base` directly.
+- **The ceiling changed everywhere it mattered, not just at the decision itself**: `IssueService::
+  assertWithinTolerance()` (BR-04's 10%-over-tolerance math) and `advanceRequisitionStatus()`'s
+  "is every line fully issued" check both moved from `qty_requested_base` to `approvedCeilingBase()`.
+  Missing either of these would have been a real, silent bug: without the first, a line approved for
+  50 of 100 could still be issued all the way to 100 before BR-04 ever triggered; without the second,
+  that same line could never leave `PARTIALLY_ISSUED` once its 50 was fully issued, since the code
+  would keep waiting for 100. `RequisitionIssueController`'s `remaining_base` calculation needed the
+  same fix, for the same reason.
+- **A zero-approved ceiling needs its own branch in `assertWithinTolerance()`** — `bcdiv()` throws on
+  division by zero, and a line a manager approved for literally none of (0) is a real, valid case (they
+  approved the requisition overall but decided this one line isn't warranted at all). Any issuance
+  against it skips straight to requiring `requisition.issue_override`, the same as a >10% overage would,
+  rather than trying to compute a percentage against zero.
+- **Reducing a line requires a reason — user-confirmed, explicitly mirroring BR-04's remark
+  requirement** for the opposite case (issuing *more* than requested). Enforced in
+  `ApprovalService::applyApprovedQuantities()`, which validates every line before writing any of them
+  (an over-request or an unreasoned reduction never leaves a partial write behind). Approving *more*
+  than what was requested is rejected outright — there is no scenario where a warehouse manager should
+  be able to inflate a request past what was actually asked for.
+- **Scoped to the scientist/warehouse-manager decision only (FR-RQ-08), not the advisor step** — an
+  advisor's approval was never about *quantity*, only whether the request is legitimate at all, so
+  `ApprovalService::advisorDecide()` and `RequisitionApprovalRequest` are untouched.
+- **User-confirmed: shown on the requisition show page and the issue page, not F-01.** The reduced
+  quantity needs to be visible to whoever acts on the requisition next (the dispenser, and the
+  requester checking status), but printing it on the formal F-01 form wasn't asked for — revisit only
+  if that need surfaces later.
+- **The per-line `qty_approved[...]` inputs live in the show page's lines table, not inside the
+  decision `<form>` itself** — HTML forbids nesting a `<form>` inside another, and the lines table
+  already renders above the decision form on the same page. Each input carries
+  `form="scientist_decide_form"` to associate it with that form despite sitting outside its markup.

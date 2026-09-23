@@ -7,8 +7,10 @@ namespace App\Domain\Requisition\Services;
 use App\Domain\Notification\Services\NotificationService;
 use App\Domain\Requisition\Exceptions\InvalidApprovalDecisionException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
+use App\Domain\Shared\UnitConverter;
 use App\Models\Requisition;
 use App\Models\RequisitionApproval;
+use App\Models\RequisitionItem;
 use App\Models\User;
 
 /**
@@ -19,9 +21,12 @@ use App\Models\User;
  */
 final class ApprovalService
 {
+    private const SCALE = 6;
+
     public function __construct(
         private readonly RequisitionState $state,
         private readonly NotificationService $notifications,
+        private readonly UnitConverter $converter,
     ) {
     }
 
@@ -76,6 +81,7 @@ final class ApprovalService
      * shouldn't be able to bypass this rule).
      *
      * @param  'APPROVE'|'REJECT'  $decision
+     * @param  array<int, string>  $approvedQuantities  requisition_item id => approved qty, in that line's own unit
      */
     public function scientistDecide(
         Requisition $requisition,
@@ -83,9 +89,14 @@ final class ApprovalService
         string $decision,
         ?string $reason = null,
         ?string $ipAddress = null,
+        array $approvedQuantities = [],
     ): Requisition {
         if ($decision === 'REJECT' && trim((string) $reason) === '') {
             throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลที่ไม่เห็นควรให้เบิก');
+        }
+
+        if ($decision === 'APPROVE') {
+            $this->applyApprovedQuantities($requisition, $approvedQuantities, $reason);
         }
 
         $event = $decision === 'APPROVE' ? 'scientistApprove' : 'scientistReject';
@@ -103,6 +114,62 @@ final class ApprovalService
         $this->notifyRequesterOfDecision($requisition, 'SCIENTIST', $decision);
 
         return $requisition;
+    }
+
+    /**
+     * User-requested 2026-09-23: a warehouse manager may approve less than what was
+     * requested, per line — e.g. requested 100, approves 50 as the appropriate amount.
+     * Reducing any line requires a reason, mirroring BR-04's remark requirement for the
+     * opposite case (issuing *more* than requested) — this changes the ceiling every later
+     * issuance check compares against ({@see RequisitionItem::approvedCeilingBase()}).
+     *
+     * Validates every line before writing any of them, so a rejected request (over the
+     * requested amount, or reduced with no reason) never leaves a partial write behind.
+     *
+     * @param  array<int, string>  $approvedQuantities
+     */
+    private function applyApprovedQuantities(Requisition $requisition, array $approvedQuantities, ?string $reason): void
+    {
+        $requisition->load(['items.item', 'items.unit']);
+
+        /** @var list<array{0: RequisitionItem, 1: string, 2: string}> $resolved */
+        $resolved = [];
+        $reduced = false;
+
+        foreach ($requisition->items as $line) {
+            $rawApproved = $approvedQuantities[$line->id] ?? null;
+            $rawApproved = ($rawApproved === null || trim($rawApproved) === '')
+                ? (string) $line->qty_requested
+                : $rawApproved;
+
+            $item = $line->item()->firstOrFail();
+            $unit = $line->unit()->firstOrFail();
+            /** @var numeric-string $rawApproved */
+            $approvedBase = $this->converter->toItemBase($item, $unit, $rawApproved);
+
+            if (bccomp($approvedBase, $line->qty_requested_base, self::SCALE) > 0) {
+                throw new InvalidApprovalDecisionException('อนุมัติจำนวนมากกว่าที่ขอเบิกไม่ได้');
+            }
+            if (bccomp($approvedBase, $line->qty_requested_base, self::SCALE) < 0) {
+                $reduced = true;
+            }
+
+            $resolved[] = [$line, $rawApproved, $approvedBase];
+        }
+
+        if ($reduced && trim((string) $reason) === '') {
+            throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลเมื่ออนุมัติจำนวนน้อยกว่าที่ขอเบิก (BR-04)');
+        }
+
+        foreach ($resolved as [$line, $rawApproved, $approvedBase]) {
+            /**
+             * @var numeric-string $rawApproved
+             * @var numeric-string $approvedBase
+             */
+            $line->qty_approved = $rawApproved;
+            $line->qty_approved_base = $approvedBase;
+            $line->save();
+        }
     }
 
     /**
