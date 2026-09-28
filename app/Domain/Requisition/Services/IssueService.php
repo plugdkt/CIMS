@@ -67,7 +67,7 @@ final class IssueService
         }
 
         $qtyIssuedBase = $this->converter->toItemBase($line->item()->firstOrFail(), $unit, $qtyIssued);
-        $newCumulative = bcadd($line->qty_issued_base, $qtyIssuedBase, self::SCALE);
+        $newCumulative = bcadd((string) ($line->qty_issued_base ?? '0'), $qtyIssuedBase, self::SCALE);
         $this->assertWithinTolerance($requisition, $line, $newCumulative, $remark, $overageApprovedBy);
 
         $this->ledgerService->issue($container->id, $qtyIssuedBase, new LedgerEntryData(
@@ -259,7 +259,7 @@ final class IssueService
         // actually approved, not what was originally requested — otherwise a line approved
         // for 50 of a 100 request could never leave PARTIALLY_ISSUED once all 50 is out.
         $fullyIssued = $requisition->items->every(
-            fn (RequisitionItem $item) => bccomp($item->qty_issued_base, $item->approvedCeilingBase(), self::SCALE) >= 0
+            fn (RequisitionItem $item) => bccomp((string) ($item->qty_issued_base ?? '0'), $item->approvedCeilingBase(), self::SCALE) >= 0
         );
 
         $event = $fullyIssued ? 'issueFull' : 'issuePartial';

@@ -57,8 +57,8 @@ final class RequisitionIssueController extends Controller
                 'line' => $line,
                 // User-requested 2026-09-23: remaining is against what was actually
                 // approved, not what was requested, once a warehouse manager approves less.
-                'remaining_base' => bcsub($line->approvedCeilingBase(), $line->qty_issued_base, 6),
-                'returnable_base' => bcsub($line->qty_issued_base, $line->qty_returned_base, 6),
+                'remaining_base' => bcsub($line->approvedCeilingBase(), (string) ($line->qty_issued_base ?? '0'), 6),
+                'returnable_base' => bcsub((string) ($line->qty_issued_base ?? '0'), (string) ($line->qty_returned_base ?? '0'), 6),
                 'containers' => $selector->recommend($item),
                 'issued_containers' => $returns->issuedContainersFor($line),
                 'stock_balance' => $balance,

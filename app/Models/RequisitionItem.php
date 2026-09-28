@@ -27,6 +27,11 @@ class RequisitionItem extends Model
 {
     public $timestamps = false;
 
+    protected $attributes = [
+        'qty_issued_base' => '0.000000',
+        'qty_returned_base' => '0.000000',
+    ];
+
     protected function casts(): array
     {
         return [

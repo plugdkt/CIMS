@@ -2460,3 +2460,13 @@ for every bottle a large request happened to span.
   to ancestors, never down into a child partial's own scope, so the wiring can't live inside the
   partial. Same "don't over-abstract a two-instance case" precedent as elsewhere in this app.
 - Verified: Pest 600/600 green, Pint clean (378 files), PHPStan level 8 clean, `composer audit` clean.
+
+## Post-launch — Fix uninitialized qty_issued_base in IssueService and RequisitionIssueController (2026-09-28)
+
+Discovered during E2E verification of multi-container auto-issue and reduced approval features:
+
+- A newly created `RequisitionItem` model instance in memory had `qty_issued_base` as `null`, causing `bcadd()` in `IssueService::issue()` and `bcsub()` in `RequisitionIssueController::create()` to throw `TypeError: bcadd(): Argument #1 ($num1) must be of type string, null given` in PHP 8.3.
+- Added default model attributes `'qty_issued_base' => '0.000000'` and `'qty_returned_base' => '0.000000'` to `RequisitionItem`.
+- Defensively coalesced `(string) ($line->qty_issued_base ?? '0')` and `(string) ($line->qty_returned_base ?? '0')` before passing to `bcadd()`, `bcsub()`, and `bccomp()` in `IssueService` and `RequisitionIssueController`.
+- Verified: E2E scenarios test passing, Pint clean.
+

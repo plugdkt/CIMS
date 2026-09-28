@@ -292,3 +292,18 @@ test('issueAcrossContainers still enforces BR-04 against the line\'s cumulative,
         'จ่ายเกินเพราะขวดสุดท้ายเหลือน้อย',
     ))->toThrow(ExcessiveIssueQuantityException::class);
 });
+
+test('issuing against a requisition item where qty_issued_base is null in memory safely defaults to zero', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    $line->setAttribute('qty_issued_base', null);
+    $container = stockedContainer($line->item_id, '100.000000', $staff);
+    $scientist = scientistUser();
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $issue = app(IssueService::class)->issue($line, $container, '50.000000', $g, $scientist, $staff, TEST_SIGNATURE_HASH);
+
+    expect($issue->qty_issued_base)->toBe('50.000000');
+    expect($line->fresh()->qty_issued_base)->toBe('50.000000');
+});
