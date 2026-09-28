@@ -5,6 +5,13 @@
 @tailwind utilities;
 
 @layer base {
+    html {
+        /* User-requested 2026-09-28: overall text felt too small — bumping the root
+           size scales every rem-based Tailwind text/spacing utility app-wide instead
+           of hunting down each text-xs/text-sm usage individually. */
+        font-size: 17px;
+    }
+
     body {
         @apply bg-bg text-ink font-sans;
     }
