@@ -54,15 +54,6 @@ beforeEach(function () {
     ]);
 });
 
-test('stock-in create view includes grade and physical_state in items JSON payload', function () {
-    $response = $this->actingAs($this->auditor)->get(route('stock-in.create'));
-
-    $response->assertOk();
-    $response->assertSee('เอทานอลทดสอบ');
-    $response->assertSee('AR');
-    $response->assertSee('liquid');
-});
-
 test('requisition show view displays item grade and physical_state', function () {
     $requisition = makeRequisition($this->student);
 

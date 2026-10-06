@@ -7,6 +7,15 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- 2026-10-06: Eight chemical types as item categories (สารเคมี / อาหารเลี้ยงเชื้อ / สี / น้ำตาล / ยาปฏิชีวนะ / Test Kits / Detergent / อื่นๆ) — one type per item, used to browse stock by type: filter on the item list, the working-stock list and the IMS lot list. Existing items stay in "สารเคมี" until reassigned.
+- 2026-09-30: IMS layer (branch central-store stock) above working stock. Purchase documents printed from the
+  university's warehouse system are entered as a DRAFT receipt (optionally with the source PDF kept on the private
+  disk), checked line by line by the warehouse manager, then confirmed into `ims_lots` (lot, unit price, fiscal year,
+  purchase round) + append-only `ims_movements`. Cutting a lot off IMS (`ImsService::transferToWorkingStock()`) and
+  creating the working-stock containers is one transaction; the university withdrawal document number is required and
+  becomes the ledger remark. The direct stock-in form was removed — working stock can only come from IMS. New
+  permissions `ims.view` (+ADMIN, read-only) / `ims.manage` (warehouse managers, own branch). AI reading of the PDF
+  is not built yet (waiting on a sample PDF and the university API key).
 - T-000: Project foundation — Laravel 13 (see deviation note below), Pint (PSR-12), PHPStan/Larastan level 8,
   Pest, Dockerized dev environment (PHP 8.3, MariaDB 11.4, Redis 7).
 - T-001: `.env`/`.env.example` wired to the MariaDB + Redis containers (session/cache/queue all on Redis).

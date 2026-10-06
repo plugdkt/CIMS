@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'filter_all_categories' => 'ทุกประเภท',
     'index_title' => 'ทะเบียนสารเคมี/วัสดุ',
     'index_subtitle' => 'ค้นหาและจัดการรายการสารเคมีและวัสดุทั้งหมด',
     'search_placeholder' => 'ค้นหาชื่อ / CAS / รหัสสาร',

@@ -1272,3 +1272,24 @@ judgment calls are recorded here the same way the multi-branch and working-stock
   decision `<form>` itself** — HTML forbids nesting a `<form>` inside another, and the lines table
   already renders above the decision form on the same page. Each input carries
   `form="scientist_decide_form"` to associate it with that form despite sitting outside its markup.
+
+## Post-launch — IMS layer above working stock (2026-09-30)
+
+User-requested: the branch's central store ("IMS") sits above working stock. Decisions confirmed with the user:
+one-step cut-off (IMS cut-off and working-stock creation happen together), the old direct stock-in form is gone
+(working stock only comes from IMS), IMS is per branch (`labs`), PDF reading will use the university's AI gateway
+key (`services.ai_gateway`, OpenAI-compatible — already configured for chemical specifications), prices are visible
+only to `ims.view` holders (not requesters).
+
+- **IMS tables**: `ims_receipts` (+`ims_receipt_lines`) = a purchase document in DRAFT/CONFIRMED/CANCELLED;
+  `ims_lots` = one confirmed line (lot, unit price, fiscal year, purchase round, expiry); `ims_movements` =
+  append-only RECEIVE/ISSUE rows. `containers.ims_lot_id` links a working-stock bottle back to the lot it came from.
+- **Unit adoption moved to `BaseUnitAdopter`** and now also freezes on the first `ims_lots` row (not only the first
+  ledger row) — IMS quantities are `_base` values in the item's own base unit too.
+- **ADMIN holds `ims.view` only**: confirming/transferring ends in `stock_ledger` writes, which spec §3 keeps off ADMIN.
+- **Requisition already only offers items with working stock in the requester's own branch**
+  (`RequisitionItemRequest::withValidator`) — nothing changed there; IMS lots alone never make an item requestable.
+- **New tables need the grants script re-run** (`docker/mariadb/restrict_app_grants.sql`) on every database,
+  including production, or `cmis_app` gets "INSERT command denied" on `ims_*`.
+- **Not built yet**: AI extraction of the PDF into draft lines (needs a real sample PDF + the key; build behind the
+  existing gateway config, keep the manager's review-and-confirm step mandatory).

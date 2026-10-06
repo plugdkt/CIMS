@@ -5,8 +5,8 @@
             <p class="text-sm text-ink-muted mt-1">{{ __('stock.index_subtitle') }}</p>
         </div>
         @if ($canStockIn)
-            <a href="{{ route('stock-in.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap shadow-2xs">
-                {{ __('stock.btn_stock_in') }}
+            <a href="{{ route('ims.lots.index') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap shadow-2xs">
+                {{ __('ims.nav_lots') }}
             </a>
         @endif
     </div>
@@ -19,6 +19,14 @@
             <option value="">{{ __('stock.filter_location_all') }}</option>
             @foreach ($locations as $location)
                 <option value="{{ $location->id }}">{{ $location->name }}</option>
+            @endforeach
+        </select>
+
+        <label for="categoryFilter" class="sr-only">{{ __('ims.col_category') }}</label>
+        <select id="categoryFilter" wire:model.live="categoryId" class="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+            <option value="">{{ __('items.filter_all_categories') }}</option>
+            @foreach ($categories as $category)
+                <option value="{{ $category->id }}">{{ $category->name_th }}</option>
             @endforeach
         </select>
 
@@ -62,6 +70,9 @@
                                 <div class="font-medium text-ink">{{ $container->item?->name_th }}</div>
                                 <div class="flex flex-wrap items-center gap-1.5 mt-1">
                                     <span class="font-mono text-[11px] text-ink-muted">{{ $container->item?->item_code }}</span>
+                                    @if ($container->item?->category)
+                                        <span class="text-[11px] text-ink-muted">· {{ $container->item->category->name_th }}</span>
+                                    @endif
                                     @if ($container->item?->grade)
                                         <span class="inline-block text-[11px] px-1.5 py-0.5 rounded bg-accent-soft text-accent-strong font-semibold border border-accent/20">
                                             {{ $container->item->grade }}

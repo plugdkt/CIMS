@@ -26,9 +26,17 @@
         </div>
     @endif
 
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap items-center gap-3">
         <input type="text" wire:model.live.debounce.300ms="search" placeholder="{{ __('items.search_placeholder') }}"
                class="w-full max-w-sm rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+        <label for="categoryFilter" class="sr-only">{{ __('items.field_category') }}</label>
+        <select id="categoryFilter" wire:model.live="categoryId"
+                class="rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+            <option value="">{{ __('items.filter_all_categories') }}</option>
+            @foreach ($categories as $category)
+                <option value="{{ $category->id }}">{{ $category->name_th }}</option>
+            @endforeach
+        </select>
     </div>
 
     <div class="bg-surface border border-border rounded-xl overflow-hidden">

@@ -28,6 +28,8 @@ use App\Http\Controllers\RequisitionController;
 use App\Http\Controllers\RequisitionIssueController;
 use App\Http\Controllers\RequisitionItemController;
 use App\Http\Controllers\RequisitionReturnController;
+use App\Http\Controllers\ImsLotController;
+use App\Http\Controllers\ImsReceiptController;
 use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTakeController;
 use App\Livewire\Admin\UserRoleManager;
@@ -150,12 +152,27 @@ Route::middleware('auth')->prefix('goods-receipts')->name('goods-receipts.')->gr
     Route::get('/{goods_receipt}/labels/{size}', [GoodsReceiptController::class, 'labels'])->name('labels');
 });
 
-// Working Stock: เติมสต็อก/รับเข้าคลังย่อย, แสดงสต็อกคงคลังย่อย, และพิมพ์สติกเกอร์บาร์โค้ด
+// Working Stock: แสดงสต็อกคงคลังย่อย และพิมพ์สติกเกอร์บาร์โค้ด (สร้าง working stock ได้ทางเดียวคือตัดจ่ายจากคลัง IMS ด้านล่าง)
 Route::middleware('auth')->prefix('stock-in')->name('stock-in.')->group(function () {
     Route::get('/', LabInventoryTable::class)->name('index');
-    Route::get('/create', [StockInController::class, 'create'])->name('create');
-    Route::post('/', [StockInController::class, 'store'])->name('store');
     Route::get('/labels/{size}', [StockInController::class, 'labels'])->name('labels');
+});
+
+// IMS (คลังกลางของสาขา): เอกสารรับเข้า (ตรวจแล้วยืนยัน) -> Lot -> ตัดจ่ายเข้า working stock
+Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
+    Route::get('/receipts', [ImsReceiptController::class, 'index'])->name('receipts.index');
+    Route::get('/receipts/create', [ImsReceiptController::class, 'create'])->name('receipts.create');
+    Route::post('/receipts', [ImsReceiptController::class, 'store'])->name('receipts.store');
+    Route::get('/receipts/{ims_receipt}', [ImsReceiptController::class, 'show'])->name('receipts.show');
+    Route::get('/receipts/{ims_receipt}/source', [ImsReceiptController::class, 'source'])->name('receipts.source');
+    Route::post('/receipts/{ims_receipt}/lines', [ImsReceiptController::class, 'storeLine'])->name('receipts.lines.store');
+    Route::delete('/receipts/{ims_receipt}/lines/{line}', [ImsReceiptController::class, 'destroyLine'])->name('receipts.lines.destroy');
+    Route::post('/receipts/{ims_receipt}/confirm', [ImsReceiptController::class, 'confirm'])->name('receipts.confirm');
+    Route::post('/receipts/{ims_receipt}/cancel', [ImsReceiptController::class, 'cancel'])->name('receipts.cancel');
+
+    Route::get('/lots', [ImsLotController::class, 'index'])->name('lots.index');
+    Route::get('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transferForm'])->name('lots.transfer.form');
+    Route::post('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transfer'])->name('lots.transfer');
 });
 
 // FR-RQ-01..05 — authorization enforced per-action inside the controllers/RequisitionPolicy.

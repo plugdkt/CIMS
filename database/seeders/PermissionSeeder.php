@@ -39,6 +39,8 @@ final class PermissionSeeder extends Seeder
             'requisition.issue' => 'จ่ายของตามใบขอเบิก',
             'requisition.issue_override' => 'อนุมัติจ่ายเกิน 10% จากที่ขอ (BR-04)',
             'receiving.manage' => 'รับของเข้าคลัง',
+            'ims.view' => 'ดูคลัง IMS (คลังกลางของสาขา)',
+            'ims.manage' => 'จัดการคลัง IMS (นำเข้าเอกสารจัดซื้อ ยืนยัน ตัดจ่ายเข้า working stock)',
             'stocktake.manage' => 'ดำเนินการตรวจนับสต๊อก',
             'ledger.view' => 'ดูบัญชีคุมวัสดุ',
             'ledger.adjust' => 'อนุมัติปรับปรุงยอด',
@@ -75,7 +77,7 @@ final class PermissionSeeder extends Seeder
             'LAB_MANAGER' => [
                 'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
                 'disposal.request', 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
-                'lab.manage_members',
+                'lab.manage_members', 'ims.view', 'ims.manage',
             ],
             // ADMIN sees every branch's reports (the reports page's own lab picker lets them
             // narrow to one) and reaches the stock-take/disposal/adjustment menus, but still
@@ -84,7 +86,7 @@ final class PermissionSeeder extends Seeder
             // So: no ledger.adjust (cannot approve an adjustment or a stock take) and no
             // disposal.approve. See StockLedgerPolicy::viewAdjustments() for how the
             // adjustments menu stays visible without granting the write.
-            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'receiving.manage', 'stocktake.manage', 'disposal.request', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view', 'report.view'],
+            'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'receiving.manage', 'stocktake.manage', 'disposal.request', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view', 'report.view', 'ims.view'],
             // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the
             // spec-described read-only oversight role — it's now a second,
             // independently-assignable flavor of branch-scoped warehouse manager
@@ -93,7 +95,7 @@ final class PermissionSeeder extends Seeder
             'AUDITOR' => [
                 'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
                 'disposal.request', 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
-                'lab.manage_members',
+                'lab.manage_members', 'ims.view', 'ims.manage',
             ],
         ];
 

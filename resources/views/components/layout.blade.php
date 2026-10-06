@@ -43,6 +43,16 @@
                     {{ __('nav.stock_in') }}
                 </x-nav-link>
             @endcan
+            @can('viewAny', App\Models\ImsLot::class)
+                <x-nav-link route="{{ route('ims.lots.index') }}" :active="request()->routeIs('ims.lots.*')">
+                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M3 7.5V17l9 4 9-4V7.5M3 7.5l9 4.5m9-4.5-9 4.5m0 0V21"/></svg></x-slot:icon>
+                    {{ __('nav.ims_lots') }}
+                </x-nav-link>
+                <x-nav-link route="{{ route('ims.receipts.index') }}" :active="request()->routeIs('ims.receipts.*')">
+                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7V3Zm7 0v5h5M10 13h6M10 17h6"/></svg></x-slot:icon>
+                    {{ __('nav.ims_receipts') }}
+                </x-nav-link>
+            @endcan
             @can('viewAny', App\Models\Requisition::class)
                 <x-nav-link route="{{ route('requisitions.index') }}" :active="request()->routeIs('requisitions.*')">
                     <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6a1 1 0 0 1 1 1V5h1.25A1.75 1.75 0 0 1 19 6.75v12.5A1.75 1.75 0 0 1 17.25 21H6.75A1.75 1.75 0 0 1 5 19.25V6.75A1.75 1.75 0 0 1 6.75 5H8v-.25a1 1 0 0 1 1-1Z"/><path stroke-linecap="round" d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></x-slot:icon>

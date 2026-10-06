@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Items;
 
 use App\Models\Item;
+use App\Models\ItemCategory;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -27,6 +28,9 @@ final class ItemTable extends Component
     #[Url]
     public string $search = '';
 
+    #[Url]
+    public ?int $categoryId = null;
+
     public function mount(): void
     {
         $this->authorize('viewAny', Item::class);
@@ -37,10 +41,16 @@ final class ItemTable extends Component
         $this->resetPage();
     }
 
+    public function updatedCategoryId(): void
+    {
+        $this->resetPage();
+    }
+
     public function render(): View
     {
         $items = Item::query()
             ->with(['category', 'baseUnit'])
+            ->when($this->categoryId !== null, fn ($query) => $query->where('category_id', $this->categoryId))
             ->when(trim($this->search) !== '', function ($query) {
                 $term = trim($this->search);
                 $query->where(function ($q) use ($term) {
@@ -58,6 +68,7 @@ final class ItemTable extends Component
 
         return view('livewire.items.item-table', [
             'items' => $items,
+            'categories' => ItemCategory::orderBy('id')->get(),
             'canManage' => auth()->user()?->can('create', Item::class) ?? false,
         ]);
     }

@@ -19,7 +19,7 @@ use Illuminate\Support\Str;
  * @property \Illuminate\Support\Carbon|null $opened_at
  */
 #[Fillable([
-    'ulid', 'barcode', 'item_id', 'location_id', 'lot_no', 'received_at', 'expiry_date',
+    'ulid', 'barcode', 'item_id', 'ims_lot_id', 'location_id', 'lot_no', 'received_at', 'expiry_date',
     'opened_at', 'initial_qty_base', 'remaining_qty_base', 'unit_price', 'status',
 ])]
 class Container extends Model

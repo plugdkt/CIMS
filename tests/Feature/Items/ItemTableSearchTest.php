@@ -21,3 +21,17 @@ test('ItemTable resets pagination to page 1 when searching on subsequent page', 
         ->assertSee('Alcohol 70%')
         ->assertDontSee(__('items.no_results'));
 });
+
+test('ItemTable can be filtered by chemical type', function () {
+    $scientist = scientistUser();
+    $media = \App\Models\ItemCategory::where('code', 'MEDIA')->firstOrFail();
+
+    makeItem(['name_th' => 'วุ้นเลี้ยงเชื้อ NA', 'name_en' => 'Nutrient Agar', 'category_id' => $media->id]);
+    makeItem(['name_th' => 'โซเดียมคลอไรด์', 'name_en' => 'Sodium Chloride']);
+
+    Livewire::actingAs($scientist)
+        ->test(ItemTable::class)
+        ->set('categoryId', $media->id)
+        ->assertSee('วุ้นเลี้ยงเชื้อ NA')
+        ->assertDontSee('โซเดียมคลอไรด์');
+});

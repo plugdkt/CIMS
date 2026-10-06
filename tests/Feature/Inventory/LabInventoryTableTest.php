@@ -183,3 +183,20 @@ test('an ADMIN sees an item\'s containers across every lab on the item detail pa
         ->assertSee($containerA->barcode)
         ->assertSee($containerB->barcode);
 });
+
+test('the working-stock list can be filtered by chemical type', function () {
+    $lab = makeLab();
+    $location = makeLocationForLab($lab);
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    $media = \App\Models\ItemCategory::where('code', 'MEDIA')->firstOrFail();
+
+    $agarItem = makeItem(['name_th' => 'วุ้นเลี้ยงเชื้อทดสอบ', 'category_id' => $media->id]);
+    $agar = makeContainer(['item_id' => $agarItem->id, 'location_id' => $location->id, 'status' => 'SEALED', 'remaining_qty_base' => '10.000000']);
+    $other = makeContainer(['location_id' => $location->id, 'status' => 'SEALED', 'remaining_qty_base' => '10.000000']);
+
+    \Livewire\Livewire::actingAs($scientist)
+        ->test(\App\Livewire\Inventory\LabInventoryTable::class)
+        ->set('categoryId', $media->id)
+        ->assertSee($agar->barcode)
+        ->assertDontSee($other->barcode);
+});

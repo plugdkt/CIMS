@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Inventory;
 
 use App\Models\Container;
+use App\Models\ItemCategory;
 use App\Models\Lab;
 use App\Models\Location;
 use App\Models\User;
@@ -37,6 +38,9 @@ final class LabInventoryTable extends Component
     #[Url]
     public ?int $labId = null;
 
+    #[Url]
+    public ?int $categoryId = null;
+
     public function mount(): void
     {
         $this->authorize('viewAny', Container::class);
@@ -53,6 +57,11 @@ final class LabInventoryTable extends Component
     }
 
     public function updatedLabId(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedCategoryId(): void
     {
         $this->resetPage();
     }
@@ -75,12 +84,13 @@ final class LabInventoryTable extends Component
         $unassigned = ! $privileged && $labId === null;
 
         $containers = Container::query()
-            ->with(['item.baseUnit', 'location'])
+            ->with(['item.baseUnit', 'item.category', 'location'])
             ->whereIn('status', ['SEALED', 'IN_USE'])
             ->where('remaining_qty_base', '>', 0)
             ->when($unassigned, fn ($query) => $query->whereRaw('1 = 0'))
             ->when(! $unassigned && $labId !== null, fn ($query) => $query->whereHas('location', fn ($q) => $q->where('lab_id', $labId)))
             ->when($this->locationId !== null, fn ($query) => $query->where('location_id', $this->locationId))
+            ->when($this->categoryId !== null, fn ($query) => $query->whereHas('item', fn ($i) => $i->where('category_id', $this->categoryId)))
             ->when(trim($this->search) !== '', function ($query) {
                 $term = trim($this->search);
                 $query->where(function ($q) use ($term) {
@@ -104,6 +114,7 @@ final class LabInventoryTable extends Component
         return view('livewire.inventory.lab-inventory-table', [
             'containers' => $containers,
             'locations' => $locations,
+            'categories' => ItemCategory::orderBy('id')->get(),
             'labs' => $privileged ? Lab::where('is_active', true)->orderBy('name_th')->get() : null,
             'canStockIn' => $this->userCanStockIn($user),
         ]);

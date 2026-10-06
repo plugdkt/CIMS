@@ -8,6 +8,8 @@ return [
     'locations' => 'ผังจัดเก็บ',
     'group_inventory' => 'คลังสินค้า',
     'stock_in' => 'คลังสารเคมีของฉัน (สต็อกคงคลัง)',
+    'ims_lots' => 'คลัง IMS (ตัดจ่ายเข้า working stock)',
+    'ims_receipts' => 'เอกสารรับเข้า IMS',
     'goods_receipts' => 'ใบรับของ (GRN)',
     'requisitions' => 'ใบขอเบิก',
     'stock_takes' => 'ตรวจนับสต๊อก',
