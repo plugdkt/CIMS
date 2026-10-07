@@ -6,7 +6,9 @@ namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Exceptions\ImsException;
 use App\Domain\Inventory\Services\ImsService;
+use App\Domain\Inventory\Services\ImsReportImporter;
 use App\Http\Requests\ImsReceiptLineRequest;
+use App\Http\Requests\ImsReceiptLineUpdateRequest;
 use App\Http\Requests\ImsReceiptRequest;
 use App\Models\ImsReceipt;
 use App\Models\ImsReceiptLine;
@@ -50,16 +52,28 @@ final class ImsReceiptController extends Controller
         return view('ims.receipts.create');
     }
 
-    public function store(ImsReceiptRequest $request): RedirectResponse
+    public function store(ImsReceiptRequest $request, ImsReportImporter $importer): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
         $data = $request->validated();
 
+        $pdf = $request->file('pdf');
         $path = null;
         $name = null;
-        $pdf = $request->file('pdf');
+        $hash = null;
         if ($pdf !== null) {
+            $hash = hash_file('sha256', $pdf->getRealPath());
+
+            // The same printout imported twice would put every pack into IMS twice.
+            $alreadyImported = ImsReceipt::where('lab_id', $user->lab_id)
+                ->where('source_file_hash', $hash)
+                ->where('status', '!=', 'CANCELLED')
+                ->exists();
+            if ($alreadyImported) {
+                return back()->withInput()->withErrors(['pdf' => __('ims.error.pdf_already_imported')]);
+            }
+
             $path = $pdf->store('ims-receipts', 'local');
             $name = $pdf->getClientOriginalName();
         }
@@ -71,9 +85,22 @@ final class ImsReceiptController extends Controller
             'purchase_round' => $data['purchase_round'] ?? null,
             'source_file_path' => $path,
             'source_file_name' => $name,
+            'source_file_hash' => $hash,
             'status' => 'DRAFT',
             'created_by' => $user->id,
         ]);
+
+        if ($pdf !== null && $request->boolean('import_report')) {
+            try {
+                $importer->import($receipt, Storage::disk('local')->path((string) $path));
+            } catch (ImsException $e) {
+                $receipt->lines()->delete();
+                $receipt->delete();
+                Storage::disk('local')->delete((string) $path);
+
+                return back()->withInput()->withErrors(['pdf' => $e->getMessage()]);
+            }
+        }
 
         return redirect()->route('ims.receipts.show', $receipt)->with('status', __('ims.receipt_created'));
     }
@@ -82,7 +109,7 @@ final class ImsReceiptController extends Controller
     {
         $this->authorize('view', $imsReceipt);
 
-        $imsReceipt->load(['lab', 'creator', 'lines.item', 'lines.unit']);
+        $imsReceipt->load(['lab', 'creator', 'lines.item.packageUnit', 'lines.unit']);
 
         return view('ims.receipts.show', [
             'receipt' => $imsReceipt,
@@ -105,14 +132,33 @@ final class ImsReceiptController extends Controller
             'item_code_raw' => $item->item_code,
             'name_raw' => $item->name_th,
             'lot_no' => $data['lot_no'] ?? null,
-            'qty' => $data['qty'],
-            'unit_id' => $data['unit_id'],
+            'pack_qty' => $data['pack_qty'],
+            'qty' => $data['qty'] ?? null,
+            'unit_id' => $data['unit_id'] ?? null,
             'unit_price' => $data['unit_price'] ?? null,
             'expiry_date' => $data['expiry_date'] ?? null,
             'remark' => $data['remark'] ?? null,
         ]);
 
         return redirect()->route('ims.receipts.show', $imsReceipt)->with('status', __('ims.line_added'));
+    }
+
+    public function updateLine(ImsReceiptLineUpdateRequest $request, ImsReceipt $imsReceipt, ImsReceiptLine $line): RedirectResponse
+    {
+        abort_unless($line->ims_receipt_id === $imsReceipt->id, 404);
+        $data = $request->validated();
+
+        $line->update([
+            'lot_no' => $data['lot_no'] ?? null,
+            'pack_qty' => $data['pack_qty'],
+            'qty' => $data['qty'] ?? null,
+            'unit_id' => $data['unit_id'] ?? null,
+            'unit_price' => $data['unit_price'] ?? null,
+            'expiry_date' => $data['expiry_date'] ?? null,
+            'remark' => $data['remark'] ?? null,
+        ]);
+
+        return redirect()->route('ims.receipts.show', $imsReceipt)->with('status', __('ims.line_updated'));
     }
 
     public function destroyLine(ImsReceipt $imsReceipt, ImsReceiptLine $line): RedirectResponse

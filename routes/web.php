@@ -166,6 +166,7 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::get('/receipts/{ims_receipt}', [ImsReceiptController::class, 'show'])->name('receipts.show');
     Route::get('/receipts/{ims_receipt}/source', [ImsReceiptController::class, 'source'])->name('receipts.source');
     Route::post('/receipts/{ims_receipt}/lines', [ImsReceiptController::class, 'storeLine'])->name('receipts.lines.store');
+    Route::put('/receipts/{ims_receipt}/lines/{line}', [ImsReceiptController::class, 'updateLine'])->name('receipts.lines.update');
     Route::delete('/receipts/{ims_receipt}/lines/{line}', [ImsReceiptController::class, 'destroyLine'])->name('receipts.lines.destroy');
     Route::post('/receipts/{ims_receipt}/confirm', [ImsReceiptController::class, 'confirm'])->name('receipts.confirm');
     Route::post('/receipts/{ims_receipt}/cancel', [ImsReceiptController::class, 'cancel'])->name('receipts.cancel');

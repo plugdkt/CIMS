@@ -7,6 +7,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- 2026-10-07: IMS can be filled from the university's stock-summary PDF. `ImsStockReportParser` reads the report by text position (its Thai text layer is garbled; numbers and AS codes are intact) and cross-checks opening + received − issued = balance on every row; `ImsReportImporter` turns the closing balances of catalog items into DRAFT lines, lists skipped/unknown codes, and refuses a file already imported. IMS lines and lots now work in packs (`pack_qty`, price per pack, `ims_lots.pack_size_base`) with working-stock bottles priced by pack share. Added `smalot/pdfparser`.
 - 2026-10-06: Eight chemical types as item categories (สารเคมี / อาหารเลี้ยงเชื้อ / สี / น้ำตาล / ยาปฏิชีวนะ / Test Kits / Detergent / อื่นๆ) — one type per item, used to browse stock by type: filter on the item list, the working-stock list and the IMS lot list. Existing items stay in "สารเคมี" until reassigned.
 - 2026-09-30: IMS layer (branch central-store stock) above working stock. Purchase documents printed from the
   university's warehouse system are entered as a DRAFT receipt (optionally with the source PDF kept on the private

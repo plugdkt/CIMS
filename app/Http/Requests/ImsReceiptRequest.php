@@ -24,6 +24,7 @@ final class ImsReceiptRequest extends FormRequest
             'fiscal_year' => ['nullable', 'integer', 'between:2500,2700'],
             'purchase_round' => ['nullable', 'string', 'max:32'],
             'pdf' => ['nullable', 'file', 'mimes:pdf', 'max:10240'],
+            'import_report' => ['nullable', 'boolean'],
         ];
     }
 }

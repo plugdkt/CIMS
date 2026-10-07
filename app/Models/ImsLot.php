@@ -17,12 +17,13 @@ use Illuminate\Support\Str;
  * @property numeric-string $qty_received_base
  * @property numeric-string $qty_remaining_base
  * @property numeric-string|null $unit_price
+ * @property numeric-string|null $pack_size_base
  * @property \Illuminate\Support\Carbon|null $expiry_date
  * @property \Illuminate\Support\Carbon $received_at
  */
 #[Fillable([
     'ulid', 'lab_id', 'item_id', 'ims_receipt_id', 'doc_no', 'lot_no', 'fiscal_year',
-    'purchase_round', 'unit_price', 'expiry_date', 'qty_received_base', 'qty_remaining_base',
+    'purchase_round', 'unit_price', 'pack_size_base', 'expiry_date', 'qty_received_base', 'qty_remaining_base',
     'received_at',
 ])]
 class ImsLot extends Model
@@ -43,6 +44,7 @@ class ImsLot extends Model
     {
         return [
             'unit_price' => 'decimal:4',
+            'pack_size_base' => 'decimal:6',
             'expiry_date' => 'date',
             'received_at' => 'date',
             'qty_received_base' => 'decimal:6',

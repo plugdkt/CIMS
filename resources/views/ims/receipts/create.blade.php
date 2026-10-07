@@ -35,6 +35,11 @@
                 @error('pdf') <p class="text-xs text-danger mt-1">{{ $message }}</p> @enderror
             </div>
 
+            <label class="flex items-start gap-2 text-sm">
+                <input type="checkbox" name="import_report" value="1" class="mt-1" @checked(old('import_report', true))>
+                <span>{{ __('ims.field_import_report') }}</span>
+            </label>
+
             <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5">
                 {{ __('ims.btn_create') }}
             </button>

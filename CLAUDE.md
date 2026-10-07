@@ -1291,5 +1291,26 @@ only to `ims.view` holders (not requesters).
   (`RequisitionItemRequest::withValidator`) — nothing changed there; IMS lots alone never make an item requestable.
 - **New tables need the grants script re-run** (`docker/mariadb/restrict_app_grants.sql`) on every database,
   including production, or `cmis_app` gets "INSERT command denied" on `ims_*`.
-- **Not built yet**: AI extraction of the PDF into draft lines (needs a real sample PDF + the key; build behind the
-  existing gateway config, keep the manager's review-and-confirm step mandatory).
+- **PDF import reads text position, not AI** (user-confirmed 2026-10-06 after a real 36-page sample,
+  `IMS_Micro.pdf`, a Crystal Reports "สรุปการรับเข้า-เบิกจ่าย-คงเหลือของวัสดุ" print-out). Two facts decided it:
+  the report's Thai text layer is **garbled** (wrong ToUnicode map — "เบิกจ่าย" extracts as "เบบกจจาย"), so item
+  names are unreadable and the AS **code** plus our catalog is the only reliable identity; and **empty cells are
+  absent** from the text, so a number's column is only knowable from its x position. `ImsStockReportParser`
+  (pure PHP, `smalot/pdfparser` — no poppler/Python needed on the IIS server) assigns each number to a column by
+  its estimated right edge and flags any row where opening + received − issued ≠ balance. Verified on the real
+  file: 457 rows, every one balanced, identical to an independent PyMuPDF parse. The AI gateway is therefore not
+  used for this layout; keep it as the fallback if a differently-laid-out report ever has to be read.
+- **Only the closing balance (คงเหลือ) is imported**, as a DRAFT the manager reviews and confirms — the sample month
+  had no "รับของ" rows at all. Rows with no balance are skipped; codes missing from the catalog (office supplies,
+  glassware, …) are **listed, never created** (their names can't be read). The same file (SHA-256) can't be
+  imported twice while its first document isn't cancelled.
+- **Quantities are packs, prices are per pack.** The report counts ขวด/กล่อง and prices each one; a line stores
+  `pack_qty` and the price per pack (`unit_price`), and its measurable quantity is `pack_qty × the catalog's
+  package size` (`ImsReceiptLine::resolvedQuantity()`), or an explicit `qty`+unit the manager types when the
+  catalog has no package size (~8% of items). `ims_lots.pack_size_base` remembers one pack's size so a working-stock
+  bottle cut from the lot is priced by the share of a pack it holds (250 g of a 500 g/135 baht pack = 67.50).
+- **Lot, fiscal year and purchase round are not in this report** — the manager enters them (document header /
+  per-line edit). The report's period is printed in CE ("01/10/2026") next to a BE print date, and 1 Oct 2026 is
+  already Thai fiscal year 2570, so the fiscal year is deliberately not derived from the period.
+- `composer audit` currently lists advisories for `league/commonmark` (high) and `laravel/framework` (low) —
+  pre-existing framework dependencies, unrelated to `smalot/pdfparser`; needs a dependency update pass.

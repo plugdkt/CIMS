@@ -16,10 +16,11 @@ use Illuminate\Support\Str;
  * accept it, at which point each line becomes an {@see ImsLot}.
  *
  * @property \Illuminate\Support\Carbon|null $confirmed_at
+ * @property array<string, mixed>|null $import_summary
  */
 #[Fillable([
     'ulid', 'lab_id', 'doc_no', 'fiscal_year', 'purchase_round', 'source_file_path',
-    'source_file_name', 'status', 'created_by', 'confirmed_by', 'confirmed_at',
+    'source_file_name', 'import_summary', 'source_file_hash', 'status', 'created_by', 'confirmed_by', 'confirmed_at',
 ])]
 class ImsReceipt extends Model
 {
@@ -37,7 +38,7 @@ class ImsReceipt extends Model
 
     protected function casts(): array
     {
-        return ['confirmed_at' => 'datetime'];
+        return ['confirmed_at' => 'datetime', 'import_summary' => 'array'];
     }
 
     /** @return BelongsTo<Lab, $this> */

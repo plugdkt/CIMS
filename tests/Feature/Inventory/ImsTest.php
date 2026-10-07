@@ -118,11 +118,11 @@ test('lines are added by catalog item code; an unknown code is refused', functio
     $receipt = ImsReceipt::create(['lab_id' => $this->lab->id, 'status' => 'DRAFT', 'created_by' => $this->manager->id]);
 
     $this->actingAs($this->manager)->post(route('ims.receipts.lines.store', $receipt), [
-        'item_code' => 'AS100001', 'lot_no' => 'L1', 'qty' => '500', 'unit_id' => $this->gram->id, 'unit_price' => '80',
+        'item_code' => 'AS100001', 'lot_no' => 'L1', 'pack_qty' => '2', 'unit_price' => '80',
     ])->assertRedirect(route('ims.receipts.show', $receipt));
 
     $this->actingAs($this->manager)->post(route('ims.receipts.lines.store', $receipt), [
-        'item_code' => 'NOPE', 'qty' => '1', 'unit_id' => $this->gram->id,
+        'item_code' => 'NOPE', 'pack_qty' => '1',
     ])->assertSessionHasErrors('item_code');
 
     expect($receipt->lines()->count())->toBe(1);
@@ -150,7 +150,7 @@ test('a confirmed receipt can no longer be edited, and cannot be confirmed twice
     $receipt = ImsReceipt::findOrFail($lot->ims_receipt_id);
 
     $this->actingAs($this->manager)->post(route('ims.receipts.lines.store', $receipt), [
-        'item_code' => 'AS100001', 'qty' => '1', 'unit_id' => $this->gram->id,
+        'item_code' => 'AS100001', 'pack_qty' => '1',
     ])->assertForbidden();
 
     $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt))->assertForbidden();

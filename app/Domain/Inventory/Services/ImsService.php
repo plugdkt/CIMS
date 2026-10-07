@@ -42,7 +42,7 @@ final class ImsService
                 throw new ImsException(__('ims.error.not_draft'));
             }
 
-            $lines = $locked->lines()->with(['item', 'unit'])->get();
+            $lines = $locked->lines()->with(['item.packageUnit', 'unit'])->get();
             if ($lines->isEmpty()) {
                 throw new ImsException(__('ims.error.no_lines'));
             }
@@ -50,22 +50,28 @@ final class ImsService
             // Validate every line before writing any of them — a half-confirmed document
             // would leave lots behind that the manager never saw as "confirmed".
             foreach ($lines as $line) {
-                if ($line->item === null || $line->unit === null || bccomp($line->qty, '0', self::SCALE) <= 0) {
+                if ($line->item === null || $line->resolvedQuantity() === null) {
                     throw new ImsException(__('ims.error.line_incomplete', ['line' => $line->line_no]));
                 }
             }
 
             foreach ($lines as $line) {
                 $item = $line->item;
-                $unit = $line->unit;
-                if ($item === null || $unit === null) {
+                $resolved = $line->resolvedQuantity();
+                if ($item === null || $resolved === null) {
                     continue;
                 }
+                $unit = $resolved['unit'];
 
                 $this->adopter->adoptIfUnused($item, $unit);
 
                 /** @var numeric-string $qtyBase */
-                $qtyBase = $this->converter->toItemBase($item, $unit, $line->qty);
+                $qtyBase = $this->converter->toItemBase($item, $unit, $resolved['qty']);
+
+                $packQty = $line->pack_qty;
+                $packSizeBase = ($packQty !== null && bccomp($packQty, '0', self::SCALE) > 0)
+                    ? bcdiv($qtyBase, $packQty, self::SCALE)
+                    : null;
 
                 $lot = ImsLot::create([
                     'lab_id' => $locked->lab_id,
@@ -76,6 +82,7 @@ final class ImsService
                     'fiscal_year' => $locked->fiscal_year,
                     'purchase_round' => $locked->purchase_round,
                     'unit_price' => $line->unit_price,
+                    'pack_size_base' => $packSizeBase,
                     'expiry_date' => $line->expiry_date,
                     'qty_received_base' => $qtyBase,
                     'qty_remaining_base' => $qtyBase,
@@ -157,7 +164,7 @@ final class ImsService
                 $imsDocNo,
                 (int) $user->id,
                 $locked->id,
-                $locked->unit_price,
+                $this->containerPrice($locked, $perBase),
             );
 
             $balance = bcsub($locked->qty_remaining_base, $totalBase, self::SCALE);
@@ -177,5 +184,25 @@ final class ImsService
 
             return $containers;
         }, 3);
+    }
+
+    /**
+     * The lot's `unit_price` is per pack (ขวด/แพ็ค); a working-stock bottle that is not exactly
+     * one pack is priced in proportion to the share of a pack it holds.
+     *
+     * @param  numeric-string  $containerQtyBase
+     */
+    private function containerPrice(ImsLot $lot, string $containerQtyBase): ?string
+    {
+        if ($lot->unit_price === null) {
+            return null;
+        }
+
+        $packSize = $lot->pack_size_base;
+        if ($packSize === null || bccomp($packSize, '0', self::SCALE) <= 0) {
+            return $lot->unit_price;
+        }
+
+        return bcdiv(bcmul($lot->unit_price, $containerQtyBase, self::SCALE), $packSize, 2);
     }
 }

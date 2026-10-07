@@ -8,7 +8,7 @@ use App\Models\ImsReceipt;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-final class ImsReceiptLineRequest extends FormRequest
+final class ImsReceiptLineUpdateRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -22,10 +22,8 @@ final class ImsReceiptLineRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'item_code' => ['required', 'string', 'max:64'],
             'lot_no' => ['nullable', 'string', 'max:64'],
             'pack_qty' => ['required', 'numeric', 'gt:0'],
-            // Only needed when the catalog has no package size to derive the quantity from.
             'qty' => ['nullable', 'numeric', 'gt:0', 'required_with:unit_id'],
             'unit_id' => ['nullable', 'integer', Rule::exists('units', 'id'), 'required_with:qty'],
             'unit_price' => ['nullable', 'numeric', 'min:0'],
