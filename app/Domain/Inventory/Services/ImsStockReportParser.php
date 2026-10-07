@@ -79,8 +79,8 @@ final class ImsStockReportParser
                 if (count($dates) < 2 && preg_match('/(\d{2}\/\d{2}\/\d{4})/', $text, $m) === 1 && str_contains($text, ':')) {
                     $dates[] = $m[1];
                 }
-                if (preg_match('/^AS\d{6}$/', $text) === 1) {
-                    $anchors[] = ['code' => $text, 'y' => $y];
+                if (preg_match('/^AS\d{6,7}$/i', $text) === 1) {
+                    $anchors[] = ['code' => strtoupper($text), 'y' => $y];
                 } elseif (preg_match('/^-?\d[\d,]*(\.\d+)?$/', $text) === 1) {
                     $numbers[] = ['x' => $x, 'y' => $y, 'text' => $text];
                 }

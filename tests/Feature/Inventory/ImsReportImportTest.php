@@ -250,3 +250,17 @@ test('a bottle cut from a lot is priced by the share of a pack it holds', functi
         expect((float) $container->unit_price)->toEqual(67.5);
     }
 });
+
+test('the parser accepts 7-digit codes and lower-case "As" prefixes, normalised to upper case', function () {
+    $rows = [
+        ['code' => 'AS1940110', 'row_no' => 1, 'cols' => ['open_qty' => '2', 'open_price' => '10.00', 'open_total' => '20.00', 'bal_qty' => '2', 'bal_price' => '10.00', 'bal_total' => '20.00']],
+        ['code' => 'As070770', 'row_no' => 2, 'cols' => ['open_qty' => '1', 'open_price' => '5.00', 'open_total' => '5.00', 'bal_qty' => '1', 'bal_price' => '5.00', 'bal_total' => '5.00']],
+    ];
+    $path = tempnam(sys_get_temp_dir(), 'ims').'.pdf';
+    file_put_contents($path, fakeStockReportPdf($rows));
+
+    $parsed = (new ImsStockReportParser())->parse($path);
+    unlink($path);
+
+    expect(array_column($parsed['rows'], 'code'))->toBe(['AS1940110', 'AS070770']);
+});

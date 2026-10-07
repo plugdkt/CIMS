@@ -1314,3 +1314,16 @@ only to `ims.view` holders (not requesters).
   already Thai fiscal year 2570, so the fiscal year is deliberately not derived from the period.
 - `composer audit` currently lists advisories for `league/commonmark` (high) and `laravel/framework` (low) —
   pre-existing framework dependencies, unrelated to `smalot/pdfparser`; needs a dependency update pass.
+- **The catalog now holds every row of the central store's two exports (2026-10-07)**, not just the curated chemicals,
+  so an IMS document's codes can all be matched: `catalog:import <csv> --category=CHEMICAL|MATERIAL [--dry-run]`
+  (`ImportCatalogCommand` + `CatalogNameParser`) loads `database/data/catalog_chemicals.csv` (8,225 rows, the same set
+  as the old `download.csv`; 5,249 were already in via `chemicals:import`, 2,976 added) and `catalog_materials.csv`
+  (5,738 วัสดุวิทยาศาสตร์หรือการแพทย์ rows, category MATERIAL). Idempotent by code; codes upper-cased; rows named
+  "ยกเลิก" import inactive; **no chemical/non-chemical triage** (the earlier triage existed to keep non-chemicals out,
+  which is no longer wanted). A **non-chemical category is read in count mode**: one piece per pack unless the name
+  gives a counted size ("100 ชิ้น /กล่อง"), because "Beaker 1000 ml /ชิ้น" is one piece, not 1000 mL of stock.
+  Chemicals keep the "<size> <unit> /<pack>" parse (~83% of the newly added rows); the rest need the size entered at
+  IMS confirm. Item codes are `AS` + 6 **or 7** digits (28 are 7-digit, one is written `As`) — `ImsStockReportParser`
+  accepts both. Of the sample report's 452 distinct codes, 399 are now in the catalog; the other 53 are office/
+  cleaning supplies (AS01xxxx/AS03xxxx) that neither export covers.
+
