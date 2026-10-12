@@ -33,16 +33,24 @@ final class ImsService
     ) {
     }
 
-    public function confirm(ImsReceipt $receipt, User $user): void
+    /**
+     * @param  list<int>|null  $lineIds  confirm only these lines; null = every line still waiting.
+     *                                   The receipt turns CONFIRMED once no waiting line is left.
+     */
+    public function confirm(ImsReceipt $receipt, User $user, ?array $lineIds = null): void
     {
-        DB::transaction(function () use ($receipt, $user) {
+        DB::transaction(function () use ($receipt, $user, $lineIds) {
             $locked = ImsReceipt::whereKey($receipt->id)->lockForUpdate()->firstOrFail();
 
             if (! $locked->isDraft()) {
                 throw new ImsException(__('ims.error.not_draft'));
             }
 
-            $lines = $locked->lines()->with(['item.packageUnit', 'unit'])->get();
+            $query = $locked->lines()->whereNull('ims_lot_id')->with(['item.packageUnit', 'unit']);
+            if ($lineIds !== null) {
+                $query->whereIn('id', $lineIds);
+            }
+            $lines = $query->get();
             if ($lines->isEmpty()) {
                 throw new ImsException(__('ims.error.no_lines'));
             }
@@ -88,6 +96,7 @@ final class ImsService
                     'qty_remaining_base' => $qtyBase,
                     'received_at' => now()->toDateString(),
                 ]);
+                $line->fill(['ims_lot_id' => $lot->id])->save();
 
                 ImsMovement::create([
                     'ims_lot_id' => $lot->id,
@@ -100,11 +109,14 @@ final class ImsService
                 ]);
             }
 
-            $locked->fill([
-                'status' => 'CONFIRMED',
-                'confirmed_by' => $user->id,
-                'confirmed_at' => now(),
-            ])->save();
+            // Lines left behind (incomplete, or simply not selected) keep the document a draft.
+            if (! $locked->lines()->whereNull('ims_lot_id')->exists()) {
+                $locked->fill([
+                    'status' => 'CONFIRMED',
+                    'confirmed_by' => $user->id,
+                    'confirmed_at' => now(),
+                ])->save();
+            }
         }, 3);
     }
 

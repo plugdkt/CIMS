@@ -160,7 +160,7 @@ test('a confirmed receipt can no longer be edited, and cannot be confirmed twice
 test('confirming an empty receipt is refused', function () {
     $receipt = ImsReceipt::create(['lab_id' => $this->lab->id, 'status' => 'DRAFT', 'created_by' => $this->manager->id]);
 
-    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt))->assertSessionHasErrors('confirm');
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => [1]])->assertSessionHasErrors('confirm');
     expect($receipt->fresh()->status)->toBe('DRAFT');
 });
 
@@ -341,4 +341,38 @@ test('an item with no catalog package size can be received in a packaging unit s
     $lot = ImsLot::where('ims_receipt_id', $receipt->id)->firstOrFail();
     expect((float) $lot->qty_received_base)->toEqual(3.0)
         ->and($bare->fresh()->baseUnit?->code)->toBe('box');
+});
+
+test('only the selected complete lines enter IMS; the rest stay in a draft that can still be edited', function () {
+    $receipt = ImsReceipt::create([
+        'lab_id' => $this->lab->id, 'doc_no' => 'PO-69-0003', 'fiscal_year' => 2569, 'status' => 'DRAFT', 'created_by' => $this->manager->id,
+    ]);
+    $ready = $receipt->lines()->create(['line_no' => 1, 'item_id' => $this->item->id, 'item_code_raw' => 'AS100001', 'pack_qty' => '2', 'unit_price' => '100']);
+    $bare = Item::create([
+        'item_code' => 'AS100098', 'name_th' => 'ไม่มีขนาด', 'category_id' => ItemCategory::first()->id ?? 1,
+        'storage_class' => 'OTHER', 'reorder_point_base' => '0.000000', 'is_active' => true,
+    ]);
+    $incomplete = $receipt->lines()->create(['line_no' => 2, 'item_id' => $bare->id, 'item_code_raw' => 'AS100098', 'pack_qty' => '1']);
+
+    // Nothing ticked -> refused. An incomplete line ticked -> refused, and nothing is written.
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt))->assertSessionHasErrors('lines');
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => [$ready->id, $incomplete->id]])->assertSessionHasErrors('confirm');
+    expect(ImsLot::count())->toBe(0);
+
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => [$ready->id]])->assertRedirect();
+
+    expect(ImsLot::count())->toBe(1)
+        ->and($receipt->fresh()->status)->toBe('DRAFT')
+        ->and($ready->fresh()->ims_lot_id)->not->toBeNull()
+        ->and($incomplete->fresh()->ims_lot_id)->toBeNull();
+
+    // The confirmed line is frozen; the receipt cannot be cancelled; the other line can still be fixed.
+    $this->actingAs($this->manager)->delete(route('ims.receipts.lines.destroy', [$receipt, $ready]))->assertForbidden();
+    $this->actingAs($this->manager)->post(route('ims.receipts.cancel', $receipt))->assertSessionHasErrors('confirm');
+    $this->actingAs($this->manager)->get(route('ims.receipts.show', $receipt))->assertOk();
+
+    $incomplete->update(['qty' => '4', 'unit_id' => Unit::where('code', 'box')->firstOrFail()->id]);
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => [$incomplete->id]])->assertRedirect();
+
+    expect(ImsLot::count())->toBe(2)->and($receipt->fresh()->status)->toBe('CONFIRMED');
 });

@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'ims_receipt_id', 'line_no', 'item_id', 'item_code_raw', 'name_raw', 'lot_no', 'pack_qty', 'qty',
-    'unit_id', 'unit_price', 'expiry_date', 'remark',
+    'unit_id', 'unit_price', 'expiry_date', 'remark', 'ims_lot_id',
 ])]
 class ImsReceiptLine extends Model
 {
@@ -48,6 +48,18 @@ class ImsReceiptLine extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    /** A line that already became a lot (or belongs to a receipt confirmed before per-line confirming existed). */
+    public function isConfirmed(): bool
+    {
+        return $this->ims_lot_id !== null || $this->receipt?->status === 'CONFIRMED';
+    }
+
+    /** Ready to enter IMS: a catalog item and a measurable quantity. */
+    public function isComplete(): bool
+    {
+        return $this->item !== null && $this->resolvedQuantity() !== null;
     }
 
     /**

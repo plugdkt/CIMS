@@ -110,6 +110,7 @@ final class ImsReceiptController extends Controller
         $this->authorize('view', $imsReceipt);
 
         $imsReceipt->load(['lab', 'creator', 'lines.item.packageUnit', 'lines.unit']);
+        $imsReceipt->lines->each(fn ($line) => $line->setRelation('receipt', $imsReceipt));
 
         return view('ims.receipts.show', [
             'receipt' => $imsReceipt,
@@ -146,6 +147,7 @@ final class ImsReceiptController extends Controller
     public function updateLine(ImsReceiptLineUpdateRequest $request, ImsReceipt $imsReceipt, ImsReceiptLine $line): RedirectResponse
     {
         abort_unless($line->ims_receipt_id === $imsReceipt->id, 404);
+        abort_if($line->ims_lot_id !== null, 403);
         $data = $request->validated();
 
         $line->update([
@@ -165,6 +167,7 @@ final class ImsReceiptController extends Controller
     {
         $this->authorize('update', $imsReceipt);
         abort_unless($line->ims_receipt_id === $imsReceipt->id, 404);
+        abort_if($line->ims_lot_id !== null, 403);
 
         $line->delete();
 
@@ -178,18 +181,35 @@ final class ImsReceiptController extends Controller
         /** @var User $user */
         $user = $request->user();
 
+        $data = $request->validate([
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*' => ['integer'],
+        ], ['lines.required' => __('ims.error.none_selected'), 'lines.min' => __('ims.error.none_selected')]);
+        /** @var list<int> $lineIds */
+        $lineIds = array_map('intval', $data['lines']);
+
         try {
-            $service->confirm($imsReceipt, $user);
+            $service->confirm($imsReceipt, $user, $lineIds);
         } catch (ImsException $e) {
             return back()->withErrors(['confirm' => $e->getMessage()]);
         }
 
-        return redirect()->route('ims.receipts.show', $imsReceipt)->with('status', __('ims.receipt_confirmed'));
+        return redirect()->route('ims.receipts.show', $imsReceipt)->with(
+            'status',
+            $imsReceipt->fresh()?->isDraft()
+                ? __('ims.receipt_partially_confirmed', ['count' => count($lineIds)])
+                : __('ims.receipt_confirmed'),
+        );
     }
 
     public function cancel(ImsReceipt $imsReceipt): RedirectResponse
     {
         $this->authorize('update', $imsReceipt);
+
+        // Lots already created from this document can't be un-received by cancelling it.
+        if ($imsReceipt->lines()->whereNotNull('ims_lot_id')->exists()) {
+            return back()->withErrors(['confirm' => __('ims.error.cancel_has_confirmed')]);
+        }
 
         $imsReceipt->status = 'CANCELLED';
         $imsReceipt->save();

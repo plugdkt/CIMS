@@ -209,8 +209,9 @@ test('confirming derives the quantity from packs x catalog package size and pric
     $this->actingAs($this->manager)->post(route('ims.receipts.store'), ['pdf' => ($this->upload)(), 'import_report' => 1]);
     $receipt = ImsReceipt::firstOrFail();
 
-    // The second line has no package size in the catalog, so it blocks confirmation...
-    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt))->assertSessionHasErrors('confirm');
+    // The second line has no package size in the catalog, so it cannot be confirmed yet...
+    $incomplete = $receipt->lines()->where('item_id', $this->withoutSize->id)->firstOrFail();
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => [$incomplete->id]])->assertSessionHasErrors('confirm');
     expect(ImsLot::count())->toBe(0);
 
     // ...until the manager gives its total quantity.
@@ -219,7 +220,7 @@ test('confirming derives the quantity from packs x catalog package size and pric
         'pack_qty' => '3', 'unit_price' => '642', 'qty' => '750', 'unit_id' => $this->gram->id, 'lot_no' => 'L-77',
     ])->assertRedirect();
 
-    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt))->assertRedirect();
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => $receipt->lines()->pluck('id')->all()])->assertRedirect();
 
     $lot = ImsLot::where('item_id', $this->withSize->id)->firstOrFail();
     expect((float) $lot->qty_received_base)->toEqual(91000.0)   // 182 packs x 500 g
@@ -237,7 +238,7 @@ test('a bottle cut from a lot is priced by the share of a pack it holds', functi
     $receipt = ImsReceipt::firstOrFail();
     $line = $receipt->lines()->where('item_id', $this->withoutSize->id)->firstOrFail();
     $line->update(['qty' => '750', 'unit_id' => $this->gram->id]);
-    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt));
+    $this->actingAs($this->manager)->post(route('ims.receipts.confirm', $receipt), ['lines' => $receipt->lines()->pluck('id')->all()]);
 
     $lot = ImsLot::where('item_id', $this->withSize->id)->firstOrFail();
     $this->actingAs($this->manager)->post(route('ims.lots.transfer', $lot), [

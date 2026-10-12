@@ -2,6 +2,9 @@
     @php
         $fmt = fn ($v) => $v === null ? '—' : (rtrim(rtrim((string) $v, '0'), '.') ?: '0');
         $summary = $receipt->import_summary;
+        $ready = $receipt->lines->filter(fn ($l) => ! $l->isConfirmed() && $l->isComplete())->count();
+        $incomplete = $receipt->lines->filter(fn ($l) => ! $l->isConfirmed() && ! $l->isComplete())->count();
+        $done = $receipt->lines->filter(fn ($l) => $l->isConfirmed())->count();
     @endphp
 
     <a href="{{ route('ims.receipts.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('ims.back') }}</a>
@@ -73,12 +76,21 @@
         </div>
     @endif
 
-    <h2 class="font-semibold mb-2">{{ __('ims.lines_title') }}</h2>
+    <h2 class="font-semibold mb-1">{{ __('ims.lines_title') }}</h2>
+    <p class="text-sm text-ink-muted mb-2">{{ __('ims.check_summary', ['ready' => $ready, 'incomplete' => $incomplete, 'done' => $done]) }}</p>
     <div class="bg-surface border border-border rounded-xl overflow-hidden mb-6">
         <div class="overflow-x-auto" tabindex="0">
             <table class="w-full text-sm">
                 <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                     <tr>
+                        <th class="px-4 py-3 font-semibold">
+                            @can('update', $receipt)
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="select-all-complete" class="rounded border-border" checked>
+                                    <span class="sr-only">{{ __('ims.select_all_complete') }}</span>
+                                </label>
+                            @endcan
+                        </th>
                         <th class="px-4 py-3 font-semibold">#</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_item_code') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_item') }}</th>
@@ -93,7 +105,20 @@
                 <tbody class="divide-y divide-border">
                     @forelse ($receipt->lines as $line)
                         @php $resolved = $line->resolvedQuantity(); @endphp
-                        <tr>
+                        @php $confirmed = $line->isConfirmed(); $complete = $line->isComplete(); @endphp
+                        <tr @class(['bg-success-soft/40' => $confirmed])>
+                            <td class="px-4 py-3 align-top">
+                                @if ($confirmed)
+                                    <span class="inline-block rounded bg-success-soft text-success-ink text-xs font-semibold px-2 py-0.5 whitespace-nowrap">{{ __('ims.line_confirmed') }}</span>
+                                @elseif (! $complete)
+                                    <span class="inline-block rounded bg-warning-soft text-warning-ink text-xs font-semibold px-2 py-0.5 whitespace-nowrap">{{ __('ims.line_incomplete_badge') }}</span>
+                                @else
+                                    @can('update', $receipt)
+                                        <input type="checkbox" form="confirm_form" name="lines[]" value="{{ $line->id }}" checked
+                                               class="line-check rounded border-border" aria-label="{{ __('ims.select_line', ['line' => $line->line_no]) }}">
+                                    @endcan
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-ink-muted align-top">{{ $line->line_no }}</td>
                             <td class="px-4 py-3 font-mono text-xs align-top">{{ $line->item?->item_code ?? $line->item_code_raw }}</td>
                             <td class="px-4 py-3 align-top">{{ $line->item?->name_th ?? $line->name_raw }}</td>
@@ -109,6 +134,7 @@
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap align-top">{{ $line->expiry_date?->format('d/m/Y') ?: '—' }}</td>
                             <td class="px-4 py-3 text-right align-top whitespace-nowrap">
+                                @if ($receipt->isDraft() && ! $confirmed)
                                 @can('update', $receipt)
                                     <details class="inline-block text-left">
                                         <summary class="cursor-pointer text-xs font-semibold text-accent">{{ __('ims.btn_edit') }}</summary>
@@ -154,11 +180,12 @@
                                         <button type="submit" class="text-xs font-semibold text-danger hover:underline">{{ __('ims.btn_remove') }}</button>
                                     </form>
                                 @endcan
+                                @endif
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-ink-muted text-sm">{{ __('ims.no_lines') }}</td>
+                            <td colspan="10" class="px-4 py-8 text-center text-ink-muted text-sm">{{ __('ims.no_lines') }}</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -225,7 +252,7 @@
         </form>
 
         <div class="flex items-center gap-3">
-            <form method="POST" action="{{ route('ims.receipts.confirm', $receipt) }}">
+            <form id="confirm_form" method="POST" action="{{ route('ims.receipts.confirm', $receipt) }}">
                 @csrf
                 <button type="submit" class="rounded-lg bg-success hover:bg-success-ink text-white text-base font-bold px-6 py-3 shadow-md focus:outline-none focus:ring-4 focus:ring-success-soft">
                     {{ __('ims.btn_confirm') }}
@@ -240,4 +267,14 @@
         </div>
         <p class="text-xs text-ink-faint mt-2">{{ __('ims.confirm_hint') }}</p>
     @endcan
+
+    <script nonce="{{ request()->attributes->get('csp_nonce') }}">
+        (function () {
+            var all = document.getElementById('select-all-complete');
+            if (!all) { return; }
+            all.addEventListener('change', function () {
+                document.querySelectorAll('.line-check').forEach(function (c) { c.checked = all.checked; });
+            });
+        })();
+    </script>
 </x-layout>
