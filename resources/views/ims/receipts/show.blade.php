@@ -227,7 +227,7 @@
         <div class="flex items-center gap-3">
             <form method="POST" action="{{ route('ims.receipts.confirm', $receipt) }}">
                 @csrf
-                <button type="submit" class="rounded-lg bg-success hover:bg-success-ink text-white text-sm font-semibold px-4 py-2.5">
+                <button type="submit" class="rounded-lg bg-success hover:bg-success-ink text-white text-base font-bold px-6 py-3 shadow-md focus:outline-none focus:ring-4 focus:ring-success-soft">
                     {{ __('ims.btn_confirm') }}
                 </button>
             </form>
