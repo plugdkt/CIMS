@@ -44,13 +44,9 @@
                 </x-nav-link>
             @endcan
             @can('viewAny', App\Models\ImsLot::class)
-                <x-nav-link route="{{ route('ims.lots.index') }}" :active="request()->routeIs('ims.lots.*')">
+                <x-nav-link route="{{ route('ims.lots.index') }}" :active="request()->routeIs('ims.*')">
                     <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M3 7.5V17l9 4 9-4V7.5M3 7.5l9 4.5m9-4.5-9 4.5m0 0V21"/></svg></x-slot:icon>
                     {{ __('nav.ims_lots') }}
-                </x-nav-link>
-                <x-nav-link route="{{ route('ims.receipts.index') }}" :active="request()->routeIs('ims.receipts.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 3h7l5 5v13H7V3Zm7 0v5h5M10 13h6M10 17h6"/></svg></x-slot:icon>
-                    {{ __('nav.ims_receipts') }}
                 </x-nav-link>
             @endcan
             @can('viewAny', App\Models\Requisition::class)

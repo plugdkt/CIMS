@@ -1,4 +1,5 @@
 <x-layout>
+    @include('ims._tabs')
     @php
         $fmt = fn ($v) => $v === null ? '—' : (rtrim(rtrim((string) $v, '0'), '.') ?: '0');
         $summary = $receipt->import_summary;

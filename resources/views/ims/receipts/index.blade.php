@@ -1,4 +1,5 @@
 <x-layout>
+    @include('ims._tabs')
     <div class="flex items-start justify-between gap-4 mb-5">
         <div>
             <h1 class="font-display text-lg font-bold">{{ __('ims.receipts_title') }}</h1>

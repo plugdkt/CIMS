@@ -1,4 +1,5 @@
 <x-layout>
+    @include('ims._tabs')
     <div class="max-w-xl">
         <a href="{{ route('ims.receipts.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('ims.back') }}</a>
         <h1 class="font-display text-lg font-bold mt-1 mb-5">{{ __('ims.create_title') }}</h1>

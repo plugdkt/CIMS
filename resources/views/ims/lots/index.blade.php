@@ -1,4 +1,5 @@
 <x-layout>
+    @include('ims._tabs')
     <div class="mb-5">
         <h1 class="font-display text-lg font-bold">{{ __('ims.lots_title') }}</h1>
         <p class="text-sm text-ink-muted mt-1">{{ __('ims.lots_subtitle') }}</p>

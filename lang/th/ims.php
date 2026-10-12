@@ -2,8 +2,11 @@
 
 return [
     'nav_receipts' => 'เอกสารรับเข้า IMS',
-    'nav_lots' => 'คลัง IMS (ตัดจ่ายเข้า working stock)',
+    'nav_lots' => 'คลัง IMS',
 
+    'tabs_label' => 'เมนูย่อยคลัง IMS',
+    'tab_lots' => 'สินค้าในคลัง',
+    'tab_receipts' => 'เอกสารรับเข้า',
     'receipts_title' => 'เอกสารรับเข้าคลัง IMS',
     'receipts_subtitle' => 'เอกสารจัดซื้อที่พิมพ์จากระบบคลังของมหาวิทยาลัย — ตรวจความถูกต้องแล้วกดยืนยันเข้าคลัง IMS',
     'new_receipt' => 'เพิ่มเอกสารรับเข้า',
