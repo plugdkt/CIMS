@@ -318,3 +318,27 @@ test('all eight chemical types exist as item categories', function () {
     expect(ItemCategory::where('is_chemical', true)->pluck('name_th')->sort()->values()->all())
         ->toEqualCanonicalizing(['สารเคมี', 'อาหารเลี้ยงเชื้อ', 'สี', 'น้ำตาล', 'ยาปฏิชีวนะ', 'Test Kits', 'Detergent', 'อื่นๆ']);
 });
+
+test('an item with no catalog package size can be received in a packaging unit such as กล่อง', function () {
+    $box = Unit::where('code', 'box')->firstOrFail();
+    expect($box->dimension)->toBe('COUNT')->and($box->name_th)->toBe('กล่อง');
+
+    $bare = Item::create([
+        'item_code' => 'AS100099', 'name_th' => 'ชุดตรวจไม่มีขนาด', 'category_id' => ItemCategory::first()->id ?? 1,
+        'storage_class' => 'OTHER', 'reorder_point_base' => '0.000000', 'is_active' => true,
+    ]);
+    $receipt = ImsReceipt::create([
+        'lab_id' => $this->lab->id, 'doc_no' => 'PO-69-0002', 'fiscal_year' => 2569, 'purchase_round' => 'รอบ 1',
+        'status' => 'DRAFT', 'created_by' => $this->manager->id,
+    ]);
+    $receipt->lines()->create([
+        'line_no' => 1, 'item_id' => $bare->id, 'item_code_raw' => $bare->item_code,
+        'pack_qty' => '3', 'qty' => '3', 'unit_id' => $box->id, 'unit_price' => '90',
+    ]);
+
+    app(\App\Domain\Inventory\Services\ImsService::class)->confirm($receipt, $this->manager);
+
+    $lot = ImsLot::where('ims_receipt_id', $receipt->id)->firstOrFail();
+    expect((float) $lot->qty_received_base)->toEqual(3.0)
+        ->and($bare->fresh()->baseUnit?->code)->toBe('box');
+});

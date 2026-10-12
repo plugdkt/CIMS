@@ -140,7 +140,7 @@
                                                 <select id="unit_id-{{ $line->id }}" name="unit_id" class="w-full rounded border border-border px-2 py-1 text-sm">
                                                     <option value="">—</option>
                                                     @foreach ($units as $unit)
-                                                        <option value="{{ $unit->id }}" @selected($line->unit_id === $unit->id)>{{ $unit->code }}</option>
+                                                        <option value="{{ $unit->id }}" @selected($line->unit_id === $unit->id)>{{ $unit->code }} ({{ $unit->name_th }})</option>
                                                     @endforeach
                                                 </select>
                                             </div>
@@ -203,7 +203,7 @@
                 <select id="unit_id" name="unit_id" class="w-full rounded-lg border border-border px-3 py-2 text-sm">
                     <option value="">—</option>
                     @foreach ($units as $unit)
-                        <option value="{{ $unit->id }}" @selected((int) old('unit_id') === $unit->id)>{{ $unit->code }}</option>
+                        <option value="{{ $unit->id }}" @selected((int) old('unit_id') === $unit->id)>{{ $unit->code }} ({{ $unit->name_th }})</option>
                     @endforeach
                 </select>
             </div>
