@@ -56,6 +56,7 @@ class AppServiceProvider extends ServiceProvider
         // add Requisition/GoodsReceipt here once those models land (T-022/T-030+).
         Relation::enforceMorphMap([
             'Item' => Item::class,
+            'ImsLot' => \App\Models\ImsLot::class,
         ]);
 
         // Bridges the seeded permission catalog (PermissionSeeder) to Laravel's Gate,

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 
 /**
@@ -22,7 +23,7 @@ use Illuminate\Support\Str;
  * @property \Illuminate\Support\Carbon $received_at
  */
 #[Fillable([
-    'ulid', 'lab_id', 'item_id', 'ims_receipt_id', 'doc_no', 'lot_no', 'fiscal_year',
+    'ulid', 'lab_id', 'location_id', 'item_id', 'ims_receipt_id', 'doc_no', 'lot_no', 'fiscal_year',
     'purchase_round', 'unit_price', 'pack_size_base', 'expiry_date', 'qty_received_base', 'qty_remaining_base',
     'received_at',
 ])]
@@ -74,5 +75,23 @@ class ImsLot extends Model
     public function containers(): HasMany
     {
         return $this->hasMany(Container::class);
+    }
+
+    /** @return BelongsTo<Location, $this> */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    /**
+     * Photos of the lot, newest first. Uploading never replaces — the newest one is the thumbnail.
+     *
+     * @return MorphMany<Attachment, $this>
+     */
+    public function photos(): MorphMany
+    {
+        return $this->morphMany(Attachment::class, 'owner', 'owner_type', 'owner_id')
+            ->where('doc_type', 'PHOTO')
+            ->orderByDesc('id');
     }
 }

@@ -376,3 +376,59 @@ test('only the selected complete lines enter IMS; the rest stay in a draft that 
 
     expect(ImsLot::count())->toBe(2)->and($receipt->fresh()->status)->toBe('CONFIRMED');
 });
+
+test('a manager sets the storage location of a lot, but only a place in their own branch', function () {
+    $lot = ($this->makeLot)();
+
+    $this->actingAs($this->manager)->get(route('ims.lots.edit', $lot))->assertOk()->assertSee($this->location->name);
+
+    $this->actingAs($this->manager)->put(route('ims.lots.update', $lot), ['location_id' => $this->location->id])->assertRedirect();
+    expect($lot->fresh()->location_id)->toBe($this->location->id);
+
+    $this->actingAs($this->manager)->get(route('ims.lots.index'))->assertOk()->assertSee($this->location->name);
+
+    $this->actingAs($this->manager)->put(route('ims.lots.update', $lot), ['location_id' => $this->otherLocation->id])->assertSessionHasErrors('location_id');
+    expect($lot->fresh()->location_id)->toBe($this->location->id);
+
+    $this->actingAs($this->manager)->put(route('ims.lots.update', $lot), ['location_id' => ''])->assertRedirect();
+    expect($lot->fresh()->location_id)->toBeNull();
+});
+
+test('photos upload as images, the newest is shown, and only the lot\'s own branch can open them', function () {
+    config(['attachments.virus_scan.enabled' => false]);
+    Storage::fake('attachments');
+    $lot = ($this->makeLot)();
+
+    $this->actingAs($this->manager)->post(route('ims.lots.photos.store', $lot), ['photo' => UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf')])
+        ->assertSessionHasErrors('photo');
+
+    $this->actingAs($this->manager)->post(route('ims.lots.photos.store', $lot), ['photo' => tinyPng('bottle.png')])->assertRedirect();
+    $this->actingAs($this->manager)->post(route('ims.lots.photos.store', $lot), ['photo' => tinyPng('bottle2.png')])->assertRedirect();
+
+    $photos = $lot->fresh()->photos;
+    expect($photos)->toHaveCount(2)->and($photos->first()->original_name)->toBe('bottle2.png');
+
+    $this->actingAs($this->manager)->get(route('ims.lots.photos.show', [$lot, $photos->first()]))
+        ->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
+    $this->actingAs($this->manager)->get(route('ims.lots.index'))->assertOk()->assertSee(route('ims.lots.photos.show', [$lot, $photos->first()]), false);
+
+    $otherManager = labManagerUser(['lab_id' => $this->otherLab->id]);
+    $this->actingAs($otherManager)->get(route('ims.lots.photos.show', [$lot, $photos->first()]))->assertForbidden();
+    $this->actingAs($otherManager)->post(route('ims.lots.photos.store', $lot), ['photo' => tinyPng('x.png')])->assertForbidden();
+    $this->actingAs($otherManager)->put(route('ims.lots.update', $lot), ['location_id' => $this->otherLocation->id])->assertForbidden();
+    $this->actingAs($otherManager)->get(route('ims.lots.edit', $lot))->assertForbidden();
+});
+
+test('ADMIN can read the details of a lot but cannot change its location or photos', function () {
+    $lot = ($this->makeLot)();
+    $admin = User::factory()->create(['lab_id' => null]);
+    $admin->roles()->attach(Role::where('code', 'ADMIN')->firstOrFail());
+
+    $this->actingAs($admin)->get(route('ims.lots.edit', $lot))->assertOk()->assertDontSee(route('ims.lots.update', $lot), false);
+    $this->actingAs($admin)->put(route('ims.lots.update', $lot), ['location_id' => $this->location->id])->assertForbidden();
+});
+
+function tinyPng(string $name): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent($name, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+}

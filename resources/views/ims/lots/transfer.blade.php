@@ -68,7 +68,7 @@
                     <label for="location_id" class="block text-sm font-medium mb-1">{{ __('ims.field_location') }}</label>
                     <select id="location_id" name="location_id" required class="w-full rounded-lg border border-border px-3 py-2 text-sm">
                         @foreach ($locations as $location)
-                            <option value="{{ $location->id }}" @selected((int) old('location_id') === $location->id)>{{ $location->name }}</option>
+                            <option value="{{ $location->id }}" @selected((int) old('location_id', $lot->location_id) === $location->id)>{{ $location->name }}</option>
                         @endforeach
                     </select>
                     @error('location_id') <p class="text-xs text-danger mt-1">{{ $message }}</p> @enderror

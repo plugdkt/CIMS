@@ -40,14 +40,12 @@
             <table class="w-full text-sm">
                 <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
                     <tr>
+                        <th class="px-4 py-3 font-semibold"><span class="sr-only">{{ __('ims.col_photo') }}</span></th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_item_code') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_item') }}</th>
-                        <th class="px-4 py-3 font-semibold">{{ __('ims.col_category') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_lot') }}</th>
-                        <th class="px-4 py-3 font-semibold">{{ __('ims.col_fiscal_year') }}/{{ __('ims.col_round') }}</th>
-                        <th class="px-4 py-3 font-semibold text-right">{{ __('ims.col_price') }}</th>
+                        <th class="px-4 py-3 font-semibold">{{ __('ims.col_location') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_expiry') }}</th>
-                        <th class="px-4 py-3 font-semibold text-right">{{ __('ims.col_received_qty') }}</th>
                         <th class="px-4 py-3 font-semibold text-right">{{ __('ims.col_remaining') }}</th>
                         <th class="px-4 py-3 font-semibold"></th>
                     </tr>
@@ -56,16 +54,24 @@
                     @forelse ($lots as $lot)
                         @php $unit = $lot->item?->baseUnit?->code; @endphp
                         <tr>
+                            <td class="px-4 py-3">
+                                @if ($photo = $lot->photos->first())
+                                    <img src="{{ route('ims.lots.photos.show', [$lot, $photo]) }}" alt="{{ $lot->item?->name_th }}" loading="lazy"
+                                         class="w-10 h-10 rounded object-cover border border-border">
+                                @endif
+                            </td>
                             <td class="px-4 py-3 font-mono text-xs">{{ $lot->item?->item_code }}</td>
                             <td class="px-4 py-3">{{ $lot->item?->name_th }}</td>
-                            <td class="px-4 py-3">{{ $lot->item?->category?->name_th }}</td>
                             <td class="px-4 py-3">{{ $lot->lot_no ?: '—' }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $lot->fiscal_year ?: '—' }} / {{ $lot->purchase_round ?: '—' }}</td>
-                            <td class="px-4 py-3 text-right font-mono">{{ $lot->unit_price !== null ? number_format((float) $lot->unit_price, 2) : '—' }}</td>
+                            <td class="px-4 py-3">{{ $lot->location?->name ?: '—' }}</td>
                             <td class="px-4 py-3 whitespace-nowrap">{{ $lot->expiry_date?->format('d/m/Y') ?: '—' }}</td>
-                            <td class="px-4 py-3 text-right font-mono">{{ rtrim(rtrim((string) $lot->qty_received_base, '0'), '.') }} {{ $unit }}</td>
                             <td class="px-4 py-3 text-right font-mono font-semibold">{{ rtrim(rtrim((string) $lot->qty_remaining_base, '0'), '.') ?: '0' }} {{ $unit }}</td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                @can('view', $lot)
+                                    <a href="{{ route('ims.lots.edit', $lot) }}" class="text-xs font-semibold text-accent hover:text-accent-strong mr-3">
+                                        {{ __('ims.btn_details') }}
+                                    </a>
+                                @endcan
                                 @can('transfer', $lot)
                                     <a href="{{ route('ims.lots.transfer.form', $lot) }}" class="text-xs font-semibold text-accent hover:text-accent-strong whitespace-nowrap">
                                         {{ __('ims.btn_transfer') }}
@@ -75,7 +81,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="px-4 py-8 text-center text-ink-muted text-sm">{{ __('ims.no_lots') }}</td>
+                            <td colspan="8" class="px-4 py-8 text-center text-ink-muted text-sm">{{ __('ims.no_lots') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

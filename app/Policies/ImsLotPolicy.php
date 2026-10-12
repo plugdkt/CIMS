@@ -20,6 +20,12 @@ final class ImsLotPolicy extends Policy
             && ($user->hasRole('ADMIN') || $user->lab_id === $lot->lab_id);
     }
 
+    /** Storage location and photos of a lot — own branch's manager only (no stock movement involved). */
+    public function manage(User $user, ImsLot $lot): bool
+    {
+        return $this->hasPermission($user, 'ims.manage') && $user->lab_id === $lot->lab_id;
+    }
+
     /** Cutting a lot off IMS into working stock — own branch only, and only while stock remains. */
     public function transfer(User $user, ImsLot $lot): bool
     {

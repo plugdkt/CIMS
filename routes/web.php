@@ -172,6 +172,10 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::post('/receipts/{ims_receipt}/cancel', [ImsReceiptController::class, 'cancel'])->name('receipts.cancel');
 
     Route::get('/lots', [ImsLotController::class, 'index'])->name('lots.index');
+    Route::get('/lots/{ims_lot}/edit', [ImsLotController::class, 'edit'])->name('lots.edit');
+    Route::put('/lots/{ims_lot}', [ImsLotController::class, 'update'])->name('lots.update');
+    Route::post('/lots/{ims_lot}/photos', [ImsLotController::class, 'storePhoto'])->name('lots.photos.store');
+    Route::get('/lots/{ims_lot}/photos/{attachment}', [ImsLotController::class, 'photo'])->name('lots.photos.show');
     Route::get('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transferForm'])->name('lots.transfer.form');
     Route::post('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transfer'])->name('lots.transfer');
 });

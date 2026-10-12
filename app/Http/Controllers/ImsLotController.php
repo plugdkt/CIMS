@@ -6,7 +6,12 @@ namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Exceptions\ImsException;
 use App\Domain\Inventory\Services\ImsService;
+use App\Domain\Attachments\Exceptions\InfectedFileException;
+use App\Domain\Attachments\Services\AttachmentUploadService;
+use App\Http\Requests\ImsLotDetailsRequest;
+use App\Http\Requests\ImsLotPhotoRequest;
 use App\Http\Requests\ImsTransferRequest;
+use App\Models\Attachment;
 use App\Models\ImsLot;
 use App\Models\ItemCategory;
 use App\Models\Location;
@@ -15,6 +20,8 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class ImsLotController extends Controller
 {
@@ -29,7 +36,7 @@ final class ImsLotController extends Controller
         $categoryId = $request->filled('category') ? (int) $request->query('category') : null;
 
         $lots = ImsLot::query()
-            ->with(['item.baseUnit', 'item.category', 'lab'])
+            ->with(['item.baseUnit', 'item.category', 'lab', 'location', 'photos'])
             ->when(! $user->hasRole('ADMIN'), fn ($q) => $q->where('lab_id', $user->lab_id))
             ->when($categoryId !== null, fn ($q) => $q->whereHas('item', fn ($i) => $i->where('category_id', $categoryId)))
             ->when(! $showEmpty, fn ($q) => $q->where('qty_remaining_base', '>', 0))
@@ -103,5 +110,57 @@ final class ImsLotController extends Controller
         }
 
         return $redirect;
+    }
+
+    public function edit(ImsLot $imsLot): View
+    {
+        // Everyone who can see the lot gets its full details; the forms only render for its manager.
+        $this->authorize('view', $imsLot);
+
+        $imsLot->load(['item.baseUnit', 'lab', 'location', 'photos']);
+
+        return view('ims.lots.edit', [
+            'lot' => $imsLot,
+            'locations' => Location::where('lab_id', $imsLot->lab_id)->orderBy('name')->get(),
+        ]);
+    }
+
+    public function update(ImsLotDetailsRequest $request, ImsLot $imsLot): RedirectResponse
+    {
+        $locationId = $request->validated('location_id');
+        $imsLot->fill(['location_id' => $locationId !== null ? (int) $locationId : null])->save();
+
+        return redirect()->route('ims.lots.edit', $imsLot)->with('status', __('ims.lot_details_saved'));
+    }
+
+    public function storePhoto(ImsLotPhotoRequest $request, ImsLot $imsLot, AttachmentUploadService $uploads): RedirectResponse
+    {
+        $userId = $request->user()?->id;
+        abort_if($userId === null, 401);
+
+        try {
+            $uploads->upload($request->file('photo'), $imsLot, 'PHOTO', $userId);
+        } catch (InfectedFileException $e) {
+            return back()->withErrors(['photo' => $e->getMessage()]);
+        }
+
+        return redirect()->route('ims.lots.edit', $imsLot)->with('status', __('ims.photo_uploaded'));
+    }
+
+    /** Inline image (the generic attachment download forces a save-as). Authorised per request. */
+    public function photo(ImsLot $imsLot, Attachment $attachment): StreamedResponse
+    {
+        $this->authorize('view', $imsLot);
+        abort_unless(
+            $attachment->owner_type === $imsLot->getMorphClass()
+            && $attachment->owner_id === $imsLot->id
+            && $attachment->doc_type === 'PHOTO',
+            404,
+        );
+
+        return Storage::disk('attachments')->response($attachment->stored_name, $attachment->original_name, [
+            'Content-Type' => $attachment->mime_type,
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }
