@@ -9,15 +9,26 @@ use App\Models\User;
 
 final class ImsLotPolicy extends Policy
 {
+    /** `ims.view` (managers, ADMIN) and `ims.browse` (everyone else, read-only) may open the IMS stock list. */
     public function viewAny(User $user): bool
     {
-        return $this->hasPermission($user, 'ims.view');
+        return $this->hasPermission($user, 'ims.view') || $this->hasPermission($user, 'ims.browse');
     }
 
     public function view(User $user, ImsLot $lot): bool
     {
-        return $this->hasPermission($user, 'ims.view')
-            && ($user->hasRole('ADMIN') || $user->lab_id === $lot->lab_id);
+        if ($this->hasPermission($user, 'ims.view')) {
+            return $user->hasRole('ADMIN') || $user->lab_id === $lot->lab_id;
+        }
+
+        // Browsers see only their own branch's store.
+        return $this->hasPermission($user, 'ims.browse') && $user->lab_id !== null && $user->lab_id === $lot->lab_id;
+    }
+
+    /** Purchase prices and document numbers are for `ims.view` holders only — never for browsers. */
+    public function viewPrices(User $user, ImsLot $lot): bool
+    {
+        return $this->hasPermission($user, 'ims.view') && $this->view($user, $lot);
     }
 
     /** Storage location and photos of a lot — own branch's manager only (no stock movement involved). */

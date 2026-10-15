@@ -40,6 +40,7 @@ final class PermissionSeeder extends Seeder
             'requisition.issue_override' => 'อนุมัติจ่ายเกิน 10% จากที่ขอ (BR-04)',
             'receiving.manage' => 'รับของเข้าคลัง',
             'ims.view' => 'ดูคลัง IMS (คลังกลางของสาขา)',
+            'ims.browse' => 'เปิดดูของในคลังกลางของสาขาตัวเอง (อ่านอย่างเดียว ไม่เห็นราคา)',
             'ims.manage' => 'จัดการคลัง IMS (นำเข้าเอกสารจัดซื้อ ยืนยัน ตัดจ่ายเข้า working stock)',
             'stocktake.manage' => 'ดำเนินการตรวจนับสต๊อก',
             'ledger.view' => 'ดูบัญชีคุมวัสดุ',
@@ -63,16 +64,16 @@ final class PermissionSeeder extends Seeder
         }
 
         $grants = [
-            'STUDENT' => ['requisition.create', 'requisition.view_own', 'item.view'],
-            'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view'],
-            'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view'],
+            'STUDENT' => ['requisition.create', 'requisition.view_own', 'item.view', 'ims.browse'],
+            'STAFF' => ['requisition.create', 'requisition.view_own', 'item.view', 'ims.browse'],
+            'ADVISOR' => ['requisition.create', 'requisition.view_own', 'requisition.approve_advisor', 'item.view', 'ims.browse'],
             // User-requested 2026-09-22: stock takes, disposals, adjustments and the reports
             // page all belong to the warehouse managers (LAB_MANAGER/AUDITOR) and ADMIN.
             // SCIENTIST is now purely the dispensing role — create/view their own
             // requisitions, issue against approved ones, and read the item ledger.
             'SCIENTIST' => [
                 'requisition.create', 'requisition.view_own', 'requisition.issue',
-                'ledger.view', 'item.view',
+                'ledger.view', 'item.view', 'ims.browse',
             ],
             'LAB_MANAGER' => [
                 'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',

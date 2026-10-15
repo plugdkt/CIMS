@@ -10,6 +10,7 @@
         $packsRemaining = $lot->packsRemaining();
         $unplaced = $lot->unplacedPacks();
         $canManage = auth()->user()?->can('manage', $lot);
+        $showPrices = auth()->user()?->can('viewPrices', $lot);
     @endphp
 
     <a href="{{ route('ims.lots.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('ims.back_to_lots') }}</a>
@@ -47,9 +48,11 @@
                 @endif
             </dd>
         </div>
-        <div><dt class="text-xs text-ink-faint">{{ __('ims.col_doc_no') }}</dt><dd>{{ $lot->doc_no ?: '—' }}</dd></div>
-        <div><dt class="text-xs text-ink-faint">{{ __('ims.col_fiscal_year') }} / {{ __('ims.col_round') }}</dt><dd>{{ $lot->fiscal_year ?: '—' }} / {{ $lot->purchase_round ?: '—' }}</dd></div>
-        <div><dt class="text-xs text-ink-faint">{{ __('ims.col_price_per_pack') }}</dt><dd class="font-mono">{{ $lot->unit_price !== null ? number_format((float) $lot->unit_price, 2) : '—' }}</dd></div>
+        @if ($showPrices)
+            <div><dt class="text-xs text-ink-faint">{{ __('ims.col_doc_no') }}</dt><dd>{{ $lot->doc_no ?: '—' }}</dd></div>
+            <div><dt class="text-xs text-ink-faint">{{ __('ims.col_fiscal_year') }} / {{ __('ims.col_round') }}</dt><dd>{{ $lot->fiscal_year ?: '—' }} / {{ $lot->purchase_round ?: '—' }}</dd></div>
+            <div><dt class="text-xs text-ink-faint">{{ __('ims.col_price_per_pack') }}</dt><dd class="font-mono">{{ $lot->unit_price !== null ? number_format((float) $lot->unit_price, 2) : '—' }}</dd></div>
+        @endif
         <div><dt class="text-xs text-ink-faint">{{ __('ims.col_location') }}</dt><dd>{{ $lot->location?->name ?: '—' }}</dd></div>
         <div><dt class="text-xs text-ink-faint">{{ __('ims.col_expiry') }}</dt><dd>{{ $lot->expiry_date?->format('d/m/Y') ?: '—' }}</dd></div>
     </dl>

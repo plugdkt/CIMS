@@ -81,8 +81,13 @@ test('guests are redirected and non-managers are forbidden on every IMS page', f
     $this->get(route('ims.receipts.index'))->assertRedirect(route('login'));
 
     $scientist = scientistUser(['lab_id' => $this->lab->id]);
-    $this->actingAs($scientist)->get(route('ims.lots.index'))->assertForbidden();
+    // Non-managers may browse the stock (read-only) but never the purchase documents.
+    $this->actingAs($scientist)->get(route('ims.lots.index'))->assertOk();
+    $this->actingAs($scientist)->get(route('ims.receipts.index'))->assertForbidden();
     $this->actingAs($scientist)->get(route('ims.receipts.create'))->assertForbidden();
+
+    $roleless = User::factory()->create(['lab_id' => $this->lab->id]);
+    $this->actingAs($roleless)->get(route('ims.lots.index'))->assertForbidden();
 });
 
 test('a warehouse manager creates a draft receipt in their own branch, with the source PDF kept privately', function () {
@@ -542,3 +547,43 @@ function ImsLotGroupExists(int $id): bool
 {
     return \App\Models\ImsLotGroup::whereKey($id)->exists();
 }
+
+test('an ordinary requester can browse and search their own branch\'s IMS stock, read-only and without prices', function () {
+    $lot = ($this->makeLot)();
+    $lot->update(['pack_size_base' => '500']);
+    $lot->item->update(['name_th' => 'โซเดียมคลอไรด์ทดสอบ']);
+
+    $student = User::factory()->create(['lab_id' => $this->lab->id]);
+    $student->roles()->attach(Role::where('code', 'STUDENT')->firstOrFail());
+
+    $this->actingAs($student)->get(route('ims.lots.index'))->assertOk()
+        ->assertSee('โซเดียมคลอไรด์ทดสอบ')->assertSee('2 แพ็ค × 500 g')
+        ->assertDontSee('นำเข้าวัสดุและสารเคมี')->assertDontSee(route('ims.lots.transfer.form', $lot), false);
+    $this->actingAs($student)->get(route('ims.lots.index', ['search' => 'AS100001']))->assertOk()->assertSee('โซเดียมคลอไรด์ทดสอบ');
+    $this->actingAs($student)->get(route('ims.lots.index', ['search' => 'ไม่มีของนี้']))->assertOk()->assertDontSee('โซเดียมคลอไรด์ทดสอบ');
+
+    $detail = $this->actingAs($student)->get(route('ims.lots.edit', $lot))->assertOk();
+    $detail->assertSee('LOT-A1')->assertDontSee('125.50')->assertDontSee('PO-69-0001')
+        ->assertDontSee(route('ims.lots.update', $lot), false)->assertDontSee(route('ims.lots.photos.store', $lot), false);
+
+    // Nothing can be changed, and the purchase documents stay closed.
+    $this->actingAs($student)->put(route('ims.lots.update', $lot), ['lot_no' => 'X'])->assertForbidden();
+    $this->actingAs($student)->post(route('ims.lots.groups.store', $lot), ['pack_count' => '1'])->assertForbidden();
+    $this->actingAs($student)->get(route('ims.lots.transfer.form', $lot))->assertForbidden();
+    $this->actingAs($student)->get(route('ims.receipts.index'))->assertForbidden();
+    expect($lot->fresh()->lot_no)->toBe('LOT-A1');
+});
+
+test('a requester sees only their own branch\'s IMS stock, and one with no branch sees none', function () {
+    $lot = ($this->makeLot)();
+
+    $other = User::factory()->create(['lab_id' => $this->otherLab->id]);
+    $other->roles()->attach(Role::where('code', 'STAFF')->firstOrFail());
+    $this->actingAs($other)->get(route('ims.lots.index'))->assertOk()->assertDontSee('AS100001');
+    $this->actingAs($other)->get(route('ims.lots.edit', $lot))->assertForbidden();
+
+    $noBranch = User::factory()->create(['lab_id' => null]);
+    $noBranch->roles()->attach(Role::where('code', 'STUDENT')->firstOrFail());
+    $this->actingAs($noBranch)->get(route('ims.lots.index'))->assertOk()->assertDontSee('AS100001');
+    $this->actingAs($noBranch)->get(route('ims.lots.edit', $lot))->assertForbidden();
+});
