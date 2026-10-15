@@ -1,4 +1,4 @@
-@props(['route', 'active' => false])
+@props(['route', 'active' => false, 'sub' => null])
 
 <a href="{{ $route }}"
    {{ $attributes->class([
@@ -7,5 +7,10 @@
         'text-ink-muted font-medium border-transparent hover:bg-surface-alt hover:text-ink' => ! $active,
    ]) }}>
     <span class="shrink-0 {{ $active ? 'text-accent' : 'text-ink-faint' }}">{{ $icon }}</span>
-    <span>{{ $slot }}</span>
+    <span class="leading-tight">
+        {{ $slot }}
+        @if ($sub)
+            <span class="block text-xs font-normal opacity-75">{{ $sub }}</span>
+        @endif
+    </span>
 </a>
