@@ -42,6 +42,7 @@ final class RequisitionIssueController extends Controller
         FefoContainerSelector $selector,
         ReturnService $returns,
         StockBalanceService $stockBalance,
+        ShopAvailability $availability,
     ): View {
         /** @var User|null $user */
         $user = auth()->user();
@@ -52,7 +53,7 @@ final class RequisitionIssueController extends Controller
         // User-requested 2026-09-21: warn right where the actual dispensing happens
         // (not on the earlier review page) once an item's current balance is below
         // its reorder point — the person issuing is exactly who'd go restock it.
-        $lines = $requisition->items->map(function (RequisitionItem $line) use ($selector, $returns, $stockBalance) {
+        $lines = $requisition->items->map(function (RequisitionItem $line) use ($selector, $returns, $stockBalance, $availability, $requisition) {
             $item = $line->item()->firstOrFail();
             $balance = $stockBalance->currentBalance($item);
 
@@ -65,6 +66,8 @@ final class RequisitionIssueController extends Controller
                 'containers' => $selector->recommend($item),
                 'issued_containers' => $returns->issuedContainersFor($line),
                 'stock_balance' => $balance,
+                // What the branch can actually hand out for this line: working stock plus IMS (cut automatically).
+                'availability' => $availability->forItem($item, $requisition->lab_id),
                 'low_stock' => $stockBalance->isBelowReorderPoint($item, $balance),
             ];
         });

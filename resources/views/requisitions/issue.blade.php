@@ -3,6 +3,14 @@
         <div class="mb-5">
             <a href="{{ route('requisitions.show', $requisition) }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('requisitions.back_to_requisition') }}</a>
             <h1 class="font-display text-lg font-bold mt-1">{{ __('requisitions.issue_title') }} — {{ $requisition->doc_no }}</h1>
+            @php
+                $doneLines = $lines->filter(fn ($r) => bccomp($r['remaining_base'], '0', 6) <= 0)->count();
+            @endphp
+            <p class="text-sm text-ink-muted mt-1">
+                {{ __('requisitions.col_requester') }}: <span class="font-semibold text-ink">{{ $requisition->requester?->full_name }}</span>
+                · {{ $requisition->doc_date->format('d/m/Y') }}
+                · {{ __('requisitions.issue_progress', ['done' => $doneLines, 'total' => $lines->count()]) }}
+            </p>
         </div>
 
         @if (session('status'))
@@ -22,55 +30,72 @@
             @php
                 $line = $row['line'];
             @endphp
+            @php
+                $fmt = fn ($v) => rtrim(rtrim((string) $v, '0'), '.') ?: '0';
+                $item = $line->item;
+                $baseUnit = $item?->baseUnit;
+                $unitCode = $baseUnit?->code;
+                $sameDimension = $units->filter(fn ($u) => $baseUnit === null || $u->dimension === $baseUnit->dimension);
+                $reduced = $line->qty_approved_base !== null && bccomp($line->qty_approved_base, $line->qty_requested_base, 6) < 0;
+                $need = $row['remaining_base'];
+                $stockTotal = $row['availability']['total'];
+                $short = bccomp($stockTotal, $need, 6) < 0;
+            @endphp
             <div class="bg-surface border border-border rounded-xl p-6 mb-4">
-                    <div class="flex items-center gap-2 flex-wrap">
-                        <h2 class="font-display text-base font-bold">{{ $line->item?->name_th }}</h2>
-                        @if ($line->item?->item_code)
-                            <span class="font-mono text-xs text-ink-muted px-1.5 py-0.5 rounded bg-surface-alt border border-border/70">{{ $line->item->item_code }}</span>
-                        @endif
-                        @if ($line->item?->grade)
-                            <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-accent-soft text-accent-strong font-semibold border border-accent/20">{{ $line->item->grade }}</span>
-                        @endif
-                        @if ($line->item?->physical_state)
-                            @php
-                                $stateBadge = match($line->item->physical_state) {
-                                    'liquid' => ['bg' => 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800', 'label' => __('items.state_liquid'), 'icon' => '💧'],
-                                    'powder' => ['bg' => 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800', 'label' => __('items.state_powder'), 'icon' => '🧂'],
-                                    'solid' => ['bg' => 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700', 'label' => __('items.state_solid'), 'icon' => '🧊'],
-                                    'gas' => ['bg' => 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800', 'label' => __('items.state_gas'), 'icon' => '💨'],
-                                    'solution' => ['bg' => 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800', 'label' => __('items.state_solution'), 'icon' => '🧪'],
-                                    'crystal' => ['bg' => 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-800', 'label' => __('items.state_crystal'), 'icon' => '💎'],
-                                    'pellet' => ['bg' => 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800', 'label' => __('items.state_pellet'), 'icon' => '⚪'],
-                                    default => ['bg' => 'bg-surface-alt text-ink border-border', 'label' => $line->item->physical_state, 'icon' => '•'],
-                                };
-                            @endphp
-                            <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border {{ $stateBadge['bg'] }} font-medium">
-                                <span>{{ $stateBadge['icon'] }}</span>
-                                <span>{{ $stateBadge['label'] }}</span>
-                            </span>
-                        @endif
-                    </div>
-                    <span class="text-xs text-ink-muted">
-                        {{ __('requisitions.field_qty_requested') }} {{ rtrim(rtrim((string) $line->qty_requested_base, '0'), '.') }}
-                        @if ($line->qty_approved_base !== null && bccomp($line->qty_approved_base, $line->qty_requested_base, 6) < 0)
-                            {{-- User-requested 2026-09-23: shown wherever the requested quantity is,
-                                 whenever a warehouse manager approved less than what was asked. --}}
-                            <span class="text-warning-ink font-semibold">
-                                ({{ __('requisitions.field_qty_approved') }} {{ rtrim(rtrim((string) $line->qty_approved_base, '0'), '.') }})
-                            </span>
-                        @endif
-                        / {{ __('requisitions.issued_so_far') }} {{ rtrim(rtrim((string) $line->qty_issued_base, '0'), '.') }}
-                        ({{ __('requisitions.remaining') }} {{ rtrim(rtrim((string) $row['remaining_base'], '0'), '.') }})
-                    </span>
-
-                    @if ($row['low_stock'])
-                        <div class="mt-2">
-                            <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-warning-soft text-warning-ink font-semibold">
-                                ⚠️ {{ __('requisitions.low_stock_warning', ['balance' => rtrim(rtrim((string) $row['stock_balance'], '0'), '.')]) }}
-                            </span>
-                        </div>
+                <div class="flex items-center gap-2 flex-wrap mb-4">
+                    <h2 class="font-display text-lg font-bold">{{ $item?->name_th }}</h2>
+                    @if ($item?->item_code)
+                        <span class="font-mono text-xs text-ink-muted px-1.5 py-0.5 rounded bg-surface-alt border border-border/70">{{ $item->item_code }}</span>
+                    @endif
+                    @if ($item?->grade)
+                        <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-accent-soft text-accent-strong font-semibold border border-accent/20">{{ $item->grade }}</span>
                     @endif
                 </div>
+
+                {{-- How much has to be handed out — big, so the dispenser never has to hunt for it. --}}
+                <div class="grid grid-cols-2 {{ $reduced ? 'md:grid-cols-4' : 'md:grid-cols-3' }} gap-3 mb-4">
+                    <div class="rounded-xl border border-border bg-surface-alt px-4 py-3">
+                        <div class="text-xs text-ink-muted">{{ __('requisitions.tile_requested') }}</div>
+                        <div class="font-mono text-xl font-bold">{{ $fmt($line->qty_requested_base) }} <span class="text-sm font-semibold">{{ $unitCode }}</span></div>
+                        @if ($line->unit && $baseUnit && $line->unit_id !== $baseUnit->id)
+                            <div class="text-[11px] text-ink-faint">({{ __('requisitions.tile_requested_as') }} {{ $fmt($line->qty_requested) }} {{ $line->unit->code }})</div>
+                        @endif
+                    </div>
+                    @if ($reduced)
+                        <div class="rounded-xl border border-warning/40 bg-warning-soft px-4 py-3">
+                            <div class="text-xs text-warning-ink">{{ __('requisitions.tile_approved') }}</div>
+                            <div class="font-mono text-xl font-bold text-warning-ink">{{ $fmt($line->qty_approved_base) }} <span class="text-sm font-semibold">{{ $unitCode }}</span></div>
+                        </div>
+                    @endif
+                    <div class="rounded-xl border border-border bg-surface-alt px-4 py-3">
+                        <div class="text-xs text-ink-muted">{{ __('requisitions.tile_issued') }}</div>
+                        <div class="font-mono text-xl font-bold">{{ $fmt($line->qty_issued_base ?? 0) }} <span class="text-sm font-semibold">{{ $unitCode }}</span></div>
+                    </div>
+                    <div class="rounded-xl border-2 {{ bccomp($need, '0', 6) > 0 ? 'border-accent bg-accent-soft' : 'border-success bg-success-soft' }} px-4 py-3 col-span-2 md:col-span-1">
+                        <div class="text-xs {{ bccomp($need, '0', 6) > 0 ? 'text-accent-soft-ink' : 'text-success-ink' }} font-semibold">{{ __('requisitions.tile_to_issue') }}</div>
+                        <div class="font-mono text-2xl font-extrabold {{ bccomp($need, '0', 6) > 0 ? 'text-accent-strong' : 'text-success-ink' }}">{{ $fmt($need) }} <span class="text-base font-bold">{{ $unitCode }}</span></div>
+                    </div>
+                </div>
+
+                {{-- Can the branch cover it? Working stock first; the rest is cut from IMS automatically. --}}
+                @if (bccomp($need, '0', 6) > 0)
+                    <p class="text-sm mb-3 {{ $short ? 'text-danger-ink font-semibold' : 'text-ink-muted' }}">
+                        {{ __('requisitions.stock_available') }}
+                        <span class="font-mono font-semibold">{{ $fmt($stockTotal) }} {{ $unitCode }}</span>
+                        <span class="text-xs">({{ __('shop.from_working') }} {{ $fmt($row['availability']['working']) }} · {{ __('shop.from_ims') }} {{ $fmt($row['availability']['ims']) }})</span>
+                        @if ($short)
+                            — {{ __('requisitions.stock_short') }}
+                        @endif
+                    </p>
+                @endif
+
+                @if ($row['low_stock'])
+                    <div class="mb-3">
+                        <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-warning-soft text-warning-ink font-semibold">
+                            ⚠️ {{ __('requisitions.low_stock_warning', ['balance' => $fmt($row['stock_balance'])]) }}
+                        </span>
+                    </div>
+                @endif
 
                 @if ($row['remaining_base'] <= 0)
                     <p class="text-sm text-success-ink">{{ __('requisitions.line_fully_issued') }}</p>
@@ -95,7 +120,9 @@
                         {{-- AUTO MODE: one total quantity, containers filled in FEFO order automatically. --}}
                         <div x-show="issueMode === 'auto'" x-cloak>
                             <p class="text-xs text-ink-muted mb-2">{{ __('requisitions.issue_mode_auto_desc') }}</p>
-                            <div class="overflow-x-auto mb-2" tabindex="0">
+                            <details class="mb-3">
+                            <summary class="cursor-pointer text-xs font-semibold text-accent">{{ __('requisitions.fefo_list_summary', ['count' => $row['containers']->count()]) }}</summary>
+                            <div class="overflow-x-auto mt-2 mb-2" tabindex="0">
                                 <table class="w-full text-xs">
                                     <thead class="text-left text-ink-faint uppercase tracking-wide">
                                         <tr>
@@ -125,7 +152,8 @@
                                 </table>
                             </div>
                             <p class="text-[11px] text-ink-faint mb-1">{{ __('requisitions.auto_issue_preview_title') }}</p>
-                            <p class="text-[11px] text-ink-faint mb-3">{{ __('requisitions.auto_cut_hint') }}</p>
+                            </details>
+                            <p class="text-xs text-ink-muted mb-3">{{ __('requisitions.auto_cut_hint') }}</p>
 
                             <form method="POST" action="{{ route('requisitions.items.issue-auto', [$requisition, $line]) }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3"
                                   x-data="{
@@ -181,17 +209,20 @@
                                 @csrf
                                 <div class="sm:col-span-2">
                                     <label class="block text-xs font-medium mb-1" for="qty_issued_auto-{{ $line->id }}">{{ __('requisitions.field_qty_issued_total') }}</label>
-                                    <input type="text" name="qty_issued" id="qty_issued_auto-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                                    <input type="text" name="qty_issued" id="qty_issued_auto-{{ $line->id }}" value="{{ old('qty_issued', $fmt($need)) }}" inputmode="decimal"
+                                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-lg font-mono font-bold">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium mb-1" for="issue_unit_id_auto-{{ $line->id }}">{{ __('requisitions.field_unit') }}</label>
-                                    <select name="unit_id" id="issue_unit_id_auto-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                                        <option value="">{{ __('items.select_placeholder') }}</option>
-                                        @foreach ($units as $unit)
-                                            <option value="{{ $unit->id }}" @selected($unit->id === $line->unit_id)>{{ $unit->code }}</option>
+                                    <select name="unit_id" id="issue_unit_id_auto-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-lg">
+                                        @foreach ($sameDimension as $unit)
+                                            <option value="{{ $unit->id }}" @selected((int) old('unit_id', $baseUnit?->id) === $unit->id)>{{ $unit->code }}</option>
                                         @endforeach
                                     </select>
                                 </div>
+                                <details class="sm:col-span-3 rounded-lg border border-border bg-surface-alt px-3 py-2" @if ($errors->any()) open @endif>
+                                    <summary class="cursor-pointer text-xs font-semibold text-ink-muted">{{ __('requisitions.more_options') }}</summary>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
                                 <div class="sm:col-span-2">
                                     <label class="block text-xs font-medium mb-1" for="issue_remark_auto-{{ $line->id }}">{{ __('requisitions.field_issue_remark') }}</label>
                                     <input type="text" name="remark" id="issue_remark_auto-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
@@ -202,11 +233,13 @@
                                     <input type="number" name="overage_approved_by" id="overage_approved_by_auto-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
                                            placeholder="{{ __('requisitions.field_overage_approver_hint') }}">
                                 </div>
+                                    </div>
+                                </details>
 
                                 @include('requisitions.partials.receiver-signature', ['requisition' => $requisition, 'line' => $line, 'formPrefix' => 'auto-'.$line->id])
 
                                 <div class="sm:col-span-3">
-                                    <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5">
+                                    <button type="submit" class="rounded-lg bg-success hover:bg-success-ink text-white text-base font-bold px-6 py-3 shadow-md focus:outline-none focus:ring-4 focus:ring-success-soft">
                                         {{ __('requisitions.record_issue_auto') }}
                                     </button>
                                 </div>
@@ -318,14 +351,13 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium mb-1" for="qty_issued-{{ $line->id }}">{{ __('requisitions.field_qty_issued') }}</label>
-                            <input type="text" name="qty_issued" id="qty_issued-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            <input type="text" name="qty_issued" id="qty_issued-{{ $line->id }}" value="{{ old('qty_issued', $fmt($need)) }}" inputmode="decimal" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                         </div>
                         <div>
                             <label class="block text-xs font-medium mb-1" for="issue_unit_id-{{ $line->id }}">{{ __('requisitions.field_unit') }}</label>
                             <select name="unit_id" id="issue_unit_id-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-                                <option value="">{{ __('items.select_placeholder') }}</option>
-                                @foreach ($units as $unit)
-                                    <option value="{{ $unit->id }}" @selected($unit->id === $line->unit_id)>{{ $unit->code }}</option>
+                                @foreach ($sameDimension as $unit)
+                                    <option value="{{ $unit->id }}" @selected((int) old('unit_id', $baseUnit?->id) === $unit->id)>{{ $unit->code }}</option>
                                 @endforeach
                             </select>
                         </div>

@@ -269,3 +269,31 @@ test('user-requested 2026-09-23: the issue page shows both the auto and manual m
         ->assertSee(__('requisitions.issue_mode_manual'))
         ->assertSee(__('requisitions.field_qty_issued_total'));
 });
+
+test('the issue page shows the quantity to dispense in big tiles and prefills the form with it', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '120.000000');
+    $line = $requisition->items->first();
+    stockedContainer($line->item_id, '50.000000', $staff)->update(['location_id' => makeLocationForLab(\App\Models\Lab::findOrFail($requisition->lab_id))->id]);
+    $line->update(['qty_issued_base' => '20.000000']);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+
+    $page = $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))->assertOk();
+    $page->assertSee(__('requisitions.tile_requested'))->assertSee(__('requisitions.tile_issued'))->assertSee(__('requisitions.tile_to_issue'))
+        ->assertSee('120')->assertSee('100')                      // asked 120, issued 20 -> 100 still to dispense
+        ->assertSee('value="100"', false)                         // the dispense form is prefilled with what is still owed
+        ->assertSee(__('requisitions.issue_progress', ['done' => 0, 'total' => 1]))
+        ->assertSee(__('requisitions.stock_short'));              // only 50 g available against 100 g to dispense
+});
+
+test('a fully dispensed line shows nothing left to issue', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '20.000000');
+    $line = $requisition->items->first();
+    $line->update(['qty_issued_base' => '20.000000']);
+    $requisition->update(['status' => 'ISSUED']);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))->assertOk()
+        ->assertSee(__('requisitions.issue_progress', ['done' => 1, 'total' => 1]));
+});

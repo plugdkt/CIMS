@@ -261,5 +261,5 @@ test('user-requested 2026-09-23: the reduced approved quantity is visible on the
     $dispenser = scientistUser(['lab_id' => $requisition->lab_id]);
     $this->actingAs($dispenser)->get(route('requisitions.issue.create', $requisition))
         ->assertOk()
-        ->assertSee(__('requisitions.field_qty_approved'));
+        ->assertSee(__('requisitions.tile_approved'));
 });
