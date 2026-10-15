@@ -11,7 +11,11 @@ use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-/** FR-RQ-01: requisition.view_all sees every requisition; requisition.view_own is scoped to one's own (as requester or advisor). */
+/**
+ * "ใบเบิกของฉัน" — the requester's side: only requisitions the user filed, plus those they
+ * advise (so an advisor finds what is waiting on them). The warehouse side (everything in the
+ * branch, to approve and dispense) is {@see RequisitionManageTable}.
+ */
 #[Layout('components.layout')]
 final class RequisitionTable extends Component
 {
@@ -29,24 +33,9 @@ final class RequisitionTable extends Component
 
         $query = Requisition::with(['lab', 'requester'])->orderByDesc('id');
 
-        if (! $user->can('requisition.view_all')) {
-            // Mirrors RequisitionPolicy::view() — a dispenser (requisition.issue, i.e.
-            // SCIENTIST) has no view_all but must still find the requisitions waiting on
-            // them, otherwise the issue page is unreachable from anywhere in the UI.
-            // Scoped to their own branch, matching RequisitionPolicy::sharesBranch().
-            $dispensesFor = $user->can('requisition.issue') ? $user->lab_id : null;
-
-            $query->where(function ($q) use ($user, $dispensesFor) {
-                $q->where('requester_id', $user->id)->orWhere('advisor_id', $user->id);
-
-                if ($dispensesFor !== null) {
-                    $q->orWhere(fn ($q2) => $q2->where('lab_id', $dispensesFor)
-                        ->whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED']));
-                }
-            });
-        } elseif ($user->isBranchManager()) {
-            $query->where('lab_id', $user->lab_id);
-        }
+        $query->where(function ($q) use ($user) {
+            $q->where('requester_id', $user->id)->orWhere('advisor_id', $user->id);
+        });
 
         return view('livewire.requisitions.requisition-table', [
             'requisitions' => $query->paginate(20),

@@ -197,6 +197,7 @@ Route::middleware('auth')->prefix('shop')->name('shop.')->group(function () {
 // FR-RQ-01..05 — authorization enforced per-action inside the controllers/RequisitionPolicy.
 Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(function () {
     Route::get('/', \App\Livewire\Requisitions\RequisitionTable::class)->name('index');
+    Route::get('/manage', \App\Livewire\Requisitions\RequisitionManageTable::class)->name('manage');
     Route::get('/create', [RequisitionController::class, 'create'])->name('create');
     Route::post('/', [RequisitionController::class, 'store'])->name('store');
     Route::get('/items/search', [RequisitionController::class, 'itemSearch'])->name('items.search');

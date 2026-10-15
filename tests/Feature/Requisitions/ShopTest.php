@@ -223,3 +223,21 @@ test('the product page 404s for an item the branch cannot hand out, and is close
     $roleless = User::factory()->create(['lab_id' => $this->lab->id]);
     $this->actingAs($roleless)->get(route('shop.show', $empty->ulid))->assertForbidden();
 });
+
+test('the shelf has one tab per item type with a count, and a tab narrows the list', function () {
+    $chemical = makeItem(['name_th' => 'สารเคมีในแท็บ']);
+    $media = makeItem(['name_th' => 'อาหารเลี้ยงเชื้อในแท็บ', 'category_id' => \App\Models\ItemCategory::where('code', '!=', 'CHEMICAL')->where('is_chemical', true)->firstOrFail()->id]);
+    ($this->imsLot)($chemical, '500');
+    ($this->imsLot)($media, '500');
+    $mediaCategory = $media->category;
+
+    $all = $this->actingAs($this->shopper)->get(route('shop.index'))->assertOk();
+    $all->assertSee('สารเคมีในแท็บ')->assertSee('อาหารเลี้ยงเชื้อในแท็บ')->assertSee($mediaCategory->name_th)->assertSee('(2)');
+
+    $this->actingAs($this->shopper)->get(route('shop.index', ['category' => $mediaCategory->id]))->assertOk()
+        ->assertSee('อาหารเลี้ยงเชื้อในแท็บ')->assertDontSee('สารเคมีในแท็บ');
+
+    // Searching keeps the chosen tab (hidden field) and the counts follow the search.
+    $this->actingAs($this->shopper)->get(route('shop.index', ['category' => $mediaCategory->id, 'search' => 'ไม่มีชื่อนี้']))->assertOk()
+        ->assertDontSee('อาหารเลี้ยงเชื้อในแท็บ')->assertSee('name="category" value="'.$mediaCategory->id.'"', false);
+});

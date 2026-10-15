@@ -48,16 +48,24 @@ final class ShopController extends Controller
         $search = trim((string) $request->query('search', ''));
         $categoryId = $request->filled('category') ? (int) $request->query('category') : null;
 
-        $items = $availability->shelf($labId)
-            ->with(['baseUnit', 'category'])
-            ->when($categoryId !== null, fn ($q) => $q->where('category_id', $categoryId))
-            ->when($search !== '', function ($q) use ($search) {
+        $matchesSearch = function ($q) use ($search) {
+            $q->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where('name_th', 'like', "%{$search}%")
                         ->orWhere('name_en', 'like', "%{$search}%")
                         ->orWhere('item_code', 'like', "%{$search}%");
                 });
-            })
+            });
+        };
+
+        // How many shelf items each type tab holds (for the current search), so empty types don't clutter the tab bar.
+        $counts = $availability->shelf($labId)->tap($matchesSearch)
+            ->selectRaw('category_id, count(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
+
+        $items = $availability->shelf($labId)
+            ->with(['baseUnit', 'category'])
+            ->when($categoryId !== null, fn ($q) => $q->where('category_id', $categoryId))
+            ->tap($matchesSearch)
             ->orderBy('name_th')
             ->paginate(24)
             ->withQueryString();
@@ -77,6 +85,7 @@ final class ShopController extends Controller
             'photos' => $photos,
             'units' => Unit::orderBy('sort_order')->get()->groupBy('dimension'),
             'categories' => ItemCategory::orderBy('id')->get(),
+            'counts' => $counts,
             'search' => $search,
             'categoryId' => $categoryId,
             'cartCount' => count($this->cart()),

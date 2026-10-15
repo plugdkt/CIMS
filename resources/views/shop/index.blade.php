@@ -21,17 +21,29 @@
         <div class="mb-4 rounded-lg bg-danger-soft text-danger-ink text-sm px-4 py-3">{{ $message }}</div>
     @enderror
 
+    {{-- One tab per item type that has something on the shelf --}}
+    <nav class="flex gap-1 border-b border-border mb-4 overflow-x-auto" tabindex="0" aria-label="{{ __('shop.tabs_label') }}">
+        @php $allActive = $categoryId === null; @endphp
+        <a href="{{ route('shop.index', array_filter(['search' => $search])) }}"
+           @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 whitespace-nowrap', 'border-accent text-accent' => $allActive, 'border-transparent text-ink-muted hover:text-ink' => ! $allActive])
+           @if ($allActive) aria-current="page" @endif>{{ __('shop.all_categories') }} <span class="text-xs font-normal">({{ $counts->sum() }})</span></a>
+        @foreach ($categories as $category)
+            @if (($counts[$category->id] ?? 0) > 0 || $categoryId === $category->id)
+                @php $active = $categoryId === $category->id; @endphp
+                <a href="{{ route('shop.index', array_filter(['category' => $category->id, 'search' => $search])) }}"
+                   @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 whitespace-nowrap', 'border-accent text-accent' => $active, 'border-transparent text-ink-muted hover:text-ink' => ! $active])
+                   @if ($active) aria-current="page" @endif>{{ $category->name_th }} <span class="text-xs font-normal">({{ $counts[$category->id] ?? 0 }})</span></a>
+            @endif
+        @endforeach
+    </nav>
+
     <form method="GET" action="{{ route('shop.index') }}" class="flex flex-wrap items-center gap-3 mb-5">
+        @if ($categoryId !== null)
+            <input type="hidden" name="category" value="{{ $categoryId }}">
+        @endif
         <label for="search" class="sr-only">{{ __('shop.search_placeholder') }}</label>
         <input id="search" name="search" type="search" value="{{ $search }}" placeholder="{{ __('shop.search_placeholder') }}"
                class="w-full sm:w-80 rounded-lg border border-border px-3 py-2 text-sm">
-        <label for="category" class="sr-only">{{ __('ims.col_category') }}</label>
-        <select id="category" name="category" class="rounded-lg border border-border px-3 py-2 text-sm">
-            <option value="">{{ __('shop.all_categories') }}</option>
-            @foreach ($categories as $category)
-                <option value="{{ $category->id }}" @selected($categoryId === $category->id)>{{ $category->name_th }}</option>
-            @endforeach
-        </select>
         <button type="submit" class="rounded-lg border border-border text-sm font-semibold px-4 py-2 hover:bg-surface-alt">{{ __('shop.btn_search') }}</button>
     </form>
 

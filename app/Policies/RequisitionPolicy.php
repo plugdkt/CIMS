@@ -21,6 +21,13 @@ final class RequisitionPolicy extends Policy
             || $this->hasPermission($user, 'requisition.view_all');
     }
 
+    /** The warehouse side ("จัดการใบเบิก"): managers who see every requisition, and dispensers. */
+    public function manage(User $user): bool
+    {
+        return $this->hasPermission($user, 'requisition.view_all')
+            || $this->hasPermission($user, 'requisition.issue');
+    }
+
     public function view(User $user, Requisition $requisition): bool
     {
         if ($this->hasPermission($user, 'requisition.view_all')) {

@@ -5,7 +5,7 @@
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <a href="{{ route('requisitions.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
+        <a href="{{ auth()->user()->can('manage', \App\Models\Requisition::class) ? route('requisitions.manage') : route('requisitions.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
             <div class="text-xs text-ink-muted">{{ __('home.pending_requisitions') }}</div>
             <div class="font-display text-2xl font-bold mt-1">{{ $pendingRequisitions }}</div>
         </a>

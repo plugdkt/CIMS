@@ -34,7 +34,7 @@ test('an APPROVED requisition awaiting issuance appears in the SCIENTIST\'s requ
     $requisition = approvedRequisition($student);
     $scientist = dispenserFor($lab);
 
-    $this->actingAs($scientist)->get(route('requisitions.index'))
+    $this->actingAs($scientist)->get(route('requisitions.manage'))
         ->assertOk()
         ->assertSee($requisition->doc_no);
 });
@@ -55,7 +55,7 @@ test('the dispensing exception does not leak requisitions still awaiting a decis
 
     $this->actingAs($scientist)->get(route('requisitions.show', $submitted))->assertStatus(403);
 
-    $this->actingAs($scientist)->get(route('requisitions.index'))
+    $this->actingAs($scientist)->get(route('requisitions.manage'))
         ->assertOk()
         ->assertDontSee('REQ-2569-90001');
 });
@@ -68,7 +68,7 @@ test('branch scoping: a SCIENTIST cannot see or open another branch\'s APPROVED 
 
     $this->actingAs($otherScientist)->get(route('requisitions.show', $requisition))->assertStatus(403);
 
-    $this->actingAs($otherScientist)->get(route('requisitions.index'))
+    $this->actingAs($otherScientist)->get(route('requisitions.manage'))
         ->assertOk()
         ->assertDontSee('REQ-2569-90002');
 });
