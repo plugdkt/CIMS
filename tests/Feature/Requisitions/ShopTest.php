@@ -193,3 +193,33 @@ test('a bad receiver signature never cuts stock out of IMS', function () {
 
     expect((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0);
 });
+
+test('the product page shows what the item is, where each bit sits and when it expires, with no prices', function () {
+    $item = makeItem(['name_th' => 'สารหน้ารายละเอียด', 'name_en' => 'Detail Chemical', 'cas_no' => '64-17-5', 'specification' => 'AR grade ขวดแก้ว']);
+    $lot = ($this->imsLot)($item, '1000');
+    $lot->update(['lot_no' => 'LOT-XY', 'expiry_date' => '2571-02-01', 'pack_size_base' => '500']);
+    $lot->groups()->create(['pack_count' => '1', 'location_id' => $lot->location_id, 'expiry_date' => '2570-12-01']);
+    $bottle = stockedContainer($item->id, '100.000000', $this->shopper);
+    $bottle->update(['location_id' => $this->location->id, 'expiry_date' => '2571-05-05']);
+
+    $page = $this->actingAs($this->shopper)->get(route('shop.show', $item->ulid))->assertOk();
+    $page->assertSee('สารหน้ารายละเอียด')->assertSee('Detail Chemical')->assertSee('64-17-5')->assertSee('AR grade')
+        ->assertSee('LOT-XY')->assertSee('01/12/2570')->assertSee('01/02/2571')->assertSee('05/05/2571')
+        ->assertSee('1100 g')->assertSee($this->location->name)
+        ->assertDontSee('100.00')->assertSee(route('shop.cart.add'), false);
+
+    // The shelf links to it.
+    $this->actingAs($this->shopper)->get(route('shop.index'))->assertSee(route('shop.show', $item->ulid), false);
+});
+
+test('the product page 404s for an item the branch cannot hand out, and is closed to roleless users', function () {
+    $empty = makeItem();
+    $otherBranch = makeItem();
+    ($this->imsLot)($otherBranch, '1000', $this->otherLab->id);
+
+    $this->actingAs($this->shopper)->get(route('shop.show', $empty->ulid))->assertNotFound();
+    $this->actingAs($this->shopper)->get(route('shop.show', $otherBranch->ulid))->assertNotFound();
+
+    $roleless = User::factory()->create(['lab_id' => $this->lab->id]);
+    $this->actingAs($roleless)->get(route('shop.show', $empty->ulid))->assertForbidden();
+});

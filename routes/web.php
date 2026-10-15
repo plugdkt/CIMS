@@ -186,6 +186,7 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
 // "Shopping" requisition: browse stock, fill a cart, check out into a normal requisition.
 Route::middleware('auth')->prefix('shop')->name('shop.')->group(function () {
     Route::get('/', [\App\Http\Controllers\ShopController::class, 'index'])->name('index');
+    Route::get('/item/{item}', [\App\Http\Controllers\ShopController::class, 'show'])->name('show');
     Route::get('/cart', [\App\Http\Controllers\ShopController::class, 'cartPage'])->name('cart');
     Route::post('/cart', [\App\Http\Controllers\ShopController::class, 'add'])->name('cart.add');
     Route::put('/cart/{item}', [\App\Http\Controllers\ShopController::class, 'update'])->name('cart.update');

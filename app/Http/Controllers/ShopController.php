@@ -13,6 +13,7 @@ use App\Http\Requests\ShopCartAddRequest;
 use App\Http\Requests\ShopCartUpdateRequest;
 use App\Http\Requests\ShopCheckoutRequest;
 use App\Http\Requests\ShopIndexRequest;
+use App\Http\Requests\ShopShowRequest;
 use App\Models\Item;
 use App\Models\ItemCategory;
 use App\Models\Requisition;
@@ -78,6 +79,64 @@ final class ShopController extends Controller
             'categories' => ItemCategory::orderBy('id')->get(),
             'search' => $search,
             'categoryId' => $categoryId,
+            'cartCount' => count($this->cart()),
+        ]);
+    }
+
+    /** Product page: photos, what the item is, how much the branch can hand out and where each bit sits and when it expires. */
+    public function show(ShopShowRequest $request, Item $item, ShopAvailability $availability): View|RedirectResponse
+    {
+        if ($gate = $this->gate()) {
+            return $gate;
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+        $labId = (int) $user->lab_id;
+        $stock = $availability->forItem($item, $labId);
+        abort_unless($item->is_active && bccomp($stock['total'], '0', 6) > 0, 404);
+
+        $item->load(['baseUnit', 'category']);
+
+        $lots = \App\Models\ImsLot::with(['photos', 'location', 'groups.location'])
+            ->where('item_id', $item->id)->where('lab_id', $labId)
+            ->where('qty_remaining_base', '>', 0)
+            ->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString()))
+            ->orderByRaw('expiry_date is null')->orderBy('expiry_date')->orderBy('id')
+            ->get();
+
+        $photos = [];
+        foreach ($lots as $lot) {
+            foreach ($lot->photos as $photo) {
+                $photos[] = route('ims.lots.photos.show', [$lot, $photo]);
+            }
+        }
+
+        // Working-stock bottles grouped by place and expiry date.
+        $bottles = \App\Models\Container::with('location')
+            ->where('item_id', $item->id)
+            ->whereIn('status', ['SEALED', 'IN_USE'])
+            ->where('remaining_qty_base', '>', 0)
+            ->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString()))
+            ->whereHas('location', fn ($q) => $q->where('lab_id', $labId))
+            ->get()
+            ->groupBy(fn ($c) => $c->location_id.'|'.($c->expiry_date?->toDateString() ?? ''))
+            ->map(fn ($group) => [
+                'location' => $group->first()?->location?->name,
+                'expiry' => $group->first()?->expiry_date,
+                'count' => $group->count(),
+                'qty' => $group->reduce(fn (string $carry, $c) => bcadd($carry, $c->remaining_qty_base, 6), '0'),
+            ])
+            ->sortBy(fn ($row) => $row['expiry']->timestamp ?? PHP_INT_MAX)
+            ->values();
+
+        return view('shop.show', [
+            'item' => $item,
+            'stock' => $stock,
+            'photos' => $photos,
+            'lots' => $lots,
+            'bottles' => $bottles,
+            'options' => Unit::where('dimension', $item->baseUnit?->dimension)->orderBy('sort_order')->get(),
             'cartCount' => count($this->cart()),
         ]);
     }

@@ -46,16 +46,16 @@
                     $options = $units->get($item->baseUnit?->dimension, collect());
                 @endphp
                 <div class="flex flex-col bg-surface border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
-                    <div class="h-36 bg-surface-alt flex items-center justify-center">
+                    <a href="{{ route('shop.show', $item->ulid) }}" class="block h-36 bg-surface-alt flex items-center justify-center" aria-label="{{ $item->name_th }}">
                         @if (isset($photos[$item->id]))
                             <img src="{{ $photos[$item->id] }}" alt="{{ $item->name_th }}" loading="lazy" class="w-full h-full object-cover">
                         @else
                             <svg class="w-12 h-12 text-ink-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3h6M10 3v5.2L5.5 17a2.5 2.5 0 0 0 2.2 3.7h8.6a2.5 2.5 0 0 0 2.2-3.7L14 8.2V3"/></svg>
                         @endif
-                    </div>
+                    </a>
                     <div class="p-4 flex flex-col gap-2 grow">
                         <div>
-                            <div class="font-semibold leading-snug">{{ $item->name_th }}</div>
+                            <a href="{{ route('shop.show', $item->ulid) }}" class="font-semibold leading-snug hover:text-accent">{{ $item->name_th }}</a>
                             <div class="text-xs text-ink-faint font-mono mt-0.5">{{ $item->item_code }}@if ($item->category) · {{ $item->category->name_th }}@endif</div>
                         </div>
                         <div class="text-sm">
