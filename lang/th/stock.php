@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'index_title' => 'Working Stock',
+    'index_title' => 'คลังใช้งาน (Working Stock)',
     'index_subtitle' => 'รายการภาชนะที่มีอยู่จริงในสาขาวิชาของคุณ พร้อมยอดคงเหลือและสถานที่จัดเก็บ',
     'search_placeholder' => 'ค้นหาด้วยชื่อสารเคมี, รหัสสาร, หรือยิงบาร์โค้ด...',
     'filter_location' => 'สถานที่จัดเก็บ',

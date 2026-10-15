@@ -37,16 +37,16 @@
             <div class="text-xs font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1">
                 {{ __('nav.group_inventory') }}
             </div>
-            @can('viewAny', App\Models\Container::class)
-                <x-nav-link route="{{ route('stock-in.index') }}" :active="request()->routeIs('stock-in.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0 4-4m-4 4-4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></x-slot:icon>
-                    {{ __('nav.stock_in') }}
-                </x-nav-link>
-            @endcan
             @can('viewAny', App\Models\ImsLot::class)
                 <x-nav-link route="{{ route('ims.lots.index') }}" :active="request()->routeIs('ims.*')">
                     <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M3 7.5V17l9 4 9-4V7.5M3 7.5l9 4.5m9-4.5-9 4.5m0 0V21"/></svg></x-slot:icon>
                     {{ __('nav.ims_lots') }}
+                </x-nav-link>
+            @endcan
+            @can('viewAny', App\Models\Container::class)
+                <x-nav-link route="{{ route('stock-in.index') }}" :active="request()->routeIs('stock-in.*')">
+                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0 4-4m-4 4-4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></x-slot:icon>
+                    {{ __('nav.stock_in') }}
                 </x-nav-link>
             @endcan
             @can('viewAny', App\Models\Requisition::class)

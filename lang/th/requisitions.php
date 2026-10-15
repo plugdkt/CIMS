@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'index_title' => 'ใบขอเบิก',
+    'index_title' => 'เบิกสารเคมี/วัสดุ',
     'index_subtitle' => 'ขอเบิกสารเคมี/วัสดุสิ้นเปลืองเพื่อใช้งาน',
     'new_requisition' => 'สร้างใบขอเบิก',
     'back_to_list' => 'กลับไปยังรายการ',

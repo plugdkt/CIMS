@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'index_title' => 'ปรับปรุงยอด',
+    'index_title' => 'ปรับยอดคงเหลือ',
     'index_subtitle' => 'ประวัติการปรับปรุงยอดคงเหลือ (ADJUST_IN/ADJUST_OUT) พร้อมผู้สร้างและผู้อนุมัติ',
     'new_adjustment' => 'ปรับปรุงยอด',
     'back_to_list' => 'กลับไปยังรายการ',

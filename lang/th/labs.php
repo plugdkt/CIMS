@@ -30,7 +30,7 @@ return [
     ],
 
     // Branch-manager member whitelist (lab.manage_members)
-    'members_title' => 'จัดการสมาชิกสาขาวิชา',
+    'members_title' => 'จัดการสมาชิกสาขา',
     'members_subtitle' => 'กำหนดว่านิสิต/บุคลากรคนใดสามารถเบิกของจากสาขาวิชา :lab ได้',
     'members_no_own_lab' => 'บัญชีของคุณยังไม่ได้ถูกกำหนดสาขาวิชา จึงยังไม่มีสาขาวิชาให้จัดการสมาชิก',
     'members_search_placeholder' => 'ค้นหาชื่อ / username / อีเมล',

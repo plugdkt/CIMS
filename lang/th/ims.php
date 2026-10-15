@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'nav_receipts' => 'เอกสารรับเข้า IMS',
+    'nav_receipts' => 'นำเข้าวัสดุและสารเคมี',
     'nav_lots' => 'คลัง IMS',
 
     'location_label' => 'สถานที่จัดเก็บ',
@@ -41,11 +41,11 @@ return [
     'photo_uploaded' => 'อัปโหลดรูปภาพแล้ว',
     'tabs_label' => 'เมนูย่อยคลัง IMS',
     'tab_lots' => 'สินค้าในคลัง',
-    'tab_receipts' => 'เอกสารรับเข้า',
-    'receipts_title' => 'เอกสารรับเข้าคลัง IMS',
+    'tab_receipts' => 'นำเข้าวัสดุและสารเคมี',
+    'receipts_title' => 'นำเข้าวัสดุและสารเคมี',
     'receipts_subtitle' => 'เอกสารจัดซื้อที่พิมพ์จากระบบคลังของมหาวิทยาลัย — ตรวจความถูกต้องแล้วกดยืนยันเข้าคลัง IMS',
-    'new_receipt' => 'เพิ่มเอกสารรับเข้า',
-    'no_receipts' => 'ยังไม่มีเอกสารรับเข้า',
+    'new_receipt' => 'เพิ่มการนำเข้า',
+    'no_receipts' => 'ยังไม่มีรายการนำเข้า',
 
     'col_doc_no' => 'เลขที่เอกสาร',
     'col_fiscal_year' => 'ปีงบประมาณ',
@@ -59,7 +59,7 @@ return [
     'status_confirmed' => 'ยืนยันแล้ว',
     'status_cancelled' => 'ยกเลิก',
 
-    'create_title' => 'เพิ่มเอกสารรับเข้า IMS',
+    'create_title' => 'เพิ่มการนำเข้าวัสดุและสารเคมี',
     'field_doc_no' => 'เลขที่เอกสารจากระบบมหาวิทยาลัย',
     'field_fiscal_year' => 'ปีงบประมาณ (พ.ศ.)',
     'field_round' => 'รอบจัดซื้อ',
@@ -67,7 +67,7 @@ return [
     'btn_create' => 'สร้างเอกสารร่าง',
     'back' => 'กลับ',
 
-    'show_title' => 'เอกสารรับเข้า',
+    'show_title' => 'นำเข้าวัสดุและสารเคมี เลขที่',
     'lines_title' => 'รายการสารเคมี',
     'no_lines' => 'ยังไม่มีรายการ',
     'col_item_code' => 'รหัสสินค้า',
