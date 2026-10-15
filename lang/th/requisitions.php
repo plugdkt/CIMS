@@ -117,6 +117,7 @@ return [
     'field_overage_approver' => 'รหัสผู้อนุมัติ (หัวหน้าสาขาวิชาหรือผู้ดูแลคลัง)',
     'field_overage_approver_hint' => 'จำเป็นถ้าจ่ายเกิน 10% จากที่ขอ (BR-04)',
     'record_issue' => 'บันทึกการจ่าย',
+    'auto_cut_hint' => 'ถ้าของในคลังใช้งานไม่พอ ระบบจะตัดส่วนที่ขาดจากคลังกลางสาขา (IMS) เข้าคลังใช้งานให้อัตโนมัติเป็นขวดเต็ม ตอนกดจ่าย',
     'issue_recorded' => 'บันทึกการจ่ายเรียบร้อยแล้ว',
 
     // User-requested 2026-09-23: auto-allocate one total quantity across several FEFO

@@ -124,7 +124,8 @@
                                     </tbody>
                                 </table>
                             </div>
-                            <p class="text-[11px] text-ink-faint mb-3">{{ __('requisitions.auto_issue_preview_title') }}</p>
+                            <p class="text-[11px] text-ink-faint mb-1">{{ __('requisitions.auto_issue_preview_title') }}</p>
+                            <p class="text-[11px] text-ink-faint mb-3">{{ __('requisitions.auto_cut_hint') }}</p>
 
                             <form method="POST" action="{{ route('requisitions.items.issue-auto', [$requisition, $line]) }}" class="grid grid-cols-1 sm:grid-cols-3 gap-3"
                                   x-data="{

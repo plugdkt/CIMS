@@ -37,6 +37,12 @@
             <div class="text-xs font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1">
                 {{ __('nav.group_inventory') }}
             </div>
+            @can('create', App\Models\Requisition::class)
+                <x-nav-link route="{{ route('shop.index') }}" :active="request()->routeIs('shop.*')" :sub="count(session('shop.cart', [])) > 0 ? __('shop.cart').' ('.count(session('shop.cart', [])).')' : __('nav.shop_sub')">
+                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg></x-slot:icon>
+                    {{ __('nav.shop') }}
+                </x-nav-link>
+            @endcan
             @can('viewAny', App\Models\ImsLot::class)
                 <x-nav-link route="{{ route('ims.lots.index') }}" :active="request()->routeIs('ims.*')">
                     <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M3 7.5V17l9 4 9-4V7.5M3 7.5l9 4.5m9-4.5-9 4.5m0 0V21"/></svg></x-slot:icon>

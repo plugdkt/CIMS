@@ -94,6 +94,12 @@ class Item extends Model
         return $this->morphMany(Attachment::class, 'owner');
     }
 
+    /** @return HasMany<ImsLot, $this> */
+    public function imsLots(): HasMany
+    {
+        return $this->hasMany(ImsLot::class);
+    }
+
     /** @return HasMany<Container, $this> */
     public function containers(): HasMany
     {

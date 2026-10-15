@@ -9,6 +9,8 @@ return [
     'group_inventory' => 'คลังสินค้า',
     'stock_in' => 'คลังใช้งาน',
     'stock_in_sub' => 'Working Stock',
+    'shop' => 'เลือกเบิกของ',
+    'shop_sub' => 'ใส่ตะกร้า',
     'ims_lots' => 'คลังกลางสาขา (IMS)',
     'ims_receipts' => 'นำเข้าวัสดุและสารเคมี',
     'goods_receipts' => 'ใบรับของ (GRN)',

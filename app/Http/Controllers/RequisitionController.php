@@ -124,10 +124,12 @@ final class RequisitionController extends Controller
 
         $items = Item::query()
             ->where('is_active', true)
-            ->whereHas('containers', function ($query) use ($user) {
-                $query->whereIn('status', ['SEALED', 'IN_USE'])
-                    ->where('remaining_qty_base', '>', 0)
-                    ->whereHas('location', fn ($q) => $q->where('lab_id', $user->lab_id));
+            ->where(function ($stock) use ($user) {
+                $stock->whereHas('containers', function ($query) use ($user) {
+                    $query->whereIn('status', ['SEALED', 'IN_USE'])
+                        ->where('remaining_qty_base', '>', 0)
+                        ->whereHas('location', fn ($q) => $q->where('lab_id', $user->lab_id));
+                })->orWhereHas('imsLots', fn ($q) => $q->where('lab_id', $user->lab_id)->where('qty_remaining_base', '>', 0));
             })
             ->when($term !== '', function ($query) use ($term) {
                 $query->where(function ($q) use ($term) {

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
+use App\Domain\Inventory\Exceptions\ImsException;
 use App\Domain\Inventory\Services\FefoContainerSelector;
+use App\Domain\Inventory\Services\ImsService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Requisition\Exceptions\ExcessiveIssueQuantityException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
@@ -13,6 +15,7 @@ use App\Domain\Requisition\Exceptions\InvalidSignatureImageException;
 use App\Domain\Requisition\Services\IssueService;
 use App\Domain\Requisition\Services\ReceiverOtpService;
 use App\Domain\Requisition\Services\ReturnService;
+use App\Domain\Requisition\Services\ShopAvailability;
 use App\Domain\Requisition\Services\SignatureImageService;
 use App\Domain\Shared\UnitConverter;
 use App\Http\Requests\RequisitionAutoIssueRequest;
@@ -138,11 +141,12 @@ final class RequisitionIssueController extends Controller
         SignatureImageService $signatures,
         ReceiverOtpService $otp,
         UnitConverter $converter,
+        ImsService $ims,
+        ShopAvailability $availability,
     ): RedirectResponse {
         $data = $request->validated();
         $unit = Unit::whereKey($data['unit_id'])->firstOrFail();
         $item = $requisitionItem->item()->firstOrFail();
-        $containers = $selector->recommendExcludingExpired($item);
 
         /** @var User $issuer */
         $issuer = $request->user();
@@ -160,6 +164,30 @@ final class RequisitionIssueController extends Controller
         if ($signatureHash === null) {
             return back()->withErrors(['otp_code' => __('requisitions.validation.otp_code_invalid')]);
         }
+
+        // Working stock first; only what it can't cover is cut from this branch's IMS store
+        // (whole bottles, soonest-expiring lot first) — and only now, once the receiver's
+        // signature is good, so a failed OTP never moves any stock.
+        try {
+            /** @var numeric-string $neededBase */
+            $neededBase = $converter->toItemBase($item, $unit, $qtyRequested);
+            $ims->provisionWorkingStock(
+                $item,
+                $requisition->lab_id,
+                $neededBase,
+                $availability->forItem($item, $requisition->lab_id)['working'],
+                $issuer,
+                $requisition->doc_no,
+            );
+        } catch (ImsException $e) {
+            return back()->withErrors(['issue' => $e->getMessage()]);
+        }
+
+        $containers = $selector->recommendExcludingExpired($item)->filter(function (Container $c) use ($requisition) {
+            $labId = $c->location()->value('lab_id');
+
+            return $labId === null || $labId === $requisition->lab_id;
+        })->values();
 
         try {
             $transactions = $service->issueAcrossContainers(

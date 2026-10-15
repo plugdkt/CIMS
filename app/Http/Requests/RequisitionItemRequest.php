@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\Container;
+use App\Models\ImsLot;
 use App\Models\Requisition;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -58,7 +59,15 @@ final class RequisitionItemRequest extends FormRequest
                 ->whereHas('location', fn ($q) => $q->where('lab_id', $requisition->lab_id))
                 ->exists();
 
-            if (! $hasStockInOwnLab) {
+            // Stock still sitting in the branch's IMS store counts too — it is cut into working
+            // stock automatically when the requisition is dispensed.
+            $hasImsStock = ImsLot::query()
+                ->where('item_id', (int) $itemId)
+                ->where('lab_id', $requisition->lab_id)
+                ->where('qty_remaining_base', '>', 0)
+                ->exists();
+
+            if (! $hasStockInOwnLab && ! $hasImsStock) {
                 $validator->errors()->add('item_id', __('requisitions.validation.item_not_in_lab_stock'));
             }
         });

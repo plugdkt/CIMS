@@ -183,6 +183,16 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::post('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transfer'])->name('lots.transfer');
 });
 
+// "Shopping" requisition: browse stock, fill a cart, check out into a normal requisition.
+Route::middleware('auth')->prefix('shop')->name('shop.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\ShopController::class, 'index'])->name('index');
+    Route::get('/cart', [\App\Http\Controllers\ShopController::class, 'cartPage'])->name('cart');
+    Route::post('/cart', [\App\Http\Controllers\ShopController::class, 'add'])->name('cart.add');
+    Route::put('/cart/{item}', [\App\Http\Controllers\ShopController::class, 'update'])->name('cart.update');
+    Route::delete('/cart/{item}', [\App\Http\Controllers\ShopController::class, 'remove'])->name('cart.remove');
+    Route::post('/checkout', [\App\Http\Controllers\ShopController::class, 'checkout'])->name('checkout');
+});
+
 // FR-RQ-01..05 — authorization enforced per-action inside the controllers/RequisitionPolicy.
 Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(function () {
     Route::get('/', \App\Livewire\Requisitions\RequisitionTable::class)->name('index');

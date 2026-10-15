@@ -9,6 +9,7 @@ use App\Domain\Shared\UnitConverter;
 use App\Models\Container;
 use App\Models\ImsLot;
 use App\Models\ImsLotGroup;
+use App\Models\Item;
 use App\Models\ImsMovement;
 use App\Models\ImsReceipt;
 use App\Models\Location;
@@ -206,6 +207,89 @@ final class ImsService
             ]);
 
             return $containers;
+        }, 3);
+    }
+
+    /**
+     * Makes sure a branch's working stock can cover `$neededBase` for an item, by cutting the
+     * shortfall from IMS lots (soonest-expiring first, expired lots never) into whole packs — the
+     * physical bottle is what gets handed over, and what is left of it stays in working stock.
+     * A lot with no recorded pack size is cut as one bulk quantity. Nothing happens when working
+     * stock already covers the need. Returns the new working-stock containers.
+     *
+     * @param  numeric-string  $neededBase  the total the dispenser is about to take, in the item's base unit
+     * @param  numeric-string  $workingBase  what the branch's usable working stock already holds
+     * @return list<Container>
+     */
+    public function provisionWorkingStock(Item $item, int $labId, string $neededBase, string $workingBase, User $user, string $refDocNo): array
+    {
+        $short = bcsub($neededBase, $workingBase, self::SCALE);
+        if (bccomp($short, '0', self::SCALE) <= 0) {
+            return [];
+        }
+
+        $baseUnit = $item->baseUnit()->first();
+        if ($baseUnit === null) {
+            throw new ImsException(__('ims.error.no_base_unit'));
+        }
+
+        return DB::transaction(function () use ($item, $labId, $short, $user, $refDocNo, $baseUnit) {
+            $lots = ImsLot::where('item_id', $item->id)
+                ->where('lab_id', $labId)
+                ->where('qty_remaining_base', '>', 0)
+                ->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString()))
+                ->orderByRaw('expiry_date is null')
+                ->orderBy('expiry_date')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            /** @var list<Container> $created */
+            $created = [];
+            $left = $short;
+
+            foreach ($lots as $lot) {
+                if (bccomp($left, '0', self::SCALE) <= 0) {
+                    break;
+                }
+
+                $location = $lot->location_id !== null ? Location::find($lot->location_id) : null;
+                if ($location === null) {
+                    throw new ImsException(__('ims.error.lot_needs_location', ['lot' => $lot->lot_no ?: $item->item_code]));
+                }
+
+                /** @var numeric-string $remaining */
+                $remaining = $lot->qty_remaining_base;
+                $packSize = $lot->pack_size_base;
+
+                if ($packSize === null || bccomp($packSize, '0', self::SCALE) <= 0) {
+                    $take = bccomp($remaining, $left, self::SCALE) < 0 ? $remaining : $left;
+                    $created = array_merge($created, $this->transferToWorkingStock($lot, $user, $baseUnit, $location, 'BULK', $take, null, null, $refDocNo, __('ims.auto_cut_remark')));
+                    $left = bcsub($left, $take, self::SCALE);
+
+                    continue;
+                }
+
+                // Whole packs first; a last part-pack (what is left over in the lot) can be cut too.
+                $packsNeeded = (int) ceil((float) bcdiv($left, $packSize, 6));
+                $packsAvailable = (int) bcdiv($remaining, $packSize, 0);
+                $packs = min($packsNeeded, $packsAvailable);
+
+                if ($packs > 0) {
+                    $created = array_merge($created, $this->transferToWorkingStock($lot, $user, $baseUnit, $location, 'CONTAINER', null, $packs, $packSize, $refDocNo, __('ims.auto_cut_remark')));
+                    $left = bcsub($left, bcmul($packSize, (string) $packs, self::SCALE), self::SCALE);
+                }
+
+                $lot->refresh();
+                /** @var numeric-string $afterRemaining */
+                $afterRemaining = $lot->qty_remaining_base;
+                if (bccomp($left, '0', self::SCALE) > 0 && bccomp($afterRemaining, '0', self::SCALE) > 0 && bccomp($afterRemaining, $packSize, self::SCALE) < 0) {
+                    $created = array_merge($created, $this->transferToWorkingStock($lot, $user, $baseUnit, $location, 'CONTAINER', null, 1, $afterRemaining, $refDocNo, __('ims.auto_cut_remark')));
+                    $left = bcsub($left, $afterRemaining, self::SCALE);
+                }
+            }
+
+            return $created;
         }, 3);
     }
 
