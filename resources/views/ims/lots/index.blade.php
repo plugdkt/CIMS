@@ -45,8 +45,7 @@
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_item') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_lot') }}</th>
                         <th class="px-4 py-3 font-semibold">{{ __('ims.col_location') }}</th>
-                        <th class="px-4 py-3 font-semibold">{{ __('ims.col_expiry') }}</th>
-                        <th class="px-4 py-3 font-semibold text-right">{{ __('ims.col_remaining') }}</th>
+                        <th class="px-4 py-3 font-semibold text-right">{{ __('ims.col_packs_x_size') }}</th>
                         <th class="px-4 py-3 font-semibold"></th>
                     </tr>
                 </thead>
@@ -64,8 +63,18 @@
                             <td class="px-4 py-3">{{ $lot->item?->name_th }}</td>
                             <td class="px-4 py-3">{{ $lot->lot_no ?: '—' }}</td>
                             <td class="px-4 py-3">{{ $lot->location?->name ?: '—' }}</td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $lot->expiry_date?->format('d/m/Y') ?: '—' }}</td>
-                            <td class="px-4 py-3 text-right font-mono font-semibold">{{ rtrim(rtrim((string) $lot->qty_remaining_base, '0'), '.') ?: '0' }} {{ $unit }}</td>
+                            <td class="px-4 py-3 text-right font-mono">
+                                @php
+                                    $packs = $lot->packsRemaining();
+                                    $baseText = (rtrim(rtrim((string) $lot->qty_remaining_base, '0'), '.') ?: '0').' '.$unit;
+                                @endphp
+                                @if ($packs !== null)
+                                    <span class="font-semibold">{{ rtrim(rtrim($packs, '0'), '.') ?: '0' }} {{ $lot->item?->packagingWord() }} × {{ rtrim(rtrim((string) $lot->pack_size_base, '0'), '.') }} {{ $unit }}</span>
+                                    <span class="block text-xs text-ink-faint">{{ __('ims.total_label') }} {{ $baseText }}</span>
+                                @else
+                                    <span class="font-semibold">{{ $baseText }}</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap">
                                 @can('view', $lot)
                                     <a href="{{ route('ims.lots.edit', $lot) }}" class="text-xs font-semibold text-accent hover:text-accent-strong mr-3">
@@ -81,7 +90,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-4 py-8 text-center text-ink-muted text-sm">{{ __('ims.no_lots') }}</td>
+                            <td colspan="7" class="px-4 py-8 text-center text-ink-muted text-sm">{{ __('ims.no_lots') }}</td>
                         </tr>
                     @endforelse
                 </tbody>

@@ -432,3 +432,113 @@ function tinyPng(string $name): UploadedFile
 {
     return UploadedFile::fake()->createWithContent($name, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
 }
+
+test('the lot list shows the remaining stock in packs, with the measured quantity beneath', function () {
+    $lot = ($this->makeLot)(qty: '1000');
+    $lot->update(['pack_size_base' => '500', 'qty_remaining_base' => '750']);
+
+    expect($lot->fresh()->packsRemaining())->toBe('1.50');
+    $this->actingAs($this->manager)->get(route('ims.lots.index'))->assertOk()->assertSee('1.5 แพ็ค')->assertSee('750 g');
+
+    $lot->update(['pack_size_base' => null]);
+    expect($lot->fresh()->packsRemaining())->toBeNull();
+    $this->actingAs($this->manager)->get(route('ims.lots.index'))->assertOk()->assertDontSee('แพ็ค');
+});
+
+test('a manager edits a lot\'s extra information', function () {
+    $lot = ($this->makeLot)();
+
+    $this->actingAs($this->manager)->put(route('ims.lots.update', $lot), [
+        'lot_no' => 'LOT-B2', 'expiry_date' => '2572-06-30', 'fiscal_year' => 2570, 'purchase_round' => 'รอบ 2',
+        'unit_price' => '99.5', 'location_id' => $this->location->id,
+    ])->assertRedirect();
+
+    $lot->refresh();
+    expect($lot->lot_no)->toBe('LOT-B2')->and($lot->expiry_date?->toDateString())->toBe('2572-06-30')
+        ->and($lot->fiscal_year)->toBe(2570)->and($lot->purchase_round)->toBe('รอบ 2')
+        ->and((float) $lot->unit_price)->toEqual(99.5)->and($lot->location_id)->toBe($this->location->id);
+    // Quantity is never editable here.
+    expect((float) $lot->qty_remaining_base)->toEqual(1000.0);
+});
+
+test('a lot is split into groups of packs, each with its own place and expiry, never over the remaining packs', function () {
+    $lot = ($this->makeLot)(qty: '500');            // 500 g, pack size 500 g? -> set 5 packs x 100 g below
+    $lot->update(['pack_size_base' => '100', 'qty_received_base' => '500', 'qty_remaining_base' => '500', 'expiry_date' => '2571-01-31']);
+    $other = makeLocationForLab($this->lab);
+
+    $this->actingAs($this->manager)->post(route('ims.lots.groups.store', $lot), [
+        'pack_count' => '3', 'location_id' => $this->location->id, 'expiry_date' => '2570-12-01', 'remark' => 'ตู้ A',
+    ])->assertRedirect();
+    $this->actingAs($this->manager)->post(route('ims.lots.groups.store', $lot), [
+        'pack_count' => '2', 'location_id' => $other->id, 'expiry_date' => '2571-03-01',
+    ])->assertRedirect();
+
+    // All 5 packs are placed now: a sixth is refused.
+    $this->actingAs($this->manager)->post(route('ims.lots.groups.store', $lot), ['pack_count' => '1'])->assertSessionHasErrors('group');
+    expect($lot->fresh()->groups)->toHaveCount(2)->and($lot->fresh()->load('groups')->unplacedPacks())->toBe('0.0000');
+
+    $page = $this->actingAs($this->manager)->get(route('ims.lots.edit', $lot))->assertOk();
+    $page->assertSee('3')->assertSee('01/12/2570')->assertSee('ตู้ A')->assertSee('100 g');
+
+    // Edit one down, delete the other.
+    [$a, $b] = $lot->fresh()->groups;
+    $this->actingAs($this->manager)->put(route('ims.lots.groups.update', [$lot, $a]), ['pack_count' => '1'])->assertRedirect();
+    expect((float) $a->fresh()->pack_count)->toEqual(1.0);
+    $this->actingAs($this->manager)->delete(route('ims.lots.groups.destroy', [$lot, $b]))->assertRedirect();
+    expect($lot->fresh()->groups)->toHaveCount(1);
+
+    // A place in another branch is refused.
+    $this->actingAs($this->manager)->post(route('ims.lots.groups.store', $lot), ['pack_count' => '1', 'location_id' => $this->otherLocation->id])
+        ->assertSessionHasErrors('location_id');
+});
+
+test('transferring from a group takes its packs off the group and carries its expiry to the bottles', function () {
+    $lot = ($this->makeLot)(qty: '500');
+    $lot->update(['pack_size_base' => '100', 'expiry_date' => '2571-01-31']);
+    $group = $lot->groups()->create(['pack_count' => '3', 'location_id' => $this->location->id, 'expiry_date' => '2570-12-01']);
+
+    $this->actingAs($this->manager)->post(route('ims.lots.transfer', $lot), transferPayload([
+        'tracking_type' => 'CONTAINER', 'container_count' => 2, 'qty_per_container' => '100', 'source_group' => $group->id,
+    ]))->assertRedirect();
+
+    expect((float) $group->fresh()->pack_count)->toEqual(1.0)
+        ->and(Container::firstOrFail()->expiry_date?->toDateString())->toBe('2570-12-01')
+        ->and((float) $lot->fresh()->qty_remaining_base)->toEqual(300.0);
+});
+
+test('stock leaving a lot trims the groups so they never claim more packs than remain', function () {
+    $lot = ($this->makeLot)(qty: '500');
+    $lot->update(['pack_size_base' => '100']);
+    $lot->groups()->create(['pack_count' => '3', 'expiry_date' => '2570-12-01']);
+    $last = $lot->groups()->create(['pack_count' => '2', 'expiry_date' => '2571-03-01']);
+
+    // 3 packs leave without naming a group: only 2 remain, so the newest group is trimmed to 0 and dropped,
+    // and the older one is cut from 3 to 2.
+    $this->actingAs($this->manager)->post(route('ims.lots.transfer', $lot), transferPayload([
+        'tracking_type' => 'BULK', 'qty' => '300', 'container_count' => null, 'qty_per_container' => null,
+    ]))->assertRedirect();
+
+    $groups = $lot->fresh()->groups;
+    expect($groups)->toHaveCount(1)->and((float) $groups->first()->pack_count)->toEqual(2.0)
+        ->and(ImsLotGroupExists($last->id))->toBeFalse();
+});
+
+test('the lot list shows how many packs and how big each one is, not the expiry date', function () {
+    $lot = ($this->makeLot)(qty: '500');
+    $lot->update(['pack_size_base' => '100']);
+
+    $this->actingAs($this->manager)->get(route('ims.lots.index'))->assertOk()->assertSee('5 แพ็ค × 100 g')->assertDontSee('31/01/2571');
+});
+
+test('other lots of the same item show on the lot detail page', function () {
+    $first = ($this->makeLot)();
+    $second = ($this->makeLot)(receiptOverrides: ['doc_no' => 'PO-69-0009']);
+    $second->update(['lot_no' => 'LOT-ZZ']);
+
+    $this->actingAs($this->manager)->get(route('ims.lots.edit', $first))->assertOk()->assertSee('LOT-ZZ');
+});
+
+function ImsLotGroupExists(int $id): bool
+{
+    return \App\Models\ImsLotGroup::whereKey($id)->exists();
+}

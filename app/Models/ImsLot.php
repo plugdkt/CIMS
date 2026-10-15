@@ -77,6 +77,73 @@ class ImsLot extends Model
         return $this->hasMany(Container::class);
     }
 
+    /**
+     * How many packs (ขวด/แพ็ค) the remaining stock is — remaining ÷ the pack size the lot was
+     * received with. Null for a lot with no recorded pack size. A part-used pack shows as a fraction.
+     *
+     * @return numeric-string|null
+     */
+    public function packsRemaining(): ?string
+    {
+        $size = $this->pack_size_base;
+        if ($size === null || bccomp($size, '0', 6) <= 0) {
+            return null;
+        }
+
+        return bcdiv($this->qty_remaining_base, $size, 2);
+    }
+
+    /** @return HasMany<ImsLotGroup, $this> */
+    public function groups(): HasMany
+    {
+        return $this->hasMany(ImsLotGroup::class)->orderBy('id');
+    }
+
+    /**
+     * Remaining stock in packs at 4 dp (exact enough to compare against the placed groups). Null without a pack size.
+     *
+     * @return numeric-string|null
+     */
+    public function packsRemainingExact(): ?string
+    {
+        $size = $this->pack_size_base;
+        if ($size === null || bccomp($size, '0', 6) <= 0) {
+            return null;
+        }
+
+        return bcdiv($this->qty_remaining_base, $size, 4);
+    }
+
+    /** Packs received, for the "5 ขวด × 100 g" summary. Null without a pack size. */
+    public function packsReceived(): ?string
+    {
+        $size = $this->pack_size_base;
+        if ($size === null || bccomp($size, '0', 6) <= 0) {
+            return null;
+        }
+
+        return bcdiv($this->qty_received_base, $size, 2);
+    }
+
+    /**
+     * Remaining packs that no group claims — they use the lot's own location and expiry date.
+     *
+     * @return numeric-string
+     */
+    public function unplacedPacks(): string
+    {
+        $remaining = $this->packsRemainingExact();
+        if ($remaining === null) {
+            return '0.0000';
+        }
+
+        /** @var numeric-string $placed */
+        $placed = $this->groups->reduce(fn (string $carry, ImsLotGroup $g) => bcadd($carry, $g->pack_count, 4), '0');
+        $left = bcsub($remaining, $placed, 4);
+
+        return bccomp($left, '0', 4) > 0 ? $left : '0.0000';
+    }
+
     /** @return BelongsTo<Location, $this> */
     public function location(): BelongsTo
     {

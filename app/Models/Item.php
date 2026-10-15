@@ -99,4 +99,14 @@ class Item extends Model
     {
         return $this->hasMany(Container::class);
     }
+
+    /** The word the central store packs this item in (ขวด/กล่อง/…), read from the imported specification; "แพ็ค" if unknown. */
+    public function packagingWord(): string
+    {
+        if (preg_match('/หน่วยบรรจุ:\s*(\S+)/u', (string) $this->specification, $m) === 1) {
+            return rtrim($m[1], ')');
+        }
+
+        return __('ims.unit_pack');
+    }
 }

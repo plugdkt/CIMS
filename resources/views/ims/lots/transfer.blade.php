@@ -26,6 +26,22 @@
                 @error('ims_doc_no') <p class="text-xs text-danger mt-1">{{ $message }}</p> @enderror
             </div>
 
+            @if ($lot->groups->isNotEmpty())
+                <div>
+                    <label for="source_group" class="block text-sm font-medium mb-1">{{ __('ims.field_source_group') }}</label>
+                    <select id="source_group" name="source_group" class="w-full rounded-lg border border-border px-3 py-2 text-sm">
+                        <option value="">{{ __('ims.source_group_none') }}</option>
+                        @foreach ($lot->groups as $group)
+                            <option value="{{ $group->id }}" @selected((int) old('source_group') === $group->id)>
+                                {{ rtrim(rtrim($group->pack_count, '0'), '.') }} {{ $lot->item?->packagingWord() }}
+                                · {{ $group->location?->name ?: '—' }} · {{ $group->expiry_date?->format('d/m/Y') ?: '—' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-ink-faint mt-1">{{ __('ims.source_group_hint') }}</p>
+                </div>
+            @endif
+
             <div>
                 <label for="tracking_type" class="block text-sm font-medium mb-1">{{ __('ims.field_tracking') }}</label>
                 <select id="tracking_type" name="tracking_type" class="w-full rounded-lg border border-border px-3 py-2 text-sm">

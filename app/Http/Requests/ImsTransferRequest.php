@@ -29,6 +29,7 @@ final class ImsTransferRequest extends FormRequest
             'qty' => ['required_if:tracking_type,BULK', 'nullable', 'numeric', 'gt:0'],
             'location_id' => ['required', 'integer', Rule::exists('locations', 'id')],
             'ims_doc_no' => ['required', 'string', 'max:64'],
+            'source_group' => ['nullable', 'integer'],
             'remark' => ['nullable', 'string', 'max:500'],
         ];
     }

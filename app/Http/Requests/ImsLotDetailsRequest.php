@@ -24,6 +24,11 @@ final class ImsLotDetailsRequest extends FormRequest
         $labId = $lot instanceof ImsLot ? $lot->lab_id : 0;
 
         return [
+            'lot_no' => ['nullable', 'string', 'max:64'],
+            'expiry_date' => ['nullable', 'date'],
+            'fiscal_year' => ['nullable', 'integer', 'between:2500,2700'],
+            'purchase_round' => ['nullable', 'string', 'max:32'],
+            'unit_price' => ['nullable', 'numeric', 'min:0'],
             // Only a place in the lot's own branch — a lot can't be shelved in another branch's store.
             'location_id' => ['nullable', 'integer', Rule::exists('locations', 'id')->where('lab_id', $labId)],
         ];

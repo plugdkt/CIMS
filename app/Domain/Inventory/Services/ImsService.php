@@ -8,6 +8,7 @@ use App\Domain\Inventory\Exceptions\ImsException;
 use App\Domain\Shared\UnitConverter;
 use App\Models\Container;
 use App\Models\ImsLot;
+use App\Models\ImsLotGroup;
 use App\Models\ImsMovement;
 use App\Models\ImsReceipt;
 use App\Models\Location;
@@ -138,12 +139,13 @@ final class ImsService
         ?string $qtyPerContainer,
         string $imsDocNo,
         ?string $remark = null,
+        ?int $sourceGroupId = null,
     ): array {
         if ($location->lab_id !== $lot->lab_id) {
             throw new ImsException(__('ims.error.location_other_branch'));
         }
 
-        return DB::transaction(function () use ($lot, $user, $unit, $location, $trackingType, $qty, $containerCount, $qtyPerContainer, $imsDocNo, $remark) {
+        return DB::transaction(function () use ($lot, $user, $unit, $location, $trackingType, $qty, $containerCount, $qtyPerContainer, $imsDocNo, $remark, $sourceGroupId) {
             $locked = ImsLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
             $item = $locked->item()->firstOrFail();
 
@@ -164,6 +166,14 @@ final class ImsService
                 throw new ImsException(__('ims.error.exceeds_lot_balance'));
             }
 
+            $sourceGroup = null;
+            if ($sourceGroupId !== null) {
+                $sourceGroup = $locked->groups()->whereKey($sourceGroupId)->first();
+                if ($sourceGroup === null) {
+                    throw new ImsException(__('ims.error.group_not_found'));
+                }
+            }
+
             $containers = $this->workingStock->receive(
                 $item,
                 $unit,
@@ -172,7 +182,7 @@ final class ImsService
                 $perQty,
                 $count,
                 $locked->lot_no,
-                $locked->expiry_date?->toDateString(),
+                ($sourceGroup->expiry_date ?? $locked->expiry_date)?->toDateString(),
                 $imsDocNo,
                 (int) $user->id,
                 $locked->id,
@@ -182,6 +192,7 @@ final class ImsService
             $balance = bcsub($locked->qty_remaining_base, $totalBase, self::SCALE);
             $locked->qty_remaining_base = $balance;
             $locked->save();
+            $this->reconcileGroups($locked, $sourceGroup, $totalBase);
 
             ImsMovement::create([
                 'ims_lot_id' => $locked->id,
@@ -196,6 +207,90 @@ final class ImsService
 
             return $containers;
         }, 3);
+    }
+
+    /**
+     * Adds or edits a group of packs sharing one place and expiry date. The groups together can
+     * never claim more packs than the lot still holds.
+     *
+     * @param  numeric-string  $packCount
+     */
+    public function saveGroup(ImsLot $lot, ?ImsLotGroup $group, string $packCount, ?int $locationId, ?string $expiryDate, ?string $remark): ImsLotGroup
+    {
+        return DB::transaction(function () use ($lot, $group, $packCount, $locationId, $expiryDate, $remark) {
+            $locked = ImsLot::whereKey($lot->id)->lockForUpdate()->firstOrFail();
+
+            $remaining = $locked->packsRemainingExact();
+            if ($remaining === null) {
+                throw new ImsException(__('ims.error.groups_need_pack_size'));
+            }
+            if ($group !== null && $group->ims_lot_id !== $locked->id) {
+                throw new ImsException(__('ims.error.group_not_found'));
+            }
+            if ($locationId !== null && ! Location::whereKey($locationId)->where('lab_id', $locked->lab_id)->exists()) {
+                throw new ImsException(__('ims.error.location_other_branch'));
+            }
+
+            /** @var numeric-string $others */
+            $others = $locked->groups()->get()
+                ->reject(fn (ImsLotGroup $g) => $group !== null && $g->id === $group->id)
+                ->reduce(fn (string $carry, ImsLotGroup $g) => bcadd($carry, $g->pack_count, 4), '0');
+            if (bccomp(bcadd($others, $packCount, 4), $remaining, 4) > 0) {
+                throw new ImsException(__('ims.error.groups_exceed', ['packs' => rtrim(rtrim($remaining, '0'), '.') ?: '0']));
+            }
+
+            $attributes = [
+                'pack_count' => $packCount,
+                'location_id' => $locationId,
+                'expiry_date' => $expiryDate,
+                'remark' => $remark,
+            ];
+
+            if ($group === null) {
+                return $locked->groups()->create($attributes);
+            }
+
+            $group->fill($attributes)->save();
+
+            return $group;
+        }, 3);
+    }
+
+    /**
+     * After stock leaves a lot: take the packs off the group they came from (if one was named),
+     * then, if the groups still claim more than what is left, trim the newest ones. Emptied
+     * groups are dropped.
+     */
+    private function reconcileGroups(ImsLot $lot, ?ImsLotGroup $source, string $totalBase): void
+    {
+        $remaining = $lot->packsRemainingExact();
+        $packSize = $lot->pack_size_base;
+        if ($remaining === null || $packSize === null) {
+            return;
+        }
+
+        if ($source !== null) {
+            $taken = bcdiv($totalBase, $packSize, 4);
+            $source->pack_count = bccomp($source->pack_count, $taken, 4) > 0 ? bcsub($source->pack_count, $taken, 4) : '0';
+            $source->save();
+        }
+
+        $groups = $lot->groups()->get();
+        /** @var numeric-string $placed */
+        $placed = $groups->reduce(fn (string $carry, ImsLotGroup $g) => bcadd($carry, $g->pack_count, 4), '0');
+        $excess = bcsub($placed, $remaining, 4);
+
+        foreach ($groups->reverse() as $group) {
+            if (bccomp($excess, '0', 4) > 0) {
+                $cut = bccomp($group->pack_count, $excess, 4) < 0 ? $group->pack_count : $excess;
+                $group->pack_count = bcsub($group->pack_count, $cut, 4);
+                $excess = bcsub($excess, $cut, 4);
+                $group->save();
+            }
+            if (bccomp($group->pack_count, '0', 4) <= 0) {
+                $group->delete();
+            }
+        }
     }
 
     /**
