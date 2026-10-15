@@ -32,7 +32,7 @@
                 <tbody class="divide-y divide-border">
                     @forelse ($requisitions as $requisition)
                         <tr wire:key="req-{{ $requisition->id }}">
-                            <td class="px-4 py-3 align-top font-mono text-xs text-ink-muted">{{ $requisition->doc_no }}</td>
+                            <td class="px-4 py-3 align-top font-mono text-xs"><a href="{{ route('requisitions.show', $requisition) }}" class="text-accent hover:text-accent-strong font-semibold">{{ $requisition->doc_no }}</a></td>
                             <td class="px-4 py-3 align-top text-ink-muted">{{ $requisition->doc_date->format('d/m/Y') }}</td>
                             <td class="px-4 py-3 align-top">{{ $requisition->requester?->full_name }}</td>
                             <td class="px-4 py-3 align-top text-ink-muted">{{ $requisition->lab?->name_th }}</td>
@@ -50,10 +50,18 @@
                                     {{ __('requisitions.status_'.strtolower($requisition->status)) }}
                                 </span>
                             </td>
-                            <td class="px-4 py-3 align-top text-right">
-                                <a href="{{ route('requisitions.show', $requisition) }}" class="text-xs font-semibold text-accent hover:text-accent-strong">
-                                    {{ __('requisitions.view') }}
-                                </a>
+                            <td class="px-4 py-3 align-top text-right whitespace-nowrap">
+                                @can('scientistDecide', $requisition)
+                                    <a href="{{ route('requisitions.show', $requisition) }}" class="inline-block rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('requisitions.act_decide') }}</a>
+                                @elsecan('issue', $requisition)
+                                    <a href="{{ route('requisitions.issue.create', $requisition) }}" class="inline-block rounded-lg bg-success hover:bg-success-ink text-white text-xs font-semibold px-3 py-1.5">{{ __('requisitions.act_issue') }}</a>
+                                @elseif (in_array($requisition->status, ['SUBMITTED', 'ADVISOR_APPROVED'], true))
+                                    <span class="text-xs text-ink-muted">{{ __('requisitions.act_waiting_decision') }}</span>
+                                @elseif (in_array($requisition->status, ['APPROVED', 'PARTIALLY_ISSUED'], true))
+                                    <span class="text-xs text-ink-muted">{{ __('requisitions.act_waiting_issue') }}</span>
+                                @else
+                                    <a href="{{ route('requisitions.show', $requisition) }}" class="text-xs font-semibold text-accent hover:text-accent-strong">{{ __('requisitions.act_view') }}</a>
+                                @endif
                             </td>
                         </tr>
                     @empty

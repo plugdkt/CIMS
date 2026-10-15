@@ -51,7 +51,8 @@ final class RequisitionManageTable extends Component
         /** @var User $user */
         $user = auth()->user();
 
-        $base = Requisition::query();
+        // A draft is still the requester's own work-in-progress; it only reaches the warehouse once submitted.
+        $base = Requisition::query()->where('status', '!=', 'DRAFT');
 
         if (! $user->can('requisition.view_all')) {
             // A dispenser (requisition.issue) sees only their own branch's requisitions that

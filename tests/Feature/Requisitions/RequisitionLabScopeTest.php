@@ -22,8 +22,8 @@ test('branch scoping: the requisition list only shows a LAB_MANAGER their own br
     $otherLab = makeLab();
     $student = studentUser(['lab_id' => $lab->id]);
     $otherStudent = studentUser(['lab_id' => $otherLab->id]);
-    $ownRequisition = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-00001']);
-    makeRequisition($otherStudent, ['lab_id' => $otherLab->id, 'doc_no' => 'REQ-2569-00002']);
+    $ownRequisition = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-00001', 'status' => 'SUBMITTED']);
+    makeRequisition($otherStudent, ['lab_id' => $otherLab->id, 'doc_no' => 'REQ-2569-00002', 'status' => 'SUBMITTED']);
 
     $manager = labManagerUser(['lab_id' => $lab->id]);
 
@@ -51,8 +51,8 @@ test('branch scoping: the requisition list only shows an AUDITOR their own branc
     $otherLab = makeLab();
     $student = studentUser(['lab_id' => $lab->id]);
     $otherStudent = studentUser(['lab_id' => $otherLab->id]);
-    $ownRequisition = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-00001']);
-    makeRequisition($otherStudent, ['lab_id' => $otherLab->id, 'doc_no' => 'REQ-2569-00002']);
+    $ownRequisition = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-00001', 'status' => 'SUBMITTED']);
+    makeRequisition($otherStudent, ['lab_id' => $otherLab->id, 'doc_no' => 'REQ-2569-00002', 'status' => 'SUBMITTED']);
 
     $auditor = auditorUser(['lab_id' => $lab->id]);
 
@@ -89,8 +89,8 @@ test('the requester list shows only what the user filed, even for a warehouse ma
     $lab = makeLab();
     $student = studentUser(['lab_id' => $lab->id]);
     $manager = labManagerUser(['lab_id' => $lab->id, 'profile_completed_at' => now()]);
-    $theirs = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-70001']);
-    $mine = makeRequisition($manager, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-70002']);
+    $theirs = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-70001', 'status' => 'SUBMITTED']);
+    $mine = makeRequisition($manager, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-70002', 'status' => 'SUBMITTED']);
 
     // "ใบเบิกของฉัน": a manager sees only their own filings here...
     $this->actingAs($manager)->get(route('requisitions.index'))->assertOk()
@@ -115,4 +115,36 @@ test('the manage page filters by status tab and counts each tab', function () {
         ->call('setTab', 'to_issue')->assertSee('REQ-2569-71002')->assertDontSee('REQ-2569-71001')->assertDontSee('REQ-2569-71003')
         ->call('setTab', 'waiting')->assertSee('REQ-2569-71001')->assertDontSee('REQ-2569-71002')
         ->call('setTab', 'nonsense')->assertSee('REQ-2569-71003');
+});
+
+test('the manage page leaves out drafts and shows the next-step button for each requisition', function () {
+    $lab = makeLab();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72001', 'status' => 'DRAFT']);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72002', 'status' => 'SUBMITTED']);
+    $approved = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72003', 'status' => 'APPROVED']);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72004', 'status' => 'REJECTED']);
+
+    // The manager decides submitted ones, waits on the dispenser for approved ones, and only views finished ones.
+    $this->actingAs($manager)->get(route('requisitions.manage'))->assertOk()
+        ->assertDontSee('REQ-2569-72001')->assertSee('REQ-2569-72002')
+        ->assertSee(__('requisitions.act_decide'))->assertSee(__('requisitions.act_waiting_issue'))->assertSee(__('requisitions.act_view'));
+
+    // The dispenser gets the dispense button straight to the issue page.
+    $this->actingAs($scientist)->get(route('requisitions.manage'))->assertOk()
+        ->assertSee(__('requisitions.act_issue'))->assertSee(route('requisitions.issue.create', $approved), false);
+});
+
+test('the requester list shows the next step: send a draft, or wait for the warehouse', function () {
+    $lab = makeLab();
+    $student = studentUser(['lab_id' => $lab->id]);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-73001', 'status' => 'DRAFT']);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-73002', 'status' => 'SUBMITTED']);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-73003', 'status' => 'APPROVED']);
+
+    $this->actingAs($student)->get(route('requisitions.index'))->assertOk()
+        ->assertSee('REQ-2569-73001')->assertSee(__('requisitions.act_continue_draft'))
+        ->assertSee(__('requisitions.act_waiting_decision'))->assertSee(__('requisitions.act_waiting_issue'));
 });
