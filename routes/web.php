@@ -216,6 +216,8 @@ Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(
     // User-requested 2026-09-23: one total quantity, dispensed across several FEFO-ordered
     // containers automatically, instead of resubmitting `items.issue` once per container.
     Route::post('/{requisition}/items/{requisition_item}/issue-auto', [RequisitionIssueController::class, 'storeAuto'])->name('items.issue-auto');
+    // One button for every line of the requisition, with a single receiver confirmation.
+    Route::post('/{requisition}/issue-all', [RequisitionIssueController::class, 'storeAll'])->name('issue-all');
     Route::post('/{requisition}/items/{requisition_item}/return', [RequisitionReturnController::class, 'store'])->name('items.return');
     // FR-RQ-11 OTP fallback: rate limited so a scientist can't spam a receiver's inbox.
     Route::post('/{requisition}/receiver-otp', [RequisitionIssueController::class, 'sendReceiverOtp'])

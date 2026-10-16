@@ -26,6 +26,146 @@
             </div>
         @endif
 
+
+        @php
+            $pending = $lines->filter(fn ($r) => bccomp($r['remaining_base'], '0', 6) > 0);
+            $fmtAll = fn ($v) => rtrim(rtrim((string) $v, '0'), '.') ?: '0';
+        @endphp
+        @if ($pending->isNotEmpty())
+            <form method="POST" action="{{ route('requisitions.issue-all', $requisition) }}"
+                  class="bg-surface border-2 border-accent rounded-xl p-6 mb-6"
+                  x-data="{
+                      mode: 'signature', otpSent: false, hasDrawn: false, drawing: false,
+                      pos(el, e) {
+                          const rect = el.getBoundingClientRect();
+                          const t = e.touches ? e.touches[0] : e;
+                          return [t.clientX - rect.left, t.clientY - rect.top];
+                      },
+                      start(e) {
+                          this.drawing = true; this.hasDrawn = true;
+                          const ctx = this.$refs.canvas.getContext('2d');
+                          const [x, y] = this.pos(this.$refs.canvas, e);
+                          ctx.beginPath(); ctx.moveTo(x, y);
+                          e.preventDefault();
+                      },
+                      move(e) {
+                          if (!this.drawing) return;
+                          const ctx = this.$refs.canvas.getContext('2d');
+                          const [x, y] = this.pos(this.$refs.canvas, e);
+                          ctx.lineTo(x, y); ctx.stroke();
+                          e.preventDefault();
+                      },
+                      stop() { this.drawing = false; },
+                      clearCanvas() {
+                          const canvas = this.$refs.canvas;
+                          canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                          this.hasDrawn = false;
+                      },
+                      async sendOtp() {
+                          await fetch('{{ route('requisitions.receiver-otp.send', $requisition) }}', {
+                              method: 'POST',
+                              headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+                          });
+                          this.otpSent = true;
+                      },
+                      onSubmit() {
+                          if (this.mode === 'signature') {
+                              this.$refs.otpCodeInput.value = '';
+                              this.$refs.signatureImageInput.value = this.hasDrawn ? this.$refs.canvas.toDataURL('image/png') : '';
+                          } else {
+                              this.$refs.signatureImageInput.value = '';
+                          }
+                      },
+                  }"
+                  x-init="$nextTick(() => {
+                              $refs.canvas.width = $refs.canvas.getBoundingClientRect().width;
+                              $refs.canvas.height = 120;
+                              const ctx = $refs.canvas.getContext('2d');
+                              ctx.strokeStyle = '#111827'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+                          })"
+                  @submit="onSubmit">
+                @csrf
+                <h2 class="font-display text-lg font-bold">{{ __('requisitions.issue_all_title') }}</h2>
+                <p class="text-sm text-ink-muted mb-4">{{ __('requisitions.issue_all_desc') }}</p>
+
+                <div class="overflow-x-auto mb-4" tabindex="0">
+                    <table class="w-full text-sm">
+                        <thead class="text-left text-xs text-ink-faint uppercase tracking-wide">
+                            <tr>
+                                <th class="py-2 pr-3">{{ __('requisitions.col_item') }}</th>
+                                <th class="py-2 pr-3">{{ __('requisitions.tile_to_issue') }}</th>
+                                <th class="py-2 pr-3">{{ __('requisitions.stock_available') }}</th>
+                                <th class="py-2 pr-3">{{ __('requisitions.field_qty_issued_total') }}</th>
+                                <th class="py-2">{{ __('requisitions.field_unit') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border">
+                            @foreach ($pending as $row)
+                                @php
+                                    $l = $row['line'];
+                                    $bu = $l->item?->baseUnit;
+                                    $same = $units->filter(fn ($u) => $bu === null || $u->dimension === $bu->dimension);
+                                    $isShort = bccomp($row['availability']['total'], $row['remaining_base'], 6) < 0;
+                                @endphp
+                                <tr>
+                                    <td class="py-2 pr-3">
+                                        <div class="font-semibold">{{ $l->item?->name_th }}</div>
+                                        <div class="font-mono text-xs text-ink-muted">{{ $l->item?->item_code }}</div>
+                                    </td>
+                                    <td class="py-2 pr-3 font-mono font-bold whitespace-nowrap">{{ $fmtAll($row['remaining_base']) }} {{ $bu?->code }}</td>
+                                    <td class="py-2 pr-3 font-mono whitespace-nowrap {{ $isShort ? 'text-danger-ink font-semibold' : 'text-ink-muted' }}">
+                                        {{ $fmtAll($row['availability']['total']) }} {{ $bu?->code }}
+                                        @if ($isShort) <span class="text-xs">({{ __('requisitions.stock_short') }})</span> @endif
+                                    </td>
+                                    <td class="py-2 pr-3">
+                                        <label class="sr-only" for="all_qty-{{ $l->id }}">{{ __('requisitions.field_qty_issued_total') }} {{ $l->item?->name_th }}</label>
+                                        <input type="text" inputmode="decimal" name="lines[{{ $l->id }}][qty]" id="all_qty-{{ $l->id }}"
+                                               value="{{ old('lines.'.$l->id.'.qty', $fmtAll($row['remaining_base'])) }}"
+                                               class="w-32 rounded-lg border border-border bg-surface px-3 py-2 font-mono font-bold">
+                                    </td>
+                                    <td class="py-2">
+                                        <label class="sr-only" for="all_unit-{{ $l->id }}">{{ __('requisitions.field_unit') }} {{ $l->item?->name_th }}</label>
+                                        <select name="lines[{{ $l->id }}][unit_id]" id="all_unit-{{ $l->id }}" class="rounded-lg border border-border bg-surface px-2 py-2">
+                                            @foreach ($same as $u)
+                                                <option value="{{ $u->id }}" @selected((int) old('lines.'.$l->id.'.unit_id', $bu?->id) === $u->id)>{{ $u->code }}</option>
+                                            @endforeach
+                                        </select>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+
+                <details class="rounded-lg border border-border bg-surface-alt px-3 py-2 mb-4">
+                    <summary class="cursor-pointer text-xs font-semibold text-ink-muted">{{ __('requisitions.more_options') }}</summary>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium mb-1" for="issue_all_remark">{{ __('requisitions.field_issue_remark') }}</label>
+                            <input type="text" name="remark" id="issue_all_remark" value="{{ old('remark') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                                   placeholder="{{ __('requisitions.field_issue_remark_hint') }}">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" for="issue_all_overage">{{ __('requisitions.field_overage_approver') }}</label>
+                            <input type="number" name="overage_approved_by" id="issue_all_overage" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+                                   placeholder="{{ __('requisitions.field_overage_approver_hint') }}">
+                        </div>
+                    </div>
+                </details>
+
+                <p class="text-xs font-semibold text-ink-muted">{{ __('requisitions.issue_all_receiver') }}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    @include('requisitions.partials.receiver-signature', ['requisition' => $requisition, 'formPrefix' => 'all'])
+                </div>
+
+                <button type="submit" class="mt-4 rounded-lg bg-success hover:bg-success-ink text-white text-base font-bold px-6 py-3 shadow-md focus:outline-none focus:ring-4 focus:ring-success-soft">
+                    {{ __('requisitions.issue_all_button', ['count' => $pending->count()]) }}
+                </button>
+            </form>
+
+            <h2 class="text-sm font-semibold text-ink-muted mb-3">{{ __('requisitions.issue_all_individual') }}</h2>
+        @endif
+
         @foreach ($lines as $row)
             @php
                 $line = $row['line'];

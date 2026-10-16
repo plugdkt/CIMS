@@ -19,6 +19,7 @@ use App\Domain\Requisition\Services\ShopAvailability;
 use App\Domain\Requisition\Services\SignatureImageService;
 use App\Domain\Shared\UnitConverter;
 use App\Http\Requests\RequisitionAutoIssueRequest;
+use App\Http\Requests\RequisitionIssueAllRequest;
 use App\Http\Requests\RequisitionIssueRequest;
 use App\Models\Container;
 use App\Models\IssueTransaction;
@@ -149,14 +150,10 @@ final class RequisitionIssueController extends Controller
     ): RedirectResponse {
         $data = $request->validated();
         $unit = Unit::whereKey($data['unit_id'])->firstOrFail();
-        $item = $requisitionItem->item()->firstOrFail();
 
         /** @var User $issuer */
         $issuer = $request->user();
         $receiver = $requisition->requester()->firstOrFail();
-
-        /** @var numeric-string $qtyRequested */
-        $qtyRequested = (string) $data['qty_issued'];
 
         try {
             [$signatureHash, $signatureImagePath] = $this->resolveReceiverSignature($data, $receiver, $requisition, $signatures, $otp);
@@ -168,12 +165,155 @@ final class RequisitionIssueController extends Controller
             return back()->withErrors(['otp_code' => __('requisitions.validation.otp_code_invalid')]);
         }
 
-        // Working stock first; only what it can't cover is cut from this branch's IMS store
-        // (whole bottles, soonest-expiring lot first) — and only now, once the receiver's
-        // signature is good, so a failed OTP never moves any stock.
+        /** @var numeric-string $qtyRequested */
+        $qtyRequested = (string) $data['qty_issued'];
+
+        $result = $this->issueLineAuto(
+            $requisitionItem,
+            $requisition,
+            $qtyRequested,
+            $unit,
+            $issuer,
+            $receiver,
+            $signatureHash,
+            $signatureImagePath,
+            $data['remark'] ?? null,
+            $data['overage_approved_by'] ?? null,
+            $service,
+            $selector,
+            $converter,
+            $ims,
+            $availability,
+        );
+
+        if ($result['error'] !== null) {
+            return back()->withErrors(['issue' => $result['error']]);
+        }
+
+        return redirect()->route('requisitions.issue.create', $requisition)->with('status', $result['message']);
+    }
+
+    /**
+     * One button for the whole requisition: every line that still needs dispensing is issued
+     * in one submission, with a single receiver confirmation (signature or OTP) shared by all
+     * of them — instead of repeating {@see storeAuto()} per chemical.
+     */
+    public function storeAll(
+        RequisitionIssueAllRequest $request,
+        Requisition $requisition,
+        IssueService $service,
+        FefoContainerSelector $selector,
+        SignatureImageService $signatures,
+        ReceiverOtpService $otp,
+        UnitConverter $converter,
+        ImsService $ims,
+        ShopAvailability $availability,
+    ): RedirectResponse {
+        $data = $request->validated();
+
+        /** @var User $issuer */
+        $issuer = $request->user();
+        $receiver = $requisition->requester()->firstOrFail();
+
+        // Verified once (an OTP is single-use), then reused for every line.
+        try {
+            [$signatureHash, $signatureImagePath] = $this->resolveReceiverSignature($data, $receiver, $requisition, $signatures, $otp);
+        } catch (InvalidSignatureImageException $e) {
+            return back()->withErrors(['signature_image' => $e->getMessage()])->withInput();
+        }
+
+        if ($signatureHash === null) {
+            return back()->withErrors(['otp_code' => __('requisitions.validation.otp_code_invalid')])->withInput();
+        }
+
+        $requisition->load('items.item');
+        $done = 0;
+        $errors = [];
+
+        foreach ($requisition->items as $line) {
+            $row = $data['lines'][$line->id] ?? null;
+            if ($row === null || ! isset($row['qty']) || ! is_numeric($row['qty'])) {
+                continue;
+            }
+
+            $unit = Unit::whereKey($row['unit_id'])->firstOrFail();
+            $name = $line->item()->value('name_th') ?? '#'.$line->id;
+
+            /** @var numeric-string $qty */
+            $qty = (string) $row['qty'];
+            if (bccomp($qty, '0', 6) <= 0) {
+                continue;
+            }
+
+            $result = $this->issueLineAuto(
+                $line,
+                $requisition,
+                $qty,
+                $unit,
+                $issuer,
+                $receiver,
+                $signatureHash,
+                $signatureImagePath,
+                $data['remark'] ?? null,
+                $data['overage_approved_by'] ?? null,
+                $service,
+                $selector,
+                $converter,
+                $ims,
+                $availability,
+            );
+
+            if ($result['error'] !== null) {
+                $errors[] = $name.': '.$result['error'];
+
+                continue;
+            }
+            $done++;
+        }
+
+        $redirect = redirect()->route('requisitions.issue.create', $requisition);
+        if ($done > 0) {
+            $redirect->with('status', __('requisitions.issue_all_recorded', ['count' => $done]));
+        }
+        if ($errors !== []) {
+            $redirect->withErrors(['issue' => $errors]);
+        } elseif ($done === 0) {
+            $redirect->withErrors(['issue' => __('requisitions.validation.issue_all_nothing')]);
+        }
+
+        return $redirect;
+    }
+
+    /**
+     * Dispenses one line: working stock first, the shortfall cut from this branch's IMS store
+     * (whole bottles, soonest-expiring lot first), then FEFO-allocated across containers.
+     * Only called once the receiver's signature is good, so a failed OTP never moves stock.
+     *
+     * @param  numeric-string  $qty
+     * @return array{error: ?string, message: ?string}
+     */
+    private function issueLineAuto(
+        RequisitionItem $requisitionItem,
+        Requisition $requisition,
+        string $qty,
+        Unit $unit,
+        User $issuer,
+        User $receiver,
+        string $signatureHash,
+        ?string $signatureImagePath,
+        mixed $remark,
+        mixed $overageApprovedBy,
+        IssueService $service,
+        FefoContainerSelector $selector,
+        UnitConverter $converter,
+        ImsService $ims,
+        ShopAvailability $availability,
+    ): array {
+        $item = $requisitionItem->item()->firstOrFail();
+
         try {
             /** @var numeric-string $neededBase */
-            $neededBase = $converter->toItemBase($item, $unit, $qtyRequested);
+            $neededBase = $converter->toItemBase($item, $unit, $qty);
             $ims->provisionWorkingStock(
                 $item,
                 $requisition->lab_id,
@@ -183,7 +323,7 @@ final class RequisitionIssueController extends Controller
                 $requisition->doc_no,
             );
         } catch (ImsException $e) {
-            return back()->withErrors(['issue' => $e->getMessage()]);
+            return ['error' => $e->getMessage(), 'message' => null];
         }
 
         $containers = $selector->recommendExcludingExpired($item)->filter(function (Container $c) use ($requisition) {
@@ -196,21 +336,21 @@ final class RequisitionIssueController extends Controller
             $transactions = $service->issueAcrossContainers(
                 $requisitionItem,
                 $containers,
-                $qtyRequested,
+                $qty,
                 $unit,
                 $issuer,
                 $receiver,
                 $signatureHash,
                 $signatureImagePath,
-                $data['remark'] ?? null,
-                $data['overage_approved_by'] ?? null,
+                is_string($remark) ? $remark : null,
+                is_numeric($overageApprovedBy) ? (int) $overageApprovedBy : null,
             );
         } catch (InvalidRequisitionTransitionException|ExcessiveIssueQuantityException|InsufficientStockException $e) {
-            return back()->withErrors(['issue' => $e->getMessage()]);
+            return ['error' => $e->getMessage(), 'message' => null];
         }
 
         if ($transactions === []) {
-            return back()->withErrors(['issue' => __('requisitions.validation.no_stock_available')]);
+            return ['error' => __('requisitions.validation.no_stock_available'), 'message' => null];
         }
 
         $totalIssuedBase = array_reduce(
@@ -218,9 +358,9 @@ final class RequisitionIssueController extends Controller
             fn (string $sum, IssueTransaction $t) => bcadd($sum, $t->qty_issued_base, 6),
             '0.000000',
         );
-        $shortfallBase = bcsub($converter->toItemBase($item, $unit, $qtyRequested), $totalIssuedBase, 6);
+        $shortfallBase = bcsub($converter->toItemBase($item, $unit, $qty), $totalIssuedBase, 6);
 
-        $status = bccomp($shortfallBase, '0', 6) > 0
+        $message = bccomp($shortfallBase, '0', 6) > 0
             ? __('requisitions.issue_recorded_partial', [
                 'containers' => count($transactions),
                 'issued' => rtrim(rtrim($totalIssuedBase, '0'), '.'),
@@ -228,7 +368,7 @@ final class RequisitionIssueController extends Controller
             ])
             : __('requisitions.issue_recorded_multi', ['containers' => count($transactions)]);
 
-        return redirect()->route('requisitions.issue.create', $requisition)->with('status', $status);
+        return ['error' => null, 'message' => $message];
     }
 
     /** FR-RQ-11: the receiver's own OTP request — sent to the requisition's requester (the usual receiver). */

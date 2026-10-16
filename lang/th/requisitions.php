@@ -28,6 +28,7 @@ return [
     'act_waiting_decision' => 'รอผู้ดูแลคลังพิจารณา',
     'act_waiting_issue' => 'รอจ่ายของ',
     'act_view' => 'ดูรายละเอียด',
+    'col_item' => 'รายการ',
     'col_items' => 'จำนวนรายการ',
     'new_requisition' => 'สร้างใบขอเบิก',
     'back_to_list' => 'กลับไปยังรายการ',
@@ -155,6 +156,12 @@ return [
     'auto_issue_preview_title' => 'ลำดับภาชนะที่จะใช้ (FEFO)',
     'record_issue_auto' => 'บันทึกการจ่าย (อัตโนมัติ)',
     'issue_recorded_multi' => 'บันทึกการจ่ายเรียบร้อยแล้ว (:containers ภาชนะ)',
+    'issue_all_title' => 'จ่ายทั้งใบเบิกในครั้งเดียว',
+    'issue_all_desc' => 'ตรวจจำนวนของแต่ละรายการ (ปรับได้ ถ้าไม่จ่ายรายการไหนให้ใส่ 0) แล้วให้ผู้รับเซ็นครั้งเดียว กดปุ่มเดียวจ่ายครบทุกรายการ',
+    'issue_all_button' => 'บันทึกการจ่ายทั้งหมด (:count รายการ)',
+    'issue_all_recorded' => 'บันทึกการจ่ายเรียบร้อยแล้ว :count รายการ',
+    'issue_all_receiver' => 'ผู้รับของยืนยันครั้งเดียวสำหรับทุกรายการ',
+    'issue_all_individual' => 'จ่ายทีละรายการ / เลือกภาชนะเอง',
     'issue_recorded_partial' => 'จ่ายได้ :issued :unit จาก :containers ภาชนะ — สต็อกไม่พอสำหรับจำนวนที่ขอทั้งหมด',
 
     // FR-ST-01 / BR-05: returning unused material back into its original container
@@ -213,6 +220,7 @@ return [
         'container_required' => 'กรุณาเลือกภาชนะที่จะคืนเข้า',
         'qty_returned_required' => 'กรุณาระบุปริมาณที่คืน',
         'qty_returned_gt' => 'ปริมาณที่คืนต้องมากกว่า 0',
+        'issue_all_nothing' => 'ไม่มีรายการที่ระบุจำนวนจ่าย',
         'no_stock_available' => 'ไม่มีภาชนะที่มีสต็อกให้จ่ายในขณะนี้',
     ],
 ];

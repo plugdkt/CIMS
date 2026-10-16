@@ -297,3 +297,71 @@ test('a fully dispensed line shows nothing left to issue', function () {
     $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))->assertOk()
         ->assertSee(__('requisitions.issue_progress', ['done' => 1, 'total' => 1]));
 });
+
+test('one submission dispenses every line of the requisition with a single signature', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '300.000000');
+    $first = $requisition->items->first();
+    $requisition->update(['status' => 'DRAFT']);
+    $second = app(\App\Domain\Requisition\Services\RequisitionService::class)
+        ->addLine($requisition, makeItem(), Unit::where('code', 'g')->firstOrFail(), '200.000000');
+    $requisition->update(['status' => 'APPROVED']);
+    stockedContainer($first->item_id, '1000.000000', $staff);
+    stockedContainer($second->item_id, '1000.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [
+            $first->id => ['qty' => '300', 'unit_id' => $g->id],
+            $second->id => ['qty' => '200', 'unit_id' => $g->id],
+        ],
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertRedirect(route('requisitions.issue.create', $requisition))->assertSessionHas('status');
+
+    expect($first->fresh()->qty_issued_base)->toBe('300.000000');
+    expect($second->fresh()->qty_issued_base)->toBe('200.000000');
+    expect($requisition->fresh()->status)->toBe('ISSUED');
+});
+
+test('issue-all skips a line left at 0 and reports a line that cannot be issued', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '300.000000');
+    $first = $requisition->items->first();
+    $requisition->update(['status' => 'DRAFT']);
+    $second = app(\App\Domain\Requisition\Services\RequisitionService::class)
+        ->addLine($requisition, makeItem(), Unit::where('code', 'g')->firstOrFail(), '200.000000');
+    $requisition->update(['status' => 'APPROVED']);
+    stockedContainer($first->item_id, '1000.000000', $staff); // second item has no stock at all
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [
+            $first->id => ['qty' => '300', 'unit_id' => $g->id],
+            $second->id => ['qty' => '200', 'unit_id' => $g->id],
+        ],
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertSessionHasErrors('issue');
+
+    expect($first->fresh()->qty_issued_base)->toBe('300.000000');
+    expect(bccomp((string) ($second->fresh()->qty_issued_base ?? '0'), '0', 6))->toBe(0);
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$second->id => ['qty' => '0', 'unit_id' => $g->id]],
+        'signature_image' => TEST_PNG_DATA_URL,
+    ])->assertSessionHasErrors('issue');
+});
+
+test('issue-all needs the issue permission and a receiver confirmation', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $payload = ['lines' => [$line->id => ['qty' => '50', 'unit_id' => $g->id]]];
+
+    $this->actingAs(labManagerUser())->post(route('requisitions.issue-all', $requisition), $payload + ['signature_image' => TEST_PNG_DATA_URL])->assertStatus(403);
+
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), $payload)->assertSessionHasErrors('signature_image');
+});
