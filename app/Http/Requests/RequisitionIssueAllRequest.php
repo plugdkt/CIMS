@@ -9,8 +9,8 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * "Dispense everything in one click": one quantity/unit per requisition line plus a single
- * receiver confirmation shared by all of them. A line left blank (or 0) is skipped.
+ * "Dispense everything in one click": one quantity/unit per requisition line. No receiver
+ * signature or OTP is collected (user-requested 2026-10-16). A line left blank (or 0) is skipped.
  * BR-04's conditional remark/override is still enforced in `IssueService` per line.
  */
 final class RequisitionIssueAllRequest extends FormRequest
@@ -32,8 +32,6 @@ final class RequisitionIssueAllRequest extends FormRequest
             'lines.*.unit_id' => ['required_with:lines.*.qty', 'nullable', 'integer', Rule::exists('units', 'id')],
             'remark' => ['nullable', 'string', 'max:500'],
             'overage_approved_by' => ['nullable', 'integer', Rule::exists('users', 'id')],
-            'signature_image' => ['required_without:otp_code', 'nullable', 'string', 'starts_with:data:image/png;base64,'],
-            'otp_code' => ['required_without:signature_image', 'nullable', 'digits:6'],
         ];
     }
 
@@ -43,9 +41,6 @@ final class RequisitionIssueAllRequest extends FormRequest
         return [
             'lines.*.qty.numeric' => __('requisitions.validation.qty_issued_required'),
             'lines.*.unit_id.required_with' => __('requisitions.validation.unit_required'),
-            'signature_image.required_without' => __('requisitions.validation.signature_or_otp_required'),
-            'otp_code.required_without' => __('requisitions.validation.signature_or_otp_required'),
-            'otp_code.digits' => __('requisitions.validation.otp_code_digits'),
         ];
     }
 }

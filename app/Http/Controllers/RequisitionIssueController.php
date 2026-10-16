@@ -195,16 +195,13 @@ final class RequisitionIssueController extends Controller
 
     /**
      * One button for the whole requisition: every line that still needs dispensing is issued
-     * in one submission, with a single receiver confirmation (signature or OTP) shared by all
-     * of them — instead of repeating {@see storeAuto()} per chemical.
+     * in one submission, with no receiver signature/OTP — instead of repeating {@see storeAuto()} per chemical.
      */
     public function storeAll(
         RequisitionIssueAllRequest $request,
         Requisition $requisition,
         IssueService $service,
         FefoContainerSelector $selector,
-        SignatureImageService $signatures,
-        ReceiverOtpService $otp,
         UnitConverter $converter,
         ImsService $ims,
         ShopAvailability $availability,
@@ -215,16 +212,10 @@ final class RequisitionIssueController extends Controller
         $issuer = $request->user();
         $receiver = $requisition->requester()->firstOrFail();
 
-        // Verified once (an OTP is single-use), then reused for every line.
-        try {
-            [$signatureHash, $signatureImagePath] = $this->resolveReceiverSignature($data, $receiver, $requisition, $signatures, $otp);
-        } catch (InvalidSignatureImageException $e) {
-            return back()->withErrors(['signature_image' => $e->getMessage()])->withInput();
-        }
-
-        if ($signatureHash === null) {
-            return back()->withErrors(['otp_code' => __('requisitions.validation.otp_code_invalid')])->withInput();
-        }
+        // No receiver signature/OTP any more: the ledger still gets a tamper-evident marker
+        // tying this issue to the requisition, issuer, receiver and time.
+        $signatureHash = hash('sha256', "ISSUE|{$requisition->id}|{$issuer->id}|{$receiver->id}|".now()->toISOString());
+        $signatureImagePath = null;
 
         $requisition->load('items.item');
         $done = 0;

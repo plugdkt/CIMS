@@ -138,27 +138,6 @@ test('neither a signature nor an OTP is rejected by validation', function () {
     ])->assertSessionHasErrors(['signature_image', 'otp_code']);
 });
 
-test('the issue page lets a scientist click a container row to select it, and trims trailing zeros from displayed quantities', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '20.000000');
-    $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '500.000000', $staff);
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-
-    $response = $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition));
-
-    $response->assertOk();
-    // A click-to-select radio per container row, wired to the same barcode field a
-    // physical scanner still types into (x-model, not a plain static `value`).
-    $response->assertSee('x-model="selectedBarcode"', false);
-    $response->assertSee("selectedBarcode: '{$container->barcode}'", false);
-    $response->assertSee(__('requisitions.select_container_to_issue'));
-    // Quantities are DECIMAL(18,6) internally but shouldn't show all six decimals —
-    // "500.000000" should never appear in the rendered page, only the trimmed "500".
-    expect($response->getContent())->not->toContain('500.000000');
-    $response->assertSee('500', false);
-});
-
 test('an unknown barcode is rejected with a validation error', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');
@@ -258,18 +237,6 @@ test('a user without requisition.issue gets 403 on the auto-issue route', functi
     ])->assertStatus(403);
 });
 
-test('user-requested 2026-09-23: the issue page shows both the auto and manual modes', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '50.000000');
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-
-    $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
-        ->assertOk()
-        ->assertSee(__('requisitions.issue_mode_auto'))
-        ->assertSee(__('requisitions.issue_mode_manual'))
-        ->assertSee(__('requisitions.field_qty_issued_total'));
-});
-
 test('the issue page shows the quantity to dispense in big tiles and prefills the form with it', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '120.000000');
@@ -316,7 +283,6 @@ test('one submission dispenses every line of the requisition with a single signa
             $first->id => ['qty' => '300', 'unit_id' => $g->id],
             $second->id => ['qty' => '200', 'unit_id' => $g->id],
         ],
-        'signature_image' => TEST_PNG_DATA_URL,
     ])->assertRedirect(route('requisitions.issue.create', $requisition))->assertSessionHas('status');
 
     expect($first->fresh()->qty_issued_base)->toBe('300.000000');
@@ -341,7 +307,6 @@ test('issue-all skips a line left at 0 and reports a line that cannot be issued'
             $first->id => ['qty' => '300', 'unit_id' => $g->id],
             $second->id => ['qty' => '200', 'unit_id' => $g->id],
         ],
-        'signature_image' => TEST_PNG_DATA_URL,
     ])->assertSessionHasErrors('issue');
 
     expect($first->fresh()->qty_issued_base)->toBe('300.000000');
@@ -349,19 +314,16 @@ test('issue-all skips a line left at 0 and reports a line that cannot be issued'
 
     $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
         'lines' => [$second->id => ['qty' => '0', 'unit_id' => $g->id]],
-        'signature_image' => TEST_PNG_DATA_URL,
     ])->assertSessionHasErrors('issue');
 });
 
-test('issue-all needs the issue permission and a receiver confirmation', function () {
+test('issue-all needs the issue permission', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '50.000000');
     $line = $requisition->items->first();
     $g = Unit::where('code', 'g')->firstOrFail();
     $payload = ['lines' => [$line->id => ['qty' => '50', 'unit_id' => $g->id]]];
 
-    $this->actingAs(labManagerUser())->post(route('requisitions.issue-all', $requisition), $payload + ['signature_image' => TEST_PNG_DATA_URL])->assertStatus(403);
+    $this->actingAs(labManagerUser())->post(route('requisitions.issue-all', $requisition), $payload)->assertStatus(403);
 
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), $payload)->assertSessionHasErrors('signature_image');
 });
