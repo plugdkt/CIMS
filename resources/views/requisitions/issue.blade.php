@@ -30,6 +30,9 @@
         @php
             $pending = $lines->filter(fn ($r) => bccomp($r['remaining_base'], '0', 6) > 0);
             $fmtAll = fn ($v) => rtrim(rtrim((string) $v, '0'), '.') ?: '0';
+            // Lines that need an IMS cut but whose IMS lot has no storage place yet.
+            $blocked = $pending->filter(fn ($r) => $r['unplaced_lots']->isNotEmpty()
+                && bccomp($r['availability']['working'], $r['remaining_base'], 6) < 0);
         @endphp
         @if ($pending->isNotEmpty())
             <form method="POST" action="{{ route('requisitions.issue-all', $requisition) }}"
@@ -37,6 +40,28 @@
                 @csrf
                 <h2 class="font-display text-lg font-bold">{{ __('requisitions.issue_all_title') }}</h2>
                 <p class="text-sm text-ink-muted mb-4">{{ __('requisitions.issue_all_desc') }}</p>
+
+                @if ($blocked->isNotEmpty())
+                    <div class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm">
+                        <p class="font-semibold mb-2">⚠️ {{ __('requisitions.unplaced_warning', ['count' => $blocked->count()]) }}</p>
+                        <ul class="space-y-2">
+                            @foreach ($blocked as $row)
+                                <li class="flex flex-wrap items-center gap-2">
+                                    <span class="font-semibold">{{ $row['line']->item?->name_th }}</span>
+                                    <span class="font-mono text-xs">{{ $row['line']->item?->item_code }}</span>
+                                    @foreach ($row['unplaced_lots'] as $lot)
+                                        @can('manage', $lot)
+                                            <a href="{{ route('ims.lots.edit', $lot) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('requisitions.btn_set_location') }}@if ($lot->lot_no) ({{ $lot->lot_no }})@endif</a>
+                                        @endcan
+                                        @can('transfer', $lot)
+                                            <a href="{{ route('ims.lots.transfer.form', $lot) }}" class="rounded-lg border border-border bg-surface hover:bg-surface-alt text-ink text-xs font-semibold px-3 py-1.5">{{ __('requisitions.btn_go_working_stock') }}</a>
+                                        @endcan
+                                    @endforeach
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
 
                 <div class="overflow-x-auto mb-4" tabindex="0">
                     <table class="w-full text-sm">

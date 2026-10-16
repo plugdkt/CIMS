@@ -22,6 +22,7 @@ use App\Http\Requests\RequisitionAutoIssueRequest;
 use App\Http\Requests\RequisitionIssueAllRequest;
 use App\Http\Requests\RequisitionIssueRequest;
 use App\Models\Container;
+use App\Models\ImsLot;
 use App\Models\IssueTransaction;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
@@ -70,6 +71,14 @@ final class RequisitionIssueController extends Controller
                 // What the branch can actually hand out for this line: working stock plus IMS (cut automatically).
                 'availability' => $availability->forItem($item, $requisition->lab_id),
                 'low_stock' => $stockBalance->isBelowReorderPoint($item, $balance),
+                // IMS lots with no storage place cannot be cut into working stock automatically.
+                'unplaced_lots' => ImsLot::where('item_id', $item->id)
+                    ->where('lab_id', $requisition->lab_id)
+                    ->where('qty_remaining_base', '>', 0)
+                    ->whereNull('location_id')
+                    ->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString()))
+                    ->orderBy('id')
+                    ->get(),
             ];
         });
 

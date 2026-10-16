@@ -327,3 +327,20 @@ test('issue-all needs the issue permission', function () {
     $this->actingAs(labManagerUser())->post(route('requisitions.issue-all', $requisition), $payload)->assertStatus(403);
 
 });
+
+test('the issue page warns about IMS lots with no storage place and links to set it or cut into working stock', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '100.000000');
+    $line = $requisition->items->first();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $scientist->roles()->attach(\App\Models\Role::where('code', 'LAB_MANAGER')->firstOrFail());
+    $lot = \App\Models\ImsLot::create([
+        'item_id' => $line->item_id, 'lab_id' => $requisition->lab_id, 'lot_no' => 'L1',
+        'qty_received_base' => '500.000000', 'qty_remaining_base' => '500.000000', 'location_id' => null, 'received_at' => now(),
+    ]);
+
+    $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))
+        ->assertOk()
+        ->assertSee(__('requisitions.btn_set_location'))
+        ->assertSee(route('ims.lots.edit', $lot), false);
+});
