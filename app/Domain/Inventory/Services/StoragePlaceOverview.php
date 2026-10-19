@@ -101,7 +101,7 @@ final class StoragePlaceOverview
                 if (! in_array($group->location_id, $ids, true)) {
                     continue;
                 }
-                $ims[] = $this->imsRow($lot, $locations, $group->location_id, $group->pack_count, $group->expiry_date?->format('d/m/Y'), $hasSize ? $size : null);
+                $ims[] = $this->imsRow($lot, $locations, $group->location_id, $group->pack_count, $group->expiry_date?->format('d/m/Y'), $hasSize ? $size : null, $group->id);
             }
 
             if ($lot->location_id !== null && in_array($lot->location_id, $ids, true)) {
@@ -154,7 +154,7 @@ final class StoragePlaceOverview
      * @param  numeric-string|null  $size
      * @return array<string, mixed>
      */
-    private function imsRow(ImsLot $lot, Collection $locations, int $locationId, ?string $packs, ?string $expiry, ?string $size): array
+    private function imsRow(ImsLot $lot, Collection $locations, int $locationId, ?string $packs, ?string $expiry, ?string $size, ?int $groupId = null): array
     {
         $item = $lot->item;
         $place = $locations->get($locationId);
@@ -171,6 +171,8 @@ final class StoragePlaceOverview
             'expiry' => $expiry,
             'place' => $place !== null ? $this->path($place, $locations) : null,
             'lot_ulid' => $lot->ulid,
+            'lot_id' => $lot->id,
+            'group_id' => $groupId,
         ];
     }
 

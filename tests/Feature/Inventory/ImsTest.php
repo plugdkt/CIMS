@@ -678,38 +678,64 @@ test('a place of another branch cannot be opened', function () {
     $this->actingAs($manager)->get(route('ims.places.show', $foreign))->assertStatus(403);
 });
 
-test('from a place page the manager types part of a name, ticks lots and stores them there', function () {
+test('typing on a place page lists matching lots live; + adds one there and remove takes it out again', function () {
     $lab = makeLab();
     $manager = labManagerUser(['lab_id' => $lab->id]);
     $room = makeLocationForLab($lab);
-    $acid = makeItem(['name_th' => 'กรดซัลฟิวริกเข้มข้น', 'item_code' => 'AS900001']);
+    $alcohol = makeItem(['name_th' => 'Alcohol absolute', 'item_code' => 'AS900001']);
     $base = makeItem(['name_th' => 'โซเดียมไฮดรอกไซด์', 'item_code' => 'AS900002']);
     $mk = fn ($item) => \App\Models\ImsLot::create([
         'item_id' => $item->id, 'lab_id' => $lab->id, 'qty_received_base' => '10.000000',
         'qty_remaining_base' => '10.000000', 'received_at' => now(),
     ]);
-    $lotAcid = $mk($acid);
+    $lotAlcohol = $mk($alcohol);
     $lotBase = $mk($base);
 
-    // Partial name finds it; the other substance is not offered.
-    $this->actingAs($manager)->get(route('ims.places.show', [$room, 'add' => 'ซัลฟิว']))
-        ->assertOk()->assertSee('AS900001')->assertDontSee('AS900002');
-    // Partial code + a second word, in any order.
-    $this->actingAs($manager)->get(route('ims.places.show', [$room, 'add' => '90000 กรด']))
-        ->assertOk()->assertSee('AS900001');
+    \Livewire\Livewire::actingAs($manager)->test(\App\Livewire\Ims\PlaceContents::class, ['locationId' => $room->id])
+        ->set('term', 'alco')
+        ->assertSee('AS900001')->assertDontSee('AS900002')
+        ->call('add', $lotAlcohol->id)
+        ->assertSee('Alcohol absolute')
+        ->set('term', '')
+        ->call('removeLot', $lotAlcohol->id);
 
-    $this->actingAs($manager)->post(route('ims.lots.locate.store'), [
-        'location_id' => $room->id, 'return_place' => $room->ulid, 'lots' => [$lotAcid->id],
-    ])->assertRedirect(route('ims.places.show', $room));
-
-    expect($lotAcid->fresh()->location_id)->toBe($room->id)->and($lotBase->fresh()->location_id)->toBeNull();
+    expect($lotAlcohol->fresh()->location_id)->toBeNull();
+    expect($lotBase->fresh()->location_id)->toBeNull();
 });
 
-test('the add-here panel is for managers only', function () {
+test('adding puts the lot in the place and a group row can be removed', function () {
     $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
     $room = makeLocationForLab($lab);
-    $user = staffUser(['lab_id' => $lab->id]);
+    $item = makeItem();
+    $lot = \App\Models\ImsLot::create([
+        'item_id' => $item->id, 'lab_id' => $lab->id, 'qty_received_base' => '10.000000',
+        'qty_remaining_base' => '10.000000', 'pack_size_base' => '5.000000', 'received_at' => now(),
+    ]);
+    $group = \App\Models\ImsLotGroup::create(['ims_lot_id' => $lot->id, 'pack_count' => '1.0000', 'location_id' => $room->id]);
 
-    $this->actingAs($user)->get(route('ims.places.show', [$room, 'add' => 'x']))
-        ->assertOk()->assertDontSee(__('ims.add_here_title'));
+    $component = \Livewire\Livewire::actingAs($manager)->test(\App\Livewire\Ims\PlaceContents::class, ['locationId' => $room->id]);
+    $component->call('removeGroup', $group->id);
+    expect($group->fresh()->location_id)->toBeNull();
+
+    $component->call('add', $lot->id);
+    expect($lot->fresh()->location_id)->toBe($room->id);
+});
+
+test('only a manager of the same branch can add or remove on a place page', function () {
+    $lab = makeLab();
+    $other = makeLab();
+    $room = makeLocationForLab($lab);
+    $lot = \App\Models\ImsLot::create([
+        'item_id' => makeItem()->id, 'lab_id' => $lab->id, 'qty_received_base' => '1.000000',
+        'qty_remaining_base' => '1.000000', 'received_at' => now(),
+    ]);
+
+    \Livewire\Livewire::actingAs(staffUser(['lab_id' => $lab->id]))->test(\App\Livewire\Ims\PlaceContents::class, ['locationId' => $room->id])
+        ->call('add', $lot->id)->assertForbidden();
+
+    \Livewire\Livewire::actingAs(labManagerUser(['lab_id' => $other->id]))->test(\App\Livewire\Ims\PlaceContents::class, ['locationId' => $room->id])
+        ->assertForbidden();
+
+    expect($lot->fresh()->location_id)->toBeNull();
 });
