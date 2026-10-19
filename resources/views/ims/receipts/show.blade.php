@@ -26,6 +26,13 @@
         </div>
     </div>
 
+    @if (session('warning'))
+        <div class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink text-sm px-4 py-3 flex flex-wrap items-center gap-3">
+            <span class="font-semibold">⚠️ {{ session('warning') }}</span>
+            <a href="{{ route('ims.lots.index', ['no_location' => 1]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('ims.unplaced_show') }}</a>
+        </div>
+    @endif
+
     @error('confirm')
         <div class="mb-4 rounded-lg bg-danger-soft text-danger-ink text-sm px-4 py-3">{{ $message }}</div>
     @enderror

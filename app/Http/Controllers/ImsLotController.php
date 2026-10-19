@@ -36,12 +36,14 @@ final class ImsLotController extends Controller
         $search = trim((string) $request->query('search', ''));
         $showEmpty = $request->boolean('show_empty');
         $categoryId = $request->filled('category') ? (int) $request->query('category') : null;
+        $noLocation = $request->boolean('no_location');
 
         $lots = ImsLot::query()
             ->with(['item.baseUnit', 'item.category', 'lab', 'location', 'photos'])
             ->when(! $user->hasRole('ADMIN'), fn ($q) => $q->where('lab_id', $user->lab_id))
             ->when($categoryId !== null, fn ($q) => $q->whereHas('item', fn ($i) => $i->where('category_id', $categoryId)))
             ->when(! $showEmpty, fn ($q) => $q->where('qty_remaining_base', '>', 0))
+            ->when($noLocation, fn ($q) => $q->whereNull('location_id'))
             ->when($search !== '', function ($q) use ($search) {
                 $q->where(function ($w) use ($search) {
                     $w->where('lot_no', 'like', "%{$search}%")
@@ -54,7 +56,16 @@ final class ImsLotController extends Controller
             ->paginate(25)
             ->withQueryString();
 
+        // Lots still holding stock but with no storage place cannot be cut into working stock automatically.
+        $unplacedCount = ImsLot::query()
+            ->when(! $user->hasRole('ADMIN'), fn ($q) => $q->where('lab_id', $user->lab_id))
+            ->where('qty_remaining_base', '>', 0)
+            ->whereNull('location_id')
+            ->count();
+
         return view('ims.lots.index', [
+            'noLocation' => $noLocation,
+            'unplacedCount' => $unplacedCount,
             'lots' => $lots,
             'search' => $search,
             'showEmpty' => $showEmpty,

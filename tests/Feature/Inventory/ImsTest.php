@@ -587,3 +587,20 @@ test('a requester sees only their own branch\'s IMS stock, and one with no branc
     $this->actingAs($noBranch)->get(route('ims.lots.index'))->assertOk()->assertDontSee('AS100001');
     $this->actingAs($noBranch)->get(route('ims.lots.edit', $lot))->assertForbidden();
 });
+
+test('the IMS lot list can be filtered to lots with no storage place and shows a banner for them', function () {
+    $manager = labManagerUser(['lab_id' => makeLab()->id]);
+    $item = makeItem();
+    \App\Models\ImsLot::create([
+        'item_id' => $item->id, 'lab_id' => $manager->lab_id, 'lot_no' => 'NOLOC1',
+        'qty_received_base' => '100.000000', 'qty_remaining_base' => '100.000000', 'location_id' => null, 'received_at' => now(),
+    ]);
+
+    $this->actingAs($manager)->get(route('ims.lots.index'))
+        ->assertOk()
+        ->assertSee(__('ims.unplaced_banner', ['count' => 1]));
+
+    $this->actingAs($manager)->get(route('ims.lots.index', ['no_location' => 1]))
+        ->assertOk()
+        ->assertSee('NOLOC1');
+});

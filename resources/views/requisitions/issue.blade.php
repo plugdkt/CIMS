@@ -112,6 +112,22 @@
                     </table>
                 </div>
 
+                <div class="mb-4 max-w-sm">
+                    <label for="issue_all_receiver" class="block text-xs font-medium mb-1">{{ __('requisitions.field_receiver') }}</label>
+                    <select name="receiver_id" id="issue_all_receiver" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                        @foreach ($receivers as $r)
+                            <option value="{{ $r->id }}" @selected((int) old('receiver_id', $requisition->requester_id) === $r->id)>{{ $r->full_name }}@if ($r->id === $requisition->requester_id) ({{ __('requisitions.col_requester') }})@endif</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                @if ($pending->contains(fn ($r) => $r['line']->item?->is_controlled))
+                    <label class="mb-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm">
+                        <input type="checkbox" name="controlled_ack" value="1" class="mt-1" @checked(old('controlled_ack'))>
+                        <span>{{ __('requisitions.controlled_ack') }}</span>
+                    </label>
+                @endif
+
                 <details class="rounded-lg border border-border bg-surface-alt px-3 py-2 mb-4">
                     <summary class="cursor-pointer text-xs font-semibold text-ink-muted">{{ __('requisitions.more_options') }}</summary>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">

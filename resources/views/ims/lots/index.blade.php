@@ -17,6 +17,15 @@
         </div>
     @endif
 
+    @if ($unplacedCount > 0)
+        <div class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm flex flex-wrap items-center gap-3">
+            <span class="font-semibold">⚠️ {{ __('ims.unplaced_banner', ['count' => $unplacedCount]) }}</span>
+            @unless ($noLocation)
+                <a href="{{ route('ims.lots.index', ['no_location' => 1]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('ims.unplaced_show') }}</a>
+            @endunless
+        </div>
+    @endif
+
     <form method="GET" action="{{ route('ims.lots.index') }}" class="flex flex-wrap items-center gap-3 mb-4">
         <label for="search" class="sr-only">{{ __('ims.search_placeholder') }}</label>
         <input id="search" name="search" type="search" value="{{ $search }}" placeholder="{{ __('ims.search_placeholder') }}"
@@ -31,6 +40,10 @@
         <label class="flex items-center gap-2 text-sm">
             <input type="checkbox" name="show_empty" value="1" @checked($showEmpty)>
             {{ __('ims.show_empty') }}
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="no_location" value="1" @checked($noLocation)>
+            {{ __('ims.filter_no_location') }}
         </label>
         <button type="submit" class="rounded-lg bg-accent text-white text-sm font-semibold px-4 py-2">OK</button>
     </form>
@@ -62,7 +75,7 @@
                             <td class="px-4 py-3 font-mono text-xs">{{ $lot->item?->item_code }}</td>
                             <td class="px-4 py-3">{{ $lot->item?->name_th }}</td>
                             <td class="px-4 py-3">{{ $lot->lot_no ?: '—' }}</td>
-                            <td class="px-4 py-3">{{ $lot->location?->name ?: '—' }}</td>
+                            <td class="px-4 py-3">@if ($lot->location) {{ $lot->location->name }} @elseif ($lot->qty_remaining_base > 0) <span class="text-xs font-semibold text-warning-ink">{{ __('ims.no_location') }}</span> @else — @endif</td>
                             <td class="px-4 py-3 text-right font-mono">
                                 @php
                                     $packs = $lot->packsRemaining();

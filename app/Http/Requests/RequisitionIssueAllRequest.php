@@ -30,6 +30,8 @@ final class RequisitionIssueAllRequest extends FormRequest
             'lines' => ['required', 'array'],
             'lines.*.qty' => ['nullable', 'numeric', 'min:0'],
             'lines.*.unit_id' => ['required_with:lines.*.qty', 'nullable', 'integer', Rule::exists('units', 'id')],
+            'receiver_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
+            'controlled_ack' => ['nullable', 'boolean'],
             'remark' => ['nullable', 'string', 'max:500'],
             'overage_approved_by' => ['nullable', 'integer', Rule::exists('users', 'id')],
         ];

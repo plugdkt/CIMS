@@ -88,6 +88,12 @@ final class RequisitionIssueController extends Controller
             'units' => Unit::orderBy('sort_order')->get(),
             'selector' => $selector,
             'canReturn' => auth()->user()?->can('return', $requisition) ?? false,
+            // Who may collect the goods: the requester (default) or anyone else in the same branch.
+            'receivers' => User::query()
+                ->where('is_active', true)
+                ->where(fn ($q) => $q->where('lab_id', $requisition->lab_id)->orWhere('id', $requisition->requester_id))
+                ->orderBy('full_name')
+                ->get(['id', 'full_name']),
         ]);
     }
 
@@ -219,14 +225,33 @@ final class RequisitionIssueController extends Controller
 
         /** @var User $issuer */
         $issuer = $request->user();
+
+        // The requester collects by default; the issuer may name someone else from the same branch.
         $receiver = $requisition->requester()->firstOrFail();
+        if (! empty($data['receiver_id']) && (int) $data['receiver_id'] !== $receiver->id) {
+            $other = User::whereKey($data['receiver_id'])->where('is_active', true)->where('lab_id', $requisition->lab_id)->first();
+            if ($other === null) {
+                return back()->withErrors(['receiver_id' => __('requisitions.validation.receiver_invalid')])->withInput();
+            }
+            $receiver = $other;
+        }
+
+        // Controlled substances: the issuer must explicitly confirm the receiver is present and took them.
+        $requisition->load('items.item');
+        $hasControlled = $requisition->items->contains(function (RequisitionItem $l) use ($data) {
+            $qty = $data['lines'][$l->id]['qty'] ?? null;
+
+            return $l->item?->is_controlled === true && is_numeric($qty) && bccomp((string) $qty, '0', 6) > 0;
+        });
+        if ($hasControlled && empty($data['controlled_ack'])) {
+            return back()->withErrors(['controlled_ack' => __('requisitions.validation.controlled_ack_required')])->withInput();
+        }
 
         // No receiver signature/OTP any more: the ledger still gets a tamper-evident marker
         // tying this issue to the requisition, issuer, receiver and time.
         $signatureHash = hash('sha256', "ISSUE|{$requisition->id}|{$issuer->id}|{$receiver->id}|".now()->toISOString());
         $signatureImagePath = null;
 
-        $requisition->load('items.item');
         $done = 0;
         $errors = [];
 

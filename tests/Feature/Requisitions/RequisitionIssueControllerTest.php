@@ -344,3 +344,54 @@ test('the issue page warns about IMS lots with no storage place and links to set
         ->assertSee(__('requisitions.btn_set_location'))
         ->assertSee(route('ims.lots.edit', $lot), false);
 });
+
+test('issue-all can name another person from the same branch as the receiver', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    stockedContainer($line->item_id, '500.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $colleague = \App\Models\User::factory()->create(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '50', 'unit_id' => $g->id]],
+        'receiver_id' => $colleague->id,
+    ])->assertSessionHas('status');
+
+    expect(\App\Models\IssueTransaction::where('requisition_item_id', $line->id)->value('receiver_id'))->toBe($colleague->id);
+});
+
+test('issue-all rejects a receiver from another branch', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    stockedContainer($line->item_id, '500.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $stranger = \App\Models\User::factory()->create(['lab_id' => makeLab()->id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '50', 'unit_id' => $g->id]],
+        'receiver_id' => $stranger->id,
+    ])->assertSessionHasErrors('receiver_id');
+
+    expect($line->fresh()->qty_issued_base)->toBeIn([null, '0.000000']);
+});
+
+test('issue-all requires an explicit confirmation when a controlled substance is dispensed', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    $line->item()->update(['is_controlled' => true]);
+    stockedContainer($line->item_id, '500.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $payload = ['lines' => [$line->id => ['qty' => '50', 'unit_id' => $g->id]]];
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), $payload)->assertSessionHasErrors('controlled_ack');
+    expect($line->fresh()->qty_issued_base)->toBeIn([null, '0.000000']);
+
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), $payload + ['controlled_ack' => '1'])->assertSessionHas('status');
+    expect($line->fresh()->qty_issued_base)->toBe('50.000000');
+});

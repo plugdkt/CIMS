@@ -10,6 +10,7 @@ use App\Domain\Inventory\Services\ImsReportImporter;
 use App\Http\Requests\ImsReceiptLineRequest;
 use App\Http\Requests\ImsReceiptLineUpdateRequest;
 use App\Http\Requests\ImsReceiptRequest;
+use App\Models\ImsLot;
 use App\Models\ImsReceipt;
 use App\Models\ImsReceiptLine;
 use App\Models\Item;
@@ -194,12 +195,18 @@ final class ImsReceiptController extends Controller
             return back()->withErrors(['confirm' => $e->getMessage()]);
         }
 
-        return redirect()->route('ims.receipts.show', $imsReceipt)->with(
+        $unplaced = ImsLot::whereIn('id', $imsReceipt->lines()->whereIn('id', $lineIds)->whereNotNull('ims_lot_id')->pluck('ims_lot_id'))
+            ->whereNull('location_id')
+            ->count();
+
+        $redirect = redirect()->route('ims.receipts.show', $imsReceipt)->with(
             'status',
             $imsReceipt->fresh()?->isDraft()
                 ? __('ims.receipt_partially_confirmed', ['count' => count($lineIds)])
                 : __('ims.receipt_confirmed'),
         );
+
+        return $unplaced > 0 ? $redirect->with('warning', __('ims.confirm_unplaced_warning', ['count' => $unplaced])) : $redirect;
     }
 
     public function cancel(ImsReceipt $imsReceipt): RedirectResponse
