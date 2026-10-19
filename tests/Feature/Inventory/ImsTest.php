@@ -604,3 +604,76 @@ test('the IMS lot list can be filtered to lots with no storage place and shows a
         ->assertOk()
         ->assertSee('NOLOC1');
 });
+
+test('a branch manager picks one place, ticks several lots and saves once', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $place = makeLocationForLab($lab);
+    $lots = collect([makeItem(), makeItem(), makeItem()])->map(fn ($item) => \App\Models\ImsLot::create([
+        'item_id' => $item->id, 'lab_id' => $lab->id, 'qty_received_base' => '10.000000',
+        'qty_remaining_base' => '10.000000', 'location_id' => null, 'received_at' => now(),
+    ]));
+
+    $this->actingAs($manager)->get(route('ims.lots.locate'))->assertOk();
+
+    $this->actingAs($manager)->post(route('ims.lots.locate.store'), [
+        'location_id' => $place->id,
+        'lots' => [$lots[0]->id, $lots[1]->id],
+    ])->assertRedirect(route('ims.lots.locate'))->assertSessionHas('status');
+
+    expect($lots[0]->fresh()->location_id)->toBe($place->id);
+    expect($lots[1]->fresh()->location_id)->toBe($place->id);
+    expect($lots[2]->fresh()->location_id)->toBeNull();
+});
+
+test('bulk locate refuses another branch\'s place or lots, and non-managers', function () {
+    $lab = makeLab();
+    $other = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $foreignPlace = makeLocationForLab($other);
+    $ownPlace = makeLocationForLab($lab);
+    $item = makeItem();
+    $foreignLot = \App\Models\ImsLot::create([
+        'item_id' => $item->id, 'lab_id' => $other->id, 'qty_received_base' => '5.000000',
+        'qty_remaining_base' => '5.000000', 'received_at' => now(),
+    ]);
+
+    $this->actingAs($manager)->post(route('ims.lots.locate.store'), ['location_id' => $foreignPlace->id, 'lots' => [$foreignLot->id]])
+        ->assertSessionHasErrors('location_id');
+    $this->actingAs($manager)->post(route('ims.lots.locate.store'), ['location_id' => $ownPlace->id, 'lots' => [$foreignLot->id]])
+        ->assertSessionHasErrors('lots.0');
+    expect($foreignLot->fresh()->location_id)->toBeNull();
+
+    $this->actingAs(staffUser(['lab_id' => $lab->id]))->get(route('ims.lots.locate'))->assertStatus(403);
+});
+
+test('the places tab counts a shelf\'s substances on its parent place and the detail page lists them', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $cabinet = makeLocationForLab($lab);
+    $shelf = \App\Models\Location::create(['parent_id' => $cabinet->id, 'lab_id' => $lab->id, 'code' => 'SH-1', 'name' => 'ชั้นหนึ่ง', 'level_type' => 'SHELF']);
+    $item = makeItem(['name_th' => 'กรดทดสอบหนึ่ง']);
+    \App\Models\ImsLot::create([
+        'item_id' => $item->id, 'lab_id' => $lab->id, 'lot_no' => 'LP1', 'qty_received_base' => '10.000000',
+        'qty_remaining_base' => '10.000000', 'location_id' => $shelf->id, 'received_at' => now(),
+    ]);
+
+    $overview = app(\App\Domain\Inventory\Services\StoragePlaceOverview::class);
+    $result = $overview->index($lab->id, null);
+    $counts = collect($result['places'])->mapWithKeys(fn ($p) => [$p['location']->id => $p['count']]);
+    expect($counts[$cabinet->id])->toBe(1)->and($counts[$shelf->id])->toBe(1);
+
+    $this->actingAs($manager)->get(route('ims.places.index'))->assertOk()->assertSee($cabinet->name);
+    $this->actingAs($manager)->get(route('ims.places.show', $cabinet))->assertOk()->assertSee('กรดทดสอบหนึ่ง')->assertSee('LP1');
+    $this->actingAs($manager)->get(route('ims.places.index', ['search' => 'กรดทดสอบหนึ่ง']))->assertOk()->assertSee('กรดทดสอบหนึ่ง');
+    $this->actingAs($manager)->get(route('ims.places.index', ['search' => 'ไม่มีสารนี้แน่นอน']))->assertOk()->assertSee(__('ims.places_none_found'));
+});
+
+test('a place of another branch cannot be opened', function () {
+    $mine = makeLab();
+    $other = makeLab();
+    $manager = labManagerUser(['lab_id' => $mine->id]);
+    $foreign = makeLocationForLab($other);
+
+    $this->actingAs($manager)->get(route('ims.places.show', $foreign))->assertStatus(403);
+});

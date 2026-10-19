@@ -10,6 +10,7 @@ use App\Domain\Attachments\Exceptions\InfectedFileException;
 use App\Domain\Attachments\Services\AttachmentUploadService;
 use App\Http\Requests\ImsLotDetailsRequest;
 use App\Http\Requests\ImsLotGroupRequest;
+use App\Http\Requests\ImsLotLocateRequest;
 use App\Http\Requests\ImsLotPhotoRequest;
 use App\Http\Requests\ImsTransferRequest;
 use App\Models\Attachment;
@@ -72,6 +73,55 @@ final class ImsLotController extends Controller
             'categoryId' => $categoryId,
             'categories' => ItemCategory::orderBy('id')->get(),
         ]);
+    }
+
+    /** Bulk "put these lots in this place": the branch manager picks a place, ticks the lots, saves once. */
+    public function locateForm(Request $request): View
+    {
+        /** @var User $user */
+        $user = $request->user();
+        abort_unless($user->can('ims.manage') && $user->lab_id !== null, 403);
+
+        $search = trim((string) $request->query('search', ''));
+        $showAll = $request->boolean('show_all');
+
+        $lots = ImsLot::query()
+            ->with(['item.baseUnit', 'location'])
+            ->where('lab_id', $user->lab_id)
+            ->where('qty_remaining_base', '>', 0)
+            ->when(! $showAll, fn ($q) => $q->whereNull('location_id'))
+            ->when($search !== '', function ($q) use ($search) {
+                $q->where(function ($w) use ($search) {
+                    $w->where('lot_no', 'like', "%{$search}%")
+                        ->orWhereHas('item', fn ($i) => $i->where('item_code', 'like', "%{$search}%")
+                            ->orWhere('name_th', 'like', "%{$search}%")
+                            ->orWhere('name_en', 'like', "%{$search}%"));
+                });
+            })
+            ->orderBy('item_id')
+            ->orderBy('id')
+            ->limit(500)
+            ->get();
+
+        return view('ims.lots.locate', [
+            'lots' => $lots,
+            'locations' => Location::where('lab_id', $user->lab_id)->orderBy('code')->get(),
+            'search' => $search,
+            'showAll' => $showAll,
+        ]);
+    }
+
+    public function locateStore(ImsLotLocateRequest $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $data = $request->validated();
+
+        $count = ImsLot::whereIn('id', $data['lots'])
+            ->where('lab_id', $user->lab_id)
+            ->update(['location_id' => (int) $data['location_id']]);
+
+        return redirect()->route('ims.lots.locate')->with('status', __('ims.locate_saved', ['count' => $count]));
     }
 
     public function transferForm(ImsLot $imsLot): View

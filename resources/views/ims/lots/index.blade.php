@@ -20,6 +20,9 @@
     @if ($unplacedCount > 0)
         <div class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm flex flex-wrap items-center gap-3">
             <span class="font-semibold">⚠️ {{ __('ims.unplaced_banner', ['count' => $unplacedCount]) }}</span>
+            @can('ims.manage')
+                <a href="{{ route('ims.lots.locate') }}" class="rounded-lg bg-success hover:bg-success-ink text-white text-xs font-semibold px-3 py-1.5">{{ __('ims.locate_open') }}</a>
+            @endcan
             @unless ($noLocation)
                 <a href="{{ route('ims.lots.index', ['no_location' => 1]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('ims.unplaced_show') }}</a>
             @endunless

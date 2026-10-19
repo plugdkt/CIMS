@@ -44,6 +44,9 @@
                 @if ($blocked->isNotEmpty())
                     <div class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm">
                         <p class="font-semibold mb-2">⚠️ {{ __('requisitions.unplaced_warning', ['count' => $blocked->count()]) }}</p>
+                        @can('ims.manage')
+                            <a href="{{ route('ims.lots.locate') }}" class="mb-2 inline-block rounded-lg bg-success hover:bg-success-ink text-white text-xs font-semibold px-3 py-1.5">{{ __('ims.locate_open') }}</a>
+                        @endcan
                         <ul class="space-y-2">
                             @foreach ($blocked as $row)
                                 <li class="flex flex-wrap items-center gap-2">

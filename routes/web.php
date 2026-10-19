@@ -29,6 +29,7 @@ use App\Http\Controllers\RequisitionIssueController;
 use App\Http\Controllers\RequisitionItemController;
 use App\Http\Controllers\RequisitionReturnController;
 use App\Http\Controllers\ImsLotController;
+use App\Http\Controllers\ImsPlaceController;
 use App\Http\Controllers\ImsReceiptController;
 use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTakeController;
@@ -172,6 +173,11 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::post('/receipts/{ims_receipt}/cancel', [ImsReceiptController::class, 'cancel'])->name('receipts.cancel');
 
     Route::get('/lots', [ImsLotController::class, 'index'])->name('lots.index');
+    Route::get('/places', [ImsPlaceController::class, 'index'])->name('places.index');
+    Route::get('/places/{location}', [ImsPlaceController::class, 'show'])->name('places.show');
+    // Pick one place, tick many lots, save once.
+    Route::get('/lots/locate', [ImsLotController::class, 'locateForm'])->name('lots.locate');
+    Route::post('/lots/locate', [ImsLotController::class, 'locateStore'])->name('lots.locate.store');
     Route::get('/lots/{ims_lot}/edit', [ImsLotController::class, 'edit'])->name('lots.edit');
     Route::put('/lots/{ims_lot}', [ImsLotController::class, 'update'])->name('lots.update');
     Route::post('/lots/{ims_lot}/groups', [ImsLotController::class, 'storeGroup'])->name('lots.groups.store');
