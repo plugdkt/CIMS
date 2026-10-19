@@ -677,3 +677,39 @@ test('a place of another branch cannot be opened', function () {
 
     $this->actingAs($manager)->get(route('ims.places.show', $foreign))->assertStatus(403);
 });
+
+test('from a place page the manager types part of a name, ticks lots and stores them there', function () {
+    $lab = makeLab();
+    $manager = labManagerUser(['lab_id' => $lab->id]);
+    $room = makeLocationForLab($lab);
+    $acid = makeItem(['name_th' => 'กรดซัลฟิวริกเข้มข้น', 'item_code' => 'AS900001']);
+    $base = makeItem(['name_th' => 'โซเดียมไฮดรอกไซด์', 'item_code' => 'AS900002']);
+    $mk = fn ($item) => \App\Models\ImsLot::create([
+        'item_id' => $item->id, 'lab_id' => $lab->id, 'qty_received_base' => '10.000000',
+        'qty_remaining_base' => '10.000000', 'received_at' => now(),
+    ]);
+    $lotAcid = $mk($acid);
+    $lotBase = $mk($base);
+
+    // Partial name finds it; the other substance is not offered.
+    $this->actingAs($manager)->get(route('ims.places.show', [$room, 'add' => 'ซัลฟิว']))
+        ->assertOk()->assertSee('AS900001')->assertDontSee('AS900002');
+    // Partial code + a second word, in any order.
+    $this->actingAs($manager)->get(route('ims.places.show', [$room, 'add' => '90000 กรด']))
+        ->assertOk()->assertSee('AS900001');
+
+    $this->actingAs($manager)->post(route('ims.lots.locate.store'), [
+        'location_id' => $room->id, 'return_place' => $room->ulid, 'lots' => [$lotAcid->id],
+    ])->assertRedirect(route('ims.places.show', $room));
+
+    expect($lotAcid->fresh()->location_id)->toBe($room->id)->and($lotBase->fresh()->location_id)->toBeNull();
+});
+
+test('the add-here panel is for managers only', function () {
+    $lab = makeLab();
+    $room = makeLocationForLab($lab);
+    $user = staffUser(['lab_id' => $lab->id]);
+
+    $this->actingAs($user)->get(route('ims.places.show', [$room, 'add' => 'x']))
+        ->assertOk()->assertDontSee(__('ims.add_here_title'));
+});

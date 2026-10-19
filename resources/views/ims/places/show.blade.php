@@ -8,7 +8,64 @@
         <p class="text-xs text-ink-faint">{{ $path }} · <span class="font-mono">{{ $place->code }}</span></p>
     </div>
 
+    @if ($canManage)
+        <section class="bg-surface border-2 border-accent rounded-xl p-5 mb-6">
+            <h2 class="font-semibold">{{ __('ims.add_here_title') }}</h2>
+            <p class="text-xs text-ink-muted mb-3">{{ __('ims.add_here_hint') }}</p>
+            <form method="GET" action="{{ route('ims.places.show', $place) }}" class="flex flex-wrap items-center gap-3">
+                @if ($search !== '') <input type="hidden" name="search" value="{{ $search }}"> @endif
+                <label for="add" class="sr-only">{{ __('ims.add_here_title') }}</label>
+                <input id="add" name="add" type="search" value="{{ $add }}" placeholder="{{ __('ims.add_here_placeholder') }}"
+                       class="w-96 max-w-full rounded-lg border border-border px-3 py-2 text-sm" @if ($add === '') autofocus @endif>
+                <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2">{{ __('ims.places_find') }}</button>
+            </form>
+
+            @if ($add !== '')
+                @if ($candidates->isEmpty())
+                    <p class="mt-4 text-sm text-ink-muted">
+                        {{ __('ims.add_here_none') }}
+                        <a href="{{ route('ims.receipts.create') }}" class="font-semibold text-accent hover:text-accent-strong">{{ __('ims.add_here_new_receipt') }}</a>
+                    </p>
+                @else
+                    <form method="POST" action="{{ route('ims.lots.locate.store') }}" class="mt-4">
+                        @csrf
+                        <input type="hidden" name="location_id" value="{{ $place->id }}">
+                        <input type="hidden" name="return_place" value="{{ $place->ulid }}">
+                        <div class="overflow-x-auto border border-border rounded-lg" tabindex="0">
+                            <table class="w-full text-sm">
+                                <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
+                                    <tr>
+                                        <th class="px-3 py-2 w-10"><span class="sr-only">{{ __('ims.locate_select_all') }}</span></th>
+                                        <th class="px-3 py-2 font-semibold">{{ __('ims.col_item_code') }}</th>
+                                        <th class="px-3 py-2 font-semibold">{{ __('ims.col_item') }}</th>
+                                        <th class="px-3 py-2 font-semibold">Lot</th>
+                                        <th class="px-3 py-2 font-semibold text-right">{{ __('ims.col_remaining') }}</th>
+                                        <th class="px-3 py-2 font-semibold">{{ __('ims.add_here_now_at') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    @foreach ($candidates as $lot)
+                                        <tr>
+                                            <td class="px-3 py-2"><input type="checkbox" name="lots[]" value="{{ $lot->id }}" id="cand-{{ $lot->id }}" aria-label="{{ $lot->item?->name_th }}" @checked($lot->location_id === null)></td>
+                                            <td class="px-3 py-2 font-mono text-xs">{{ $lot->item?->item_code }}</td>
+                                            <td class="px-3 py-2"><label for="cand-{{ $lot->id }}" class="cursor-pointer">{{ $lot->item?->name_th }}</label></td>
+                                            <td class="px-3 py-2">{{ $lot->lot_no ?: '—' }}</td>
+                                            <td class="px-3 py-2 text-right font-mono whitespace-nowrap">{{ $fmt($lot->qty_remaining_base) }} {{ $lot->item?->baseUnit?->code }}</td>
+                                            <td class="px-3 py-2 text-xs text-ink-muted">{{ $lot->location?->name ?: __('ims.no_location') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="submit" class="mt-3 rounded-lg bg-success hover:bg-success-ink text-white text-base font-bold px-6 py-2.5 shadow-md">{{ __('ims.add_here_save', ['place' => $place->name]) }}</button>
+                    </form>
+                @endif
+            @endif
+        </section>
+    @endif
+
     <form method="GET" action="{{ route('ims.places.show', $place) }}" class="flex flex-wrap items-center gap-3 mb-5">
+        @if ($add !== '') <input type="hidden" name="add" value="{{ $add }}"> @endif
         <label for="search" class="sr-only">{{ __('ims.places_search_here') }}</label>
         <input id="search" name="search" type="search" value="{{ $search }}" placeholder="{{ __('ims.places_search_here') }}"
                class="w-80 rounded-lg border border-border px-3 py-2 text-sm">

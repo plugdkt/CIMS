@@ -93,6 +93,29 @@ class ImsLot extends Model
         return bcdiv($this->qty_remaining_base, $size, 2);
     }
 
+    /**
+     * Quick search: every typed word must appear somewhere in the item's code, Thai/English name
+     * or the lot number — so "กรดซัล" or "AS0123 acid" finds it without typing the full name.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<ImsLot>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<ImsLot>
+     */
+    public function scopeSearch($query, string $term)
+    {
+        $words = preg_split('/\s+/u', trim($term), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($words as $word) {
+            $like = '%'.addcslashes($word, '%_\\').'%';
+            $query->where(function ($w) use ($like) {
+                $w->where('lot_no', 'like', $like)
+                    ->orWhereHas('item', fn ($i) => $i->where('item_code', 'like', $like)
+                        ->orWhere('name_th', 'like', $like)
+                        ->orWhere('name_en', 'like', $like));
+            });
+        }
+
+        return $query;
+    }
+
     /** @return HasMany<ImsLotGroup, $this> */
     public function groups(): HasMany
     {

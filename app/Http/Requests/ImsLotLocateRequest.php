@@ -24,6 +24,7 @@ final class ImsLotLocateRequest extends FormRequest
 
         return [
             'location_id' => ['required', 'integer', Rule::exists('locations', 'id')->where('lab_id', $labId)],
+            'return_place' => ['nullable', 'string', 'size:26'],
             'lots' => ['required', 'array', 'min:1'],
             'lots.*' => ['integer', Rule::exists('ims_lots', 'id')->where('lab_id', $labId)],
         ];

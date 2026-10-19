@@ -41,8 +41,22 @@ final class ImsPlaceController extends Controller
         abort_unless($user->lab_id === null || $user->lab_id === $location->lab_id, 403);
 
         $search = trim((string) $request->query('search', ''));
+        $add = trim((string) $request->query('add', ''));
+
+        // Lots of this branch matching what was typed, that are not already in this place.
+        $candidates = $add === '' || ! $user->can('ims.manage') ? collect() : ImsLot::query()
+            ->with(['item.baseUnit', 'location'])
+            ->where('lab_id', $location->lab_id)
+            ->where('qty_remaining_base', '>', 0)
+            ->search($add)
+            ->where(fn ($q) => $q->whereNull('location_id')->orWhere('location_id', '!=', $location->id))
+            ->orderBy('item_id')
+            ->limit(100)
+            ->get();
 
         return view('ims.places.show', [
+            'add' => $add,
+            'candidates' => $candidates,
             'place' => $location,
             'search' => $search,
             'canManage' => $user->can('ims.manage'),

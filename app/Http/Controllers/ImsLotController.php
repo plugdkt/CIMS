@@ -45,14 +45,7 @@ final class ImsLotController extends Controller
             ->when($categoryId !== null, fn ($q) => $q->whereHas('item', fn ($i) => $i->where('category_id', $categoryId)))
             ->when(! $showEmpty, fn ($q) => $q->where('qty_remaining_base', '>', 0))
             ->when($noLocation, fn ($q) => $q->whereNull('location_id'))
-            ->when($search !== '', function ($q) use ($search) {
-                $q->where(function ($w) use ($search) {
-                    $w->where('lot_no', 'like', "%{$search}%")
-                        ->orWhereHas('item', fn ($i) => $i->where('item_code', 'like', "%{$search}%")
-                            ->orWhere('name_th', 'like', "%{$search}%")
-                            ->orWhere('name_en', 'like', "%{$search}%"));
-                });
-            })
+            ->when($search !== '', fn ($q) => $q->search($search))
             ->orderByDesc('id')
             ->paginate(25)
             ->withQueryString();
@@ -90,14 +83,7 @@ final class ImsLotController extends Controller
             ->where('lab_id', $user->lab_id)
             ->where('qty_remaining_base', '>', 0)
             ->when(! $showAll, fn ($q) => $q->whereNull('location_id'))
-            ->when($search !== '', function ($q) use ($search) {
-                $q->where(function ($w) use ($search) {
-                    $w->where('lot_no', 'like', "%{$search}%")
-                        ->orWhereHas('item', fn ($i) => $i->where('item_code', 'like', "%{$search}%")
-                            ->orWhere('name_th', 'like', "%{$search}%")
-                            ->orWhere('name_en', 'like', "%{$search}%"));
-                });
-            })
+            ->when($search !== '', fn ($q) => $q->search($search))
             ->orderBy('item_id')
             ->orderBy('id')
             ->limit(500)
@@ -121,7 +107,13 @@ final class ImsLotController extends Controller
             ->where('lab_id', $user->lab_id)
             ->update(['location_id' => (int) $data['location_id']]);
 
-        return redirect()->route('ims.lots.locate')->with('status', __('ims.locate_saved', ['count' => $count]));
+        $status = __('ims.locate_saved', ['count' => $count]);
+        $back = $request->input('return_place');
+        $place = is_string($back) ? Location::where('ulid', $back)->where('lab_id', $user->lab_id)->first() : null;
+
+        return ($place !== null
+            ? redirect()->route('ims.places.show', $place)
+            : redirect()->route('ims.lots.locate'))->with('status', $status);
     }
 
     public function transferForm(ImsLot $imsLot): View
