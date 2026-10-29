@@ -4,6 +4,13 @@
         <a href="{{ route('ims.receipts.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('ims.back') }}</a>
         <h1 class="font-display text-lg font-bold mt-1 mb-5">{{ __('ims.create_title') }}</h1>
 
+        @if ($confirmedPdfImports > 0)
+            <div role="alert" id="double-count-warning" class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink text-sm px-4 py-3">
+                <p class="font-semibold">⚠️ {{ __('ims.double_count_title') }}</p>
+                <p class="mt-1">{{ __('ims.double_count_create', ['count' => $confirmedPdfImports]) }}</p>
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('ims.receipts.store') }}" enctype="multipart/form-data"
               class="bg-surface border border-border rounded-xl p-6 space-y-4">
             @csrf

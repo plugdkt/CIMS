@@ -33,6 +33,13 @@
         </div>
     @endif
 
+    @if (($doubleCountWarning ?? 0) > 0 && $receipt->isDraft())
+        <div role="alert" id="double-count-warning" class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink text-sm px-4 py-3">
+            <p class="font-semibold">⚠️ {{ __('ims.double_count_title') }}</p>
+            <p class="mt-1">{{ __('ims.double_count_confirm', ['count' => $doubleCountWarning]) }}</p>
+        </div>
+    @endif
+
     @error('confirm')
         <div class="mb-4 rounded-lg bg-danger-soft text-danger-ink text-sm px-4 py-3">{{ $message }}</div>
     @enderror

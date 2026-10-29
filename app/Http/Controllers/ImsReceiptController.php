@@ -46,11 +46,16 @@ final class ImsReceiptController extends Controller
         return view('ims.receipts.index', ['receipts' => $receipts]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         $this->authorize('create', ImsReceipt::class);
 
-        return view('ims.receipts.create');
+        /** @var User $user */
+        $user = $request->user();
+
+        return view('ims.receipts.create', [
+            'confirmedPdfImports' => $user->lab_id === null ? 0 : ImsReceipt::confirmedPdfImportCount((int) $user->lab_id),
+        ]);
     }
 
     public function store(ImsReceiptRequest $request, ImsReportImporter $importer): RedirectResponse
@@ -115,6 +120,9 @@ final class ImsReceiptController extends Controller
 
         return view('ims.receipts.show', [
             'receipt' => $imsReceipt,
+            // Warn before confirming a PDF import when the branch already confirmed another one.
+            'doubleCountWarning' => $imsReceipt->import_summary !== null
+                ? ImsReceipt::confirmedPdfImportCount($imsReceipt->lab_id, $imsReceipt->id) : 0,
             'units' => Unit::orderBy('sort_order')->get(),
         ]);
     }

@@ -59,6 +59,23 @@ class ImsReceipt extends Model
         return $this->hasMany(ImsReceiptLine::class)->orderBy('line_no');
     }
 
+    /**
+     * How many other, not-cancelled documents of this branch were filled from the warehouse PDF
+     * (the importer is the only thing that sets `import_summary`) and already have at least one
+     * confirmed line. Confirming another PDF's closing balance on top of those would count the
+     * same stock twice, so the UI warns when this is above zero. Information only.
+     */
+    public static function confirmedPdfImportCount(int $labId, ?int $exceptId = null): int
+    {
+        return static::query()
+            ->where('lab_id', $labId)
+            ->whereNotNull('import_summary')
+            ->where('status', '!=', 'CANCELLED')
+            ->when($exceptId !== null, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->whereHas('lines', fn ($q) => $q->whereNotNull('ims_lot_id'))
+            ->count();
+    }
+
     public function isDraft(): bool
     {
         return $this->status === 'DRAFT';

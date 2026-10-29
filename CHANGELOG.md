@@ -5,8 +5,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- 2026-10-29: Issue page text no longer mentions receiver signing (the all-in-one issue form has one button, a receiver picker and a controlled-substance tick box). Screen text only; signature/OTP code, routes and tests are untouched.
+
+### Security
+
+- 2026-10-29: Dependency bumps — laravel/framework 13.29.0 to 13.35.0, league/commonmark 2.10.0 to 2.10.4, phpoffice/phpspreadsheet 5.9.0 to 5.10.0, symfony/http-foundation and symfony/mime 7.4.18 to 7.4.22. `composer audit` clean.
+
 ### Added
 
+- 2026-10-29: Double-count warning for IMS PDF imports. The new-document page and the review page of a DRAFT PDF-imported document show an information-only notice when the branch has already confirmed lines from another PDF import (manual entries, cancelled documents and other branches do not count). Covered by `ImsPdfDoubleCountWarningTest`.
 - 2026-10-07: Full central-store catalog. `catalog:import` loads every row of the two raw exports (วัสดุสารเคมี, วัสดุวิทยาศาสตร์หรือการแพทย์) so IMS documents match line by line — 8,714 items added (13,967 total); materials are counted per piece/pack. The stock-summary parser now also accepts 7-digit and lower-case "As" codes.
 - 2026-10-07: IMS can be filled from the university's stock-summary PDF. `ImsStockReportParser` reads the report by text position (its Thai text layer is garbled; numbers and AS codes are intact) and cross-checks opening + received − issued = balance on every row; `ImsReportImporter` turns the closing balances of catalog items into DRAFT lines, lists skipped/unknown codes, and refuses a file already imported. IMS lines and lots now work in packs (`pack_qty`, price per pack, `ims_lots.pack_size_base`) with working-stock bottles priced by pack share. Added `smalot/pdfparser`.
 - 2026-10-06: Eight chemical types as item categories (สารเคมี / อาหารเลี้ยงเชื้อ / สี / น้ำตาล / ยาปฏิชีวนะ / Test Kits / Detergent / อื่นๆ) — one type per item, used to browse stock by type: filter on the item list, the working-stock list and the IMS lot list. Existing items stay in "สารเคมี" until reassigned.
