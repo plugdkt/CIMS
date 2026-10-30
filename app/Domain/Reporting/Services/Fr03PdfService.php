@@ -31,6 +31,9 @@ final class Fr03PdfService
 
     private const ROW_HEIGHT_MM = 5.0;
 
+    /** Left indent of the remark column's text, taken from that column's own width. */
+    private const REMARK_INDENT_MM = 2.0;
+
     public function __construct(private readonly LedgerQueryService $ledgerQuery)
     {
     }
@@ -137,9 +140,29 @@ final class Fr03PdfService
 
         $labels = $this->columnLabels();
         foreach (self::COL_WIDTHS_MM as $i => $width) {
-            $mpdf->Cell($width, self::ROW_HEIGHT_MM, $labels[$i], 1, 0, 'L', true);
+            $this->drawCell($mpdf, $i, $width, $labels[$i], 'L', true);
         }
         $mpdf->Ln(self::ROW_HEIGHT_MM);
+    }
+
+    /**
+     * One bordered cell. The last (remark) column gets a left indent so it doesn't touch the
+     * right-aligned balance column: the box is drawn full width, then the text is drawn
+     * narrower inside it (the width comes out of the remark column itself, so the total stays).
+     */
+    private function drawCell(Mpdf $mpdf, int $col, float $width, string $text, string $align, bool $fill = false): void
+    {
+        if ($col !== count(self::COL_WIDTHS_MM) - 1) {
+            $mpdf->Cell($width, self::ROW_HEIGHT_MM, $text, 1, 0, $align, $fill);
+
+            return;
+        }
+
+        $startX = $mpdf->x;
+        $mpdf->Cell($width, self::ROW_HEIGHT_MM, '', 1, 0, $align, $fill);
+        $mpdf->SetX($startX + self::REMARK_INDENT_MM);
+        $mpdf->Cell($width - self::REMARK_INDENT_MM, self::ROW_HEIGHT_MM, $text, 0, 0, $align);
+        $mpdf->SetX($startX + $width);
     }
 
     private function drawDataRow(Mpdf $mpdf, LedgerRow $row, string $unitCode): void
@@ -166,7 +189,8 @@ final class Fr03PdfService
         $mpdf->SetFont('', '', 8);
         $alignments = $this->columnAlignments();
         foreach (self::COL_WIDTHS_MM as $i => $width) {
-            $mpdf->Cell($width, self::ROW_HEIGHT_MM, $this->truncateToFit($mpdf, $values[$i], $width), 1, 0, $alignments[$i]);
+            $textWidth = $i === count(self::COL_WIDTHS_MM) - 1 ? $width - self::REMARK_INDENT_MM : $width;
+            $this->drawCell($mpdf, $i, $width, $this->truncateToFit($mpdf, $values[$i], $textWidth), $alignments[$i]);
         }
         $mpdf->Ln(self::ROW_HEIGHT_MM);
     }
