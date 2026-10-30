@@ -42,8 +42,10 @@ test('Fr03Export produces the same rows and headings as the on-screen ledger', f
     $rows = $export->collection();
 
     expect($export->headings())->toBe([
-        'วัน/เดือน/ปี', 'ประเภท', 'ผู้จ่าย', 'ผู้รับ', 'รับ', 'จ่าย', 'คงเหลือ', 'ลงชื่อผู้รับ', 'หมายเหตุ',
+        'วัน/เดือน/ปี', 'ประเภท', 'ผู้จ่าย', 'ผู้รับ', 'รับ', 'จ่าย', 'คงเหลือ', 'หมายเหตุ',
     ]);
+    expect(implode('|', $export->headings()))->not->toContain('ลงชื่อ');
+    expect($rows[0])->toHaveCount(8);
     expect($rows)->toHaveCount(2);
     expect($rows[0][4])->toBe('100.000000 g');
     expect($rows[1][5])->toBe('40.000000 g');
@@ -117,7 +119,7 @@ test('SEC-IN-10: a receiver_name/remark starting with = + - @ is CSV-injection g
     $rows = (new Fr03Export($item, new LedgerFilter(), $g))->collection();
 
     expect($rows[0][3])->toBe("'=cmd|/c calc");
-    expect($rows[0][8])->toBe("'+1;DROP TABLE users");
+    expect($rows[0][7])->toBe("'+1;DROP TABLE users");
 });
 
 test('a user without ledger.view gets 403 on both export routes', function () {

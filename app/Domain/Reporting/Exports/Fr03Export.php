@@ -51,7 +51,6 @@ final class Fr03Export implements FromCollection, WithHeadings, WithTitle
             $row->qtyIn !== null ? "{$row->qtyIn} {$unitCode}" : '',
             $row->qtyOut !== null ? "{$row->qtyOut} {$unitCode}" : '',
             "{$row->balance} {$unitCode}",
-            $row->signed ? (string) __('ledger.signed_yes') : '',
             CsvInjectionGuard::sanitize($row->remark ?? ''),
         ];
     }
@@ -67,7 +66,6 @@ final class Fr03Export implements FromCollection, WithHeadings, WithTitle
             __('ledger.col_in'),
             __('ledger.col_out'),
             __('ledger.col_balance'),
-            __('ledger.col_signature'),
             __('ledger.col_remark'),
         ];
     }

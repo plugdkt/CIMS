@@ -98,11 +98,10 @@ final class RequisitionPolicy extends Policy
     }
 
     /**
-     * FR-RQ-08: the scientist reviews a requisition once it's past the advisor step (or
-     * never needed one). Whether it's actually *decidable yet* for a STUDENT requisition
-     * still SUBMITTED with no advisor sign-off is BR-02's job, enforced inside
-     * `ApprovalService::scientistDecide()` itself — this ability only gates who may open
-     * the review action at all.
+     * FR-RQ-08: the scientist reviews a requisition that is SUBMITTED or ADVISOR_APPROVED.
+     * BR-02 (advisor sign-off before the scientist may act) is removed: the advisor step is
+     * informational only, so a scientist may decide a SUBMITTED STUDENT requisition at once.
+     * This ability gates who may open the review action.
      */
     public function scientistDecide(User $user, Requisition $requisition): bool
     {

@@ -31,10 +31,8 @@ return [
     'col_in' => 'รับ',
     'col_out' => 'จ่าย',
     'col_balance' => 'คงเหลือ',
-    'col_signature' => 'ลงชื่อผู้รับ',
+    // ITM-2610-031: the "ลงชื่อผู้รับ" column is hidden (no receiver signing since 2026-10-16).
     'col_remark' => 'หมายเหตุ',
-    'signed_yes' => 'ลงชื่อแล้ว',
-    'signed_no' => '—',
     'no_results' => 'ไม่พบรายการตามเงื่อนไขที่กำหนด',
 
     'txn_opening' => 'ยอดยกมา',

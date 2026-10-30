@@ -132,7 +132,6 @@
                         <th class="px-3 py-2 font-semibold text-right">{{ __('ledger.col_in') }}</th>
                         <th class="px-3 py-2 font-semibold text-right">{{ __('ledger.col_out') }}</th>
                         <th class="px-3 py-2 font-semibold text-right">{{ __('ledger.col_balance') }}</th>
-                        <th class="px-3 py-2 font-semibold">{{ __('ledger.col_signature') }}</th>
                         <th class="px-3 py-2 font-semibold">{{ __('ledger.col_remark') }}</th>
                     </tr>
                 </thead>
@@ -146,18 +145,11 @@
                             <td class="px-3 py-2 align-top text-right font-mono">{{ $row->qtyIn !== null ? "{$row->qtyIn} {$displayUnit->code}" : '—' }}</td>
                             <td class="px-3 py-2 align-top text-right font-mono">{{ $row->qtyOut !== null ? "{$row->qtyOut} {$displayUnit->code}" : '—' }}</td>
                             <td class="px-3 py-2 align-top text-right font-mono">{{ $row->balance }} {{ $displayUnit->code }}</td>
-                            <td class="px-3 py-2 align-top whitespace-nowrap">
-                                @if ($row->signed)
-                                    <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-soft text-success-ink">{{ __('ledger.signed_yes') }}</span>
-                                @else
-                                    {{ __('ledger.signed_no') }}
-                                @endif
-                            </td>
                             <td class="px-3 py-2 align-top text-ink-muted">{{ $row->remark ?: '—' }}</td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-ink-muted text-sm">
+                            <td colspan="8" class="px-4 py-8 text-center text-ink-muted text-sm">
                                 {{ __('ledger.no_results') }}
                             </td>
                         </tr>

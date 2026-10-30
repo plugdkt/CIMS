@@ -27,7 +27,7 @@ use Mpdf\Output\Destination;
  */
 final class Fr03PdfService
 {
-    private const COL_WIDTHS_MM = [22, 22, 35, 35, 28, 28, 30, 20, 57];
+    private const COL_WIDTHS_MM = [22, 22, 35, 35, 28, 28, 30, 77];
 
     private const ROW_HEIGHT_MM = 5.0;
 
@@ -120,7 +120,6 @@ final class Fr03PdfService
             __('ledger.col_in'),
             __('ledger.col_out'),
             __('ledger.col_balance'),
-            __('ledger.col_signature'),
             __('ledger.col_remark'),
         ];
     }
@@ -128,7 +127,7 @@ final class Fr03PdfService
     /** @return list<'L'|'R'|'C'> */
     private function columnAlignments(): array
     {
-        return ['L', 'L', 'L', 'L', 'R', 'R', 'R', 'C', 'L'];
+        return ['L', 'L', 'L', 'L', 'R', 'R', 'R', 'L'];
     }
 
     private function drawTableHeaderRow(Mpdf $mpdf): void
@@ -161,7 +160,6 @@ final class Fr03PdfService
             $in,
             $out,
             "{$row->balance} {$unitCode}",
-            $row->signed ? __('ledger.signed_yes') : '',
             $row->remark ?? '—',
         ];
 

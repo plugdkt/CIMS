@@ -8,7 +8,7 @@ use App\Models\StockTake;
 use App\Models\User;
 
 /**
- * FR-ST-02/03: `stocktake.manage` (SCIENTIST per §3) creates rounds and records counts.
+ * FR-ST-02/03: `stocktake.manage` (LAB_MANAGER/AUDITOR and ADMIN, per PermissionSeeder) creates rounds and records counts.
  * FR-ST-04: approving needs `ledger.adjust` (LAB_MANAGER) — BR-06's distinct-actor check
  * is enforced inside `StockTakeService::approve()` itself, not just here.
  */

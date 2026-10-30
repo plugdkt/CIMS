@@ -13,6 +13,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- 2026-10-30 (ITM-2610-031): The stock ledger (F-03) no longer shows the "ลงชื่อผู้รับ" column on screen, in the PDF or in the Excel export (there has been no receiver signing since 2026-10-16). Display only: `stock_ledger.signature_hash`, the hash chain and `ledger:verify` are untouched.
 - 2026-10-29: Issue page text no longer mentions receiver signing (the all-in-one issue form has one button, a receiver picker and a controlled-substance tick box). Screen text only; signature/OTP code, routes and tests are untouched.
 
 ### Security

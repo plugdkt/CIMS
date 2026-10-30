@@ -12,14 +12,11 @@ use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
  * `apply()` for the next status and persist it themselves; `Requisition::status` is the
  * only place the result is ever stored.
  *
- * `$requesterStatus` disambiguates the one context-dependent edge in the spec's diagram: a
- * SUBMITTED requisition only goes straight to a scientist decision (`scientistApprove` /
- * `scientistReject`) when the requester is NOT a STUDENT — spec's "SUBMITTED(non-student)"
- * branch, grouped with ADVISOR_APPROVED in "ADVISOR_APPROVED | SUBMITTED(non-student) ──
- * scientist APPROVE/REJECT──►". A STUDENT's requisition must pass through ADVISOR_APPROVED
- * first. BR-02's stronger check (actually verifying `advisor_signed_at IS NULL` on the real
- * model, not just the requester's role) belongs to `ApprovalService` (T-032) — this class
- * only knows the abstract state diagram.
+ * `$requesterStatus` is accepted but currently ignored: BR-02 (a STUDENT's requisition must
+ * pass through ADVISOR_APPROVED first) was cancelled, so a SUBMITTED requisition may go
+ * straight to a scientist decision (`scientistApprove` / `scientistReject`) for every
+ * requester type, as well as via ADVISOR_APPROVED. See CLAUDE.md (BR-02 cancellation).
+ * This class only knows the abstract state diagram.
  */
 final class RequisitionState
 {

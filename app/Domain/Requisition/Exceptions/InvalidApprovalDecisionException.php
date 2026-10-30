@@ -6,7 +6,7 @@ namespace App\Domain\Requisition\Exceptions;
 
 use RuntimeException;
 
-/** BR-02 (a STUDENT's requisition needs advisor sign-off first) or a REJECT with no reason. */
+/** An approval decision that is not allowed, e.g. a REJECT with no reason. (BR-02, advisor-first, is removed.) */
 final class InvalidApprovalDecisionException extends RuntimeException
 {
 }

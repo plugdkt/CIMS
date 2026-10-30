@@ -7,7 +7,11 @@ namespace App\Policies;
 use App\Models\GoodsReceipt;
 use App\Models\User;
 
-/** FR-RC-01..06: receiving.manage (SCIENTIST per §3) owns the whole GRN lifecycle. */
+/**
+ * FR-RC-01..06: receiving.manage owns the whole GRN lifecycle. The seeded SCIENTIST role no
+ * longer holds receiving.manage (nor stocktake/disposal), so as seeded this is not a
+ * SCIENTIST ability; access follows whichever roles are granted the permission.
+ */
 final class GoodsReceiptPolicy extends Policy
 {
     public function viewAny(User $user): bool

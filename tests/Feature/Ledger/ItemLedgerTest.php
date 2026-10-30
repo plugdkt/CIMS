@@ -56,6 +56,38 @@ test('the ledger lists RECEIVE and ISSUE rows with the correct in/out/balance co
         ->assertSee('สมชาย ใจดี');
 });
 
+test('ITM-2610-031: the ledger hides the receiver-signature column but still lists every row', function () {
+    $scientist = scientistUser();
+    $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $creator = User::factory()->create();
+    $container = Container::create([
+        'item_id' => $item->id,
+        'barcode' => 'BC-LEDGER-NOSIG',
+        'received_at' => now()->toDateString(),
+        'initial_qty_base' => '0.000000',
+        'remaining_qty_base' => '0.000000',
+        'status' => 'SEALED',
+    ]);
+    $ledgerService = app(LedgerService::class);
+    $ctx = new LedgerEntryData(
+        displayUnitId: $g->id,
+        createdBy: $creator->id,
+        receiverName: 'สมชาย ใจดี',
+        signatureHash: hash('sha256', 'ISSUE|marker'),
+    );
+    $ledgerService->receive($container->id, '100.000000', $ctx);
+    $ledgerService->issue($container->id, '30.000000', $ctx);
+    $ledgerService->issue($container->id, '20.000000', $ctx);
+
+    Livewire::actingAs($scientist)
+        ->test(ItemLedger::class, ['item' => $item])
+        ->assertDontSee('ลงชื่อ')
+        ->assertSee('30.000000')
+        ->assertSee('20.000000')
+        ->assertSee('50.000000');
+});
+
 test('the unit switcher converts displayed quantities without touching stored data', function () {
     $scientist = scientistUser();
     $item = makeItem(['base_unit_id' => Unit::where('code', 'g')->value('id')]);

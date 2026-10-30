@@ -61,9 +61,10 @@ final class RequisitionService
     /**
      * BR-01: DRAFT → SUBMITTED. Requires at least one line item.
      *
-     * FR-RQ-07: a STUDENT's requisition also needs advisor sign-off before a scientist can
-     * act on it (BR-02) — email the advisor a 72-hour signed link the moment it's
-     * submitted, so they can approve without needing to log in.
+     * FR-RQ-07: for a STUDENT's requisition the advisor is emailed a 72-hour signed link the
+     * moment it's submitted (plus an in-app notification), so they can approve without
+     * logging in. This is for their information only: BR-02 is removed, so it does not gate
+     * the scientist, who may approve and issue without waiting for the advisor.
      */
     public function submit(Requisition $requisition): Requisition
     {

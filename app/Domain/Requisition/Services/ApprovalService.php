@@ -14,8 +14,9 @@ use App\Models\RequisitionItem;
 use App\Models\User;
 
 /**
- * FR-RQ-06/07/08: the two approval steps (advisor, then scientist) a SUBMITTED requisition
- * goes through before it can be issued. Every decision — approve or reject — writes one
+ * FR-RQ-06/07/08: the advisor and scientist (warehouse manager) decisions on a SUBMITTED
+ * requisition. Since BR-02 was removed the advisor step is informational, not a gate: the
+ * scientist may decide straight from SUBMITTED. Every decision — approve or reject — writes one
  * `requisition_approvals` row (the audit trail FR-RQ-07/08 both rely on) and advances
  * `Requisition::status` through `RequisitionState` (BR-01).
  */
@@ -74,11 +75,10 @@ final class ApprovalService
     }
 
     /**
-     * BR-02: a STUDENT's requisition can never become APPROVED without a prior advisor
-     * sign-off — checked directly against `advisor_signed_at` here (not merely inferred
-     * from the current `status` string), so this holds even if `status` were somehow
-     * ADVISOR_APPROVED while `advisor_signed_at` is NULL (a data-integrity bug elsewhere
-     * shouldn't be able to bypass this rule).
+     * Scientist (warehouse manager) decision on a SUBMITTED or ADVISOR_APPROVED requisition.
+     * BR-02 was cancelled, so there is no `advisor_signed_at` / advisor sign-off check any
+     * more: any requester's SUBMITTED requisition can be approved or rejected directly
+     * (the transition itself is validated by `RequisitionState`). A REJECT needs a reason.
      *
      * @param  'APPROVE'|'REJECT'  $decision
      * @param  array<int, string>  $approvedQuantities  requisition_item id => approved qty, in that line's own unit
