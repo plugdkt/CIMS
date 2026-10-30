@@ -5,6 +5,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- 2026-10-29 (ITM-2610-024): IMS report import now also refuses a second live import of the same report period (and custodian code) for the same branch, even when the file bytes differ (re-export); the period is read before any document or file is created. Cancelled documents, manual documents and other branches are not blocked.
+
 ### Changed
 
 - 2026-10-29: Issue page text no longer mentions receiver signing (the all-in-one issue form has one button, a receiver picker and a controlled-substance tick box). Screen text only; signature/OTP code, routes and tests are untouched.

@@ -26,11 +26,14 @@ final class ImsReportImporter
     }
 
     /**
-     * @return array<string, mixed> the summary that was stored on the receipt
+     * Reads the report without touching the database, so the caller can look at the report
+     * period before anything is created or stored.
+     *
+     * @return array{period_from: ?string, period_to: ?string, custodian: ?string, rows: list<array<string, mixed>>}
      *
      * @throws ImsException when the file cannot be read as this report
      */
-    public function import(ImsReceipt $receipt, string $pdfPath): array
+    public function parse(string $pdfPath): array
     {
         try {
             $parsed = $this->parser->parse($pdfPath);
@@ -41,6 +44,19 @@ final class ImsReportImporter
         if ($parsed['rows'] === []) {
             throw new ImsException(__('ims.error.pdf_no_rows'));
         }
+
+        return $parsed;
+    }
+
+    /**
+     * @param  array{period_from: ?string, period_to: ?string, custodian: ?string, rows: list<array<string, mixed>>}|null  $parsed  result of parse() when the caller already read the file
+     * @return array<string, mixed> the summary that was stored on the receipt
+     *
+     * @throws ImsException when the file cannot be read as this report
+     */
+    public function import(ImsReceipt $receipt, string $pdfPath, ?array $parsed = null): array
+    {
+        $parsed ??= $this->parse($pdfPath);
 
         /** @var list<array<string, mixed>> $rows */
         $rows = $parsed['rows'];

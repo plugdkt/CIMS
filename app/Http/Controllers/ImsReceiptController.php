@@ -68,6 +68,7 @@ final class ImsReceiptController extends Controller
         $path = null;
         $name = null;
         $hash = null;
+        $parsed = null;
         if ($pdf !== null) {
             $hash = hash_file('sha256', $pdf->getRealPath());
 
@@ -78,6 +79,32 @@ final class ImsReceiptController extends Controller
                 ->exists();
             if ($alreadyImported) {
                 return back()->withInput()->withErrors(['pdf' => __('ims.error.pdf_already_imported')]);
+            }
+
+            // A re-export of the same report period differs byte for byte, so the hash misses it:
+            // read the period from the uploaded temp file (nothing created or stored yet) and
+            // refuse a second live import of the same period (and custodian, when printed).
+            if ($request->boolean('import_report')) {
+                try {
+                    $parsed = $importer->parse($pdf->getRealPath());
+                } catch (ImsException $e) {
+                    return back()->withInput()->withErrors(['pdf' => $e->getMessage()]);
+                }
+
+                if ($parsed['period_from'] !== null && $parsed['period_to'] !== null) {
+                    $samePeriod = ImsReceipt::where('lab_id', $user->lab_id)
+                        ->whereNotNull('import_summary')
+                        ->where('status', '!=', 'CANCELLED')
+                        ->where('import_summary->period_from', $parsed['period_from'])
+                        ->where('import_summary->period_to', $parsed['period_to'])
+                        ->when($parsed['custodian'] !== null, fn ($q) => $q->where('import_summary->custodian', $parsed['custodian']))
+                        ->exists();
+                    if ($samePeriod) {
+                        return back()->withInput()->withErrors(['pdf' => __('ims.error.pdf_same_period_imported', [
+                            'from' => $parsed['period_from'], 'to' => $parsed['period_to'],
+                        ])]);
+                    }
+                }
             }
 
             $path = $pdf->store('ims-receipts', 'local');
@@ -98,7 +125,7 @@ final class ImsReceiptController extends Controller
 
         if ($pdf !== null && $request->boolean('import_report')) {
             try {
-                $importer->import($receipt, Storage::disk('local')->path((string) $path));
+                $importer->import($receipt, Storage::disk('local')->path((string) $path), $parsed);
             } catch (ImsException $e) {
                 $receipt->lines()->delete();
                 $receipt->delete();
