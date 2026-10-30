@@ -35,3 +35,8 @@ Thumbs.db
 # is a large one-off working copy, not meant to be committed.
 /download.csv
 /storage/download.csv
+
+# Private reference files (real prices / submissions). Keep outside the repo: D:\Dev\CMIS_private
+/R2R/
+/IMS_Micro.pdf
+/tests/File_Test/
