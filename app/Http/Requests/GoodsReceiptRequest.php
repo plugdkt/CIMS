@@ -38,6 +38,28 @@ final class GoodsReceiptRequest extends FormRequest
         ];
     }
 
+    /**
+     * ITM-2610-042: a non-ADMIN user may only file/move a GRN under their own branch. Explicit
+     * Thai error instead of a silent reject (covers both store and update).
+     *
+     * @return array<int, \Closure(\Illuminate\Validation\Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (\Illuminate\Validation\Validator $validator): void {
+            $user = $this->user();
+            $labId = $this->input('lab_id');
+
+            if ($user === null || $user->hasRole('ADMIN') || $validator->errors()->has('lab_id')) {
+                return;
+            }
+
+            if ($user->lab_id === null || (int) $labId !== (int) $user->lab_id) {
+                $validator->errors()->add('lab_id', __('goods_receipts.validation.lab_not_own_branch'));
+            }
+        }];
+    }
+
     /** @return array<string, string> */
     public function messages(): array
     {

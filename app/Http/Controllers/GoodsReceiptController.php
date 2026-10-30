@@ -24,7 +24,11 @@ final class GoodsReceiptController extends Controller
         $this->authorize('create', GoodsReceipt::class);
 
         return view('goods-receipts.create', [
-            'labs' => Lab::where('is_active', true)->orderBy('name_th')->get(),
+            // ITM-2610-042: non-ADMIN users may only pick their own branch.
+            'labs' => Lab::where('is_active', true)
+                ->when(! $this->isAdmin(), fn ($q) => $q->whereKey(auth()->user()?->lab_id))
+                ->orderBy('name_th')
+                ->get(),
         ]);
     }
 
@@ -56,6 +60,7 @@ final class GoodsReceiptController extends Controller
 
     public function update(GoodsReceiptRequest $request, GoodsReceipt $goodsReceipt): RedirectResponse
     {
+        // Authorization (Policy update, incl. branch scope) and the lab_id branch check are in GoodsReceiptRequest.
         $goodsReceipt->update($request->validated());
 
         return redirect()->route('goods-receipts.show', $goodsReceipt)->with('status', __('goods_receipts.saved'));
@@ -105,5 +110,10 @@ final class GoodsReceiptController extends Controller
         }
 
         return redirect()->route('goods-receipts.index')->with('status', __('goods_receipts.cancelled'));
+    }
+
+    private function isAdmin(): bool
+    {
+        return auth()->user()?->hasRole('ADMIN') ?? false;
     }
 }

@@ -39,6 +39,8 @@ final class RequisitionItemController extends Controller
     public function destroy(Requisition $requisition, RequisitionItem $requisitionItem): RedirectResponse
     {
         $this->authorize('update', $requisition);
+        // ITM-2610-041: the line must belong to the requisition that was authorized.
+        abort_unless((int) $requisitionItem->requisition_id === (int) $requisition->id, 404);
 
         if ($requisition->status !== 'DRAFT') {
             return back()->withErrors(['line' => __('requisitions.validation.not_draft')]);

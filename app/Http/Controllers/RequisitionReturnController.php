@@ -23,6 +23,9 @@ final class RequisitionReturnController extends Controller
         RequisitionItem $requisitionItem,
         ReturnService $service,
     ): RedirectResponse {
+        // ITM-2610-041: the Policy (RequisitionReturnRequest::authorize) judged {requisition}; the line must belong to it.
+        abort_unless((int) $requisitionItem->requisition_id === (int) $requisition->id, 404);
+
         $data = $request->validated();
         $container = Container::whereKey($data['container_id'])->firstOrFail();
         $unit = Unit::whereKey($data['unit_id'])->firstOrFail();

@@ -4,9 +4,11 @@
             <h1 class="font-display text-lg font-bold">{{ __('goods_receipts.index_title') }}</h1>
             <p class="text-sm text-ink-muted mt-1">{{ __('goods_receipts.index_subtitle') }}</p>
         </div>
-        <a href="{{ route('goods-receipts.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
-            {{ __('goods_receipts.new_grn') }}
-        </a>
+        @can('create', \App\Models\GoodsReceipt::class)
+            <a href="{{ route('goods-receipts.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
+                {{ __('goods_receipts.new_grn') }}
+            </a>
+        @endcan
     </div>
 
     <div class="bg-surface border border-border rounded-xl overflow-hidden">
@@ -50,7 +52,7 @@
                     @empty
                         <tr>
                             <td colspan="6" class="px-4 py-8 text-center text-ink-muted text-sm">
-                                {{ __('goods_receipts.no_results') }}
+                                {{ $noBranch ? __('goods_receipts.no_branch_assigned') : __('goods_receipts.no_results') }}
                             </td>
                         </tr>
                     @endforelse

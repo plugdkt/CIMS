@@ -22,12 +22,16 @@ final class GoodsReceiptTable extends Component
 
     public function render(): View
     {
+        $user = auth()->user();
+        // ITM-2610-042: non-ADMIN sees only their own branch's GRNs (no branch => none).
         $goodsReceipts = GoodsReceipt::with(['lab'])
+            ->when($user === null || ! $user->hasRole('ADMIN'), fn ($q) => $q->where('lab_id', $user->lab_id ?? 0))
             ->orderByDesc('id')
             ->paginate(20);
 
         return view('livewire.goods-receipts.goods-receipt-table', [
             'goodsReceipts' => $goodsReceipts,
+            'noBranch' => $user !== null && ! $user->hasRole('ADMIN') && $user->lab_id === null,
         ]);
     }
 }

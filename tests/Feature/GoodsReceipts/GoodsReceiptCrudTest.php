@@ -58,8 +58,9 @@ test('warehouse manager (AUDITOR) can add a line, confirm the GRN, and container
 });
 
 test('a CONFIRMED GRN cannot be edited, have lines added, or be cancelled (FR-RC-06)', function () {
-    $auditor = auditorUser();
-    $grn = makeDraftGrn(['status' => 'CONFIRMED']);
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $grn = makeDraftGrn(['status' => 'CONFIRMED', 'lab_id' => $lab->id]);
     $item = makeItem();
     $unit = Unit::where('code', 'g')->firstOrFail();
 
@@ -81,8 +82,9 @@ test('a CONFIRMED GRN cannot be edited, have lines added, or be cancelled (FR-RC
 });
 
 test('confirming a DRAFT GRN with no lines is rejected', function () {
-    $auditor = auditorUser();
-    $grn = makeDraftGrn();
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $grn = makeDraftGrn(['lab_id' => $lab->id]);
 
     $this->actingAs($auditor)->post(route('goods-receipts.confirm', $grn))
         ->assertSessionHasErrors('confirm');
@@ -90,8 +92,9 @@ test('confirming a DRAFT GRN with no lines is rejected', function () {
 });
 
 test('warehouse manager (AUDITOR) can cancel a DRAFT GRN', function () {
-    $auditor = auditorUser();
-    $grn = makeDraftGrn();
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $grn = makeDraftGrn(['lab_id' => $lab->id]);
 
     $this->actingAs($auditor)->post(route('goods-receipts.cancel', $grn))
         ->assertRedirect(route('goods-receipts.index'));
@@ -126,16 +129,18 @@ test('warehouse manager (AUDITOR) can download a container label PDF for a confi
 });
 
 test('an unknown label size 404s', function () {
-    $auditor = auditorUser();
-    $grn = makeDraftGrn();
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $grn = makeDraftGrn(['lab_id' => $lab->id]);
 
     $this->actingAs($auditor)->get(route('goods-receipts.labels', [$grn, '99x99']))
         ->assertStatus(404);
 });
 
 test('a DRAFT GRN with no containers yet 404s on the labels route', function () {
-    $auditor = auditorUser();
-    $grn = makeDraftGrn();
+    $lab = makeLab();
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $grn = makeDraftGrn(['lab_id' => $lab->id]);
 
     $this->actingAs($auditor)->get(route('goods-receipts.labels', [$grn, '40x25']))
         ->assertStatus(404);

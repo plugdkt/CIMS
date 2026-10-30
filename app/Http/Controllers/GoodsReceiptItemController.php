@@ -48,6 +48,8 @@ final class GoodsReceiptItemController extends Controller
     public function destroy(GoodsReceipt $goodsReceipt, GoodsReceiptItem $goodsReceiptItem): RedirectResponse
     {
         $this->authorize('update', $goodsReceipt);
+        // ITM-2610-041: the line must belong to the goods receipt that was authorized.
+        abort_unless((int) $goodsReceiptItem->goods_receipt_id === (int) $goodsReceipt->id, 404);
 
         if ($goodsReceipt->status !== 'DRAFT') {
             return back()->withErrors(['line' => __('goods_receipts.validation.not_draft')]);

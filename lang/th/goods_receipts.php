@@ -54,9 +54,11 @@ return [
     'print_labels_50x30' => 'พิมพ์ฉลาก 50×30 มม.',
     'no_containers_to_label' => 'ไม่พบภาชนะสำหรับพิมพ์ฉลาก',
 
+    'no_branch_assigned' => 'บัญชีนี้ยังไม่ได้ผูกสาขาวิชา โปรดติดต่อผู้ดูแลระบบ',
     'validation' => [
         'receipt_date_required' => 'กรุณาระบุวันที่รับ',
         'lab_required' => 'กรุณาเลือกสาขาวิชา',
+        'lab_not_own_branch' => 'สามารถบันทึกใบรับของได้เฉพาะสาขาวิชาของตนเองเท่านั้น',
         'item_required' => 'กรุณาเลือกรายการสาร/วัสดุ',
         'container_count_required' => 'กรุณาระบุจำนวนภาชนะ',
         'container_count_min' => 'จำนวนภาชนะต้องอย่างน้อย 1',
