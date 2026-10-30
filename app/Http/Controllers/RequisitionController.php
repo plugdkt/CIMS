@@ -42,6 +42,10 @@ final class RequisitionController extends Controller
                 ->with('status', __('requisitions.complete_profile_first'));
         }
 
+        if ($gate = $this->personTypeGate($user)) {
+            return $gate;
+        }
+
         if ($user->lab_id === null) {
             return redirect()->route('account.pending-lab');
         }
@@ -59,6 +63,11 @@ final class RequisitionController extends Controller
         // NOT NULL on requisitions — refuse here too rather than letting a direct POST
         // (bypassing the GET page) hit a DB constraint violation.
         abort_if($user->lab_id === null, 403);
+
+        // Same for `requester_status` (NOT NULL, from person_type) on a direct POST.
+        if ($gate = $this->personTypeGate($user)) {
+            return $gate;
+        }
 
         $requisition = Requisition::create(array_merge($request->validated(), [
             'doc_no' => $generator->next('REQ'),

@@ -7,6 +7,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- 2026-10-30 (ITM-2610-026): The normal requisition form (`requisitions.create`) and `requisitions.store` now also redirect a user with no person type to the complete-profile page (same Thai message, no requisition created) instead of a 500; shared via `Controller::personTypeGate()`, also used by shop checkout.
+- 2026-10-30 (ITM-2610-025): Shop checkout no longer fails with a 500 (`requester_status` cannot be null) for a user whose profile is flagged complete but has no person type; they are sent to the complete-profile page with a Thai message and no requisition is created.
 - 2026-10-29 (ITM-2610-024): IMS report import now also refuses a second live import of the same report period (and custodian code) for the same branch, even when the file bytes differ (re-export); the period is read before any document or file is created. Cancelled documents, manual documents and other branches are not blocked.
 
 ### Changed
