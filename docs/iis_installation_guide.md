@@ -83,7 +83,14 @@ disk จริงตาม spec — หรือจะเก็บไว้ใ�
 6. **รัน `docker/mariadb/restrict_app_grants.sql`'s เนื้อหา (ปรับ path ให้เป็น native Windows MariaDB
    client) ทันทีหลัง migrate** — เป็นขั้นตอนบังคับตาม SEC-DB-02 (revoke UPDATE/DELETE บน `stock_ledger`/
    `audit_logs` จาก `cmis_app`) ที่ยังไม่ถูกทำอัตโนมัติที่ไหนเลย ดู CLAUDE.md's T-027 note ประกอบ (สคริปต์
-   เขียนไว้สำหรับ Docker container แต่ตรรกะ SQL ใช้ได้เหมือนกันทุกที่ที่รัน MariaDB)
+   เขียนไว้สำหรับ Docker container แต่ตรรกะ SQL ใช้ได้เหมือนกันทุกที่ที่รัน MariaDB) **ข้อควรระวัง:** สคริปต์
+   อ้างผู้ใช้เป็น `'cmis_app'@'%'` (ตามผู้ใช้ใน Docker) แต่ขั้นตอนที่ 2 ข้างต้นสร้างเป็น
+   `'cmis_app'@'localhost'` — **ต้องแก้ทุกจุดในสำเนาสคริปต์ที่จะรัน** (`'cmis_app'@'%'` → `'cmis_app'@'localhost'`,
+   ห้ามแก้ไฟล์ต้นฉบับใน `docker/`) มิฉะนั้น REVOKE/GRANT จะไม่กระทบผู้ใช้จริง/ error และสิทธิ์ `ALL PRIVILEGES`
+   ของขั้นตอนที่ 2 จะยังอยู่ครบ (ledger ไม่ถูกจำกัด) — ตรวจผลด้วย `SHOW GRANTS FOR 'cmis_app'@'localhost'`
+   นอกจากนี้ท้ายสคริปต์ (บรรทัด 87-88) มี `CALL cmis_restrict_app_grants('cmis');` และ
+   `CALL cmis_restrict_app_grants('cmis_testing');` — ถ้าเครื่องจริงไม่มีฐาน `cmis_testing` (ไม่ควรมีบน production)
+   ให้**ลบบรรทัดหลังในสำเนา**ก่อนรัน
 7. **หมายเหตุสำคัญเกี่ยวกับ SEC-DB-01** (3 DB users แยกสิทธิ์: `cmis_app`/`cmis_ledger`/`cmis_report`):
    โค้ดปัจจุบันยังใช้ DB connection เดียว (`cmis_app`) สำหรับทุกการเชื่อมต่อ ไม่ได้แยกเป็น 3 connections ตาม
    spec ตัวอักษร — เป็น known gap ที่บันทึกไว้ใน CLAUDE.md (T-027) แล้ว SEC-DB-02 (ป้องกัน UPDATE/DELETE บน
