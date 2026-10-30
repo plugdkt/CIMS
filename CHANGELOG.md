@@ -16,8 +16,13 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 2026-10-30 (ITM-2610-031): The stock ledger (F-03) no longer shows the "ลงชื่อผู้รับ" column on screen, in the PDF or in the Excel export (there has been no receiver signing since 2026-10-16). Display only: `stock_ledger.signature_hash`, the hash chain and `ledger:verify` are untouched.
 - 2026-10-29: Issue page text no longer mentions receiver signing (the all-in-one issue form has one button, a receiver picker and a controlled-substance tick box). Screen text only; signature/OTP code, routes and tests are untouched.
 
+### Removed
+
+- 2026-10-30 (ITM-2610-036): Per-line issue routes `requisitions.items.issue` and `requisitions.items.issue-auto` (`RequisitionIssueController::store`/`storeAuto`), the receiver-OTP route (`sendReceiverOtp`), and the code only they used: `RequisitionIssueRequest`, `RequisitionAutoIssueRequest`, `ReceiverOtpService`, `ReceiverOtpMail` + mail view, `SignatureImageService`, `InvalidSignatureImageException`, `partials/receiver-signature.blade.php`, their unused Thai strings, and their tests. No UI called them. `issue-all` is now the only issue path. Database columns/data (`signature_hash`, `signature_image_path`, stored signature files, the `signatures` disk used by the F-01 PDF for old rows) are untouched.
+
 ### Security
 
+- 2026-10-30 (ITM-2610-036): Closed a controlled-substance bypass — the removed per-line issue routes cut stock without checking `controlled_ack`. `PermissionBoundaryTest` now proves those URLs return 404/405 with stock unchanged, and that `issue-all` refuses a controlled item without `controlled_ack`. Comments in `ImsReceiptPolicy`/`PermissionSeeder` corrected to match CEO decision E7 (ADMIN may receive goods via legacy GRN; cannot adjust/approve/import IMS/issue/return).
 - 2026-10-29: Dependency bumps — laravel/framework 13.29.0 to 13.35.0, league/commonmark 2.10.0 to 2.10.4, phpoffice/phpspreadsheet 5.9.0 to 5.10.0, symfony/http-foundation and symfony/mime 7.4.18 to 7.4.22. `composer audit` clean.
 
 ### Added

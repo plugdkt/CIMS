@@ -37,11 +37,9 @@ final class IssueService
     }
 
     /**
-     * FR-RQ-11: `$signatureHash` is required — every issue needs the receiver's identity
-     * confirmed, either a drawn signature (`$signatureImagePath` also set) or an OTP
-     * (`$signatureImagePath` stays null; the hash alone marks that channel). Resolving
-     * "which of the two" happens in the controller, via `SignatureImageService` or
-     * `ReceiverOtpService` — this method just records whatever it's given.
+     * `$signatureHash` is required (NOT NULL column) — the caller supplies the tamper-evident
+     * marker (issue-all builds a SHA-256 of requisition/issuer/receiver/time; `$signatureImagePath`
+     * is null since receiver signing/OTP was retired). This method just records whatever it's given.
      *
      * @param  numeric-string  $qtyIssued  in $unit, not yet converted to the item's base unit
      */

@@ -178,17 +178,6 @@ return [
     'record_return' => 'บันทึกการคืน',
     'return_recorded' => 'บันทึกการคืนเรียบร้อยแล้ว',
 
-    // FR-RQ-11: receiver identity confirmation — signature canvas or OTP
-    'receiver_mode_signature' => 'ผู้รับลงลายมือชื่อ',
-    'receiver_mode_otp' => 'ยืนยันด้วย OTP ทางอีเมล',
-    'clear_signature' => 'ล้างลายเซ็น',
-    'field_otp_code' => 'รหัส OTP (6 หลัก)',
-    'send_otp' => 'ส่งรหัส OTP ทางอีเมล',
-    'otp_sent' => 'ส่งรหัส OTP ไปยังอีเมลของผู้รับแล้ว',
-    'mail_otp_subject' => 'รหัสยืนยันการรับของ ใบเบิก :doc_no',
-    'mail_otp_body' => 'กรุณาแจ้งรหัสด้านล่างนี้แก่เจ้าหน้าที่เพื่อยืนยันการรับของตามใบขอเบิกเลขที่ :doc_no',
-    'mail_otp_expiry' => 'รหัสนี้ใช้ได้ครั้งเดียวและหมดอายุใน 10 นาที',
-
     // FR-RQ-12: printable F-01 + §7.2 public verify page
     'print_pdf' => 'พิมพ์ใบขอเบิก (F-01)',
     'pdf_title' => 'ใบขอเบิกสารเคมี/วัสดุสิ้นเปลือง (F-01)',
@@ -216,13 +205,7 @@ return [
         'not_draft' => 'แก้ไขรายการได้เฉพาะใบขอเบิกสถานะร่างเท่านั้น',
         'decision_required' => 'กรุณาเลือกผลการพิจารณา',
         'reject_reason_required' => 'กรุณาระบุเหตุผลที่ไม่อนุมัติ',
-        'barcode_required' => 'กรุณาระบุบาร์โค้ดภาชนะ',
-        'barcode_not_found' => 'ไม่พบภาชนะตามบาร์โค้ดนี้',
         'qty_issued_required' => 'กรุณาระบุปริมาณที่จ่ายจริง',
-        'qty_issued_gt' => 'ปริมาณที่จ่ายต้องมากกว่า 0',
-        'signature_or_otp_required' => 'กรุณาให้ผู้รับลงลายมือชื่อ หรือยืนยันด้วยรหัส OTP',
-        'otp_code_digits' => 'รหัส OTP ต้องเป็นตัวเลข 6 หลัก',
-        'otp_code_invalid' => 'รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว',
         'container_required' => 'กรุณาเลือกภาชนะที่จะคืนเข้า',
         'qty_returned_required' => 'กรุณาระบุปริมาณที่คืน',
         'qty_returned_gt' => 'ปริมาณที่คืนต้องมากกว่า 0',

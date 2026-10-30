@@ -82,10 +82,12 @@ final class PermissionSeeder extends Seeder
             ],
             // ADMIN sees every branch's reports (the reports page's own lab picker lets them
             // narrow to one) and reaches the stock-take/disposal/adjustment menus, but still
-            // holds no ledger.* write permission — spec §3's "ไม่มีสิทธิ์แตะ Ledger", kept
-            // deliberately when this area was handed to the warehouse managers (2026-09-22).
-            // So: no ledger.adjust (cannot approve an adjustment or a stock take) and no
-            // disposal.approve. See StockLedgerPolicy::viewAdjustments() for how the
+            // holds no ledger.* write permission (spec §3), kept when this area was handed to
+            // the warehouse managers (2026-09-22). CEO decision E7 (ITM-2610-036): ADMIN may still
+            // receive goods via the legacy GRN (`receiving.manage`), which writes RECEIVE ledger
+            // rows indirectly. ADMIN cannot adjust stock (no ledger.adjust), approve a stock take,
+            // approve a disposal (no disposal.approve), import/confirm IMS receipts (no ims.manage)
+            // or issue/return goods (no requisition.issue). See StockLedgerPolicy::viewAdjustments() for how the
             // adjustments menu stays visible without granting the write.
             'ADMIN' => ['requisition.create', 'requisition.view_own', 'requisition.view_all', 'receiving.manage', 'stocktake.manage', 'disposal.request', 'user.manage', 'unit.manage', 'lab.manage', 'ledger.verify', 'audit.view', 'item.view', 'report.view', 'ims.view'],
             // Repurposed 2026-09-21 (user-requested): AUDITOR is no longer the

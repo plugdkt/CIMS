@@ -9,8 +9,10 @@ use App\Models\User;
 
 /**
  * IMS purchase documents. `ims.manage` (warehouse managers) writes, `ims.view` (also ADMIN)
- * reads. Writing is always limited to the actor's own branch; ADMIN holds no `ims.manage`
- * because confirming/transferring ends in ledger writes, which spec §3 keeps off ADMIN.
+ * reads. Writing is always limited to the actor's own branch. ADMIN holds no `ims.manage`:
+ * per the CEO's E7 decision ADMIN may receive goods on the legacy GRN path (which indirectly
+ * creates RECEIVE ledger rows), but may not import/confirm IMS receipts, adjust stock, approve
+ * stock-take variances or disposals, or issue/return goods.
  */
 final class ImsReceiptPolicy extends Policy
 {

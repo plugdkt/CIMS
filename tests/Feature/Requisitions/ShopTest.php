@@ -11,14 +11,10 @@ use App\Models\Requisition;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
-const SHOP_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-
 beforeEach(function () {
-    Storage::fake('signatures');
     $this->lab = makeLab();
     $this->otherLab = makeLab();
     $this->location = makeLocationForLab($this->lab);
@@ -132,8 +128,8 @@ test('dispensing uses working stock first and cuts only the shortfall from IMS, 
     $line = $requisition->items()->firstOrFail();
     $scientist = scientistUser(['lab_id' => $this->lab->id]);
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
-        'qty_issued' => '30', 'unit_id' => $this->g->id, 'signature_image' => SHOP_PNG,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '30', 'unit_id' => $this->g->id]],
     ])->assertRedirect(route('requisitions.issue.create', $requisition));
 
     expect($requisition->fresh()->status)->toBe('ISSUED')
@@ -155,8 +151,8 @@ test('when working stock already covers the request, IMS is not touched', functi
     $requisition->update(['status' => 'APPROVED']);
     $scientist = scientistUser(['lab_id' => $this->lab->id]);
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $requisition->items()->firstOrFail()]), [
-        'qty_issued' => '30', 'unit_id' => $this->g->id, 'signature_image' => SHOP_PNG,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$requisition->items()->firstOrFail()->id => ['qty' => '30', 'unit_id' => $this->g->id]],
     ])->assertRedirect();
 
     expect((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0)->and(Container::where('ims_lot_id', $lot->id)->count())->toBe(0);
@@ -171,27 +167,11 @@ test('a lot with no storage location cannot be cut automatically, and nothing mo
     $requisition->update(['status' => 'APPROVED']);
     $scientist = scientistUser(['lab_id' => $this->lab->id]);
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $requisition->items()->firstOrFail()]), [
-        'qty_issued' => '30', 'unit_id' => $this->g->id, 'signature_image' => SHOP_PNG,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$requisition->items()->firstOrFail()->id => ['qty' => '30', 'unit_id' => $this->g->id]],
     ])->assertSessionHasErrors('issue');
 
     expect((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0)->and($requisition->fresh()->status)->toBe('APPROVED');
-});
-
-test('a bad receiver signature never cuts stock out of IMS', function () {
-    $item = makeItem();
-    $lot = ($this->imsLot)($item, '1000');
-
-    $requisition = makeRequisition($this->shopper);
-    app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $this->g, '30');
-    $requisition->update(['status' => 'APPROVED']);
-    $scientist = scientistUser(['lab_id' => $this->lab->id]);
-
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $requisition->items()->firstOrFail()]), [
-        'qty_issued' => '30', 'unit_id' => $this->g->id, 'otp_code' => '000000',
-    ])->assertSessionHasErrors();
-
-    expect((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0);
 });
 
 test('the product page shows what the item is, where each bit sits and when it expires, with no prices', function () {

@@ -1,17 +1,9 @@
 <?php
 
-use App\Domain\Requisition\Services\ReceiverOtpService;
-use App\Mail\ReceiverOtpMail;
 use App\Models\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
-
-beforeEach(fn () => Storage::fake('signatures'));
-
-const TEST_PNG_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 test('a user without requisition.issue gets 403 on the issue page', function () {
     $staff = staffUser();
@@ -55,7 +47,7 @@ test('the issue page does not warn when stock is still above the reorder point',
         ->assertDontSee(__('requisitions.low_stock_warning', ['balance' => '50']));
 });
 
-test('a scientist can record a full issue via barcode and a drawn signature', function () {
+test('a scientist can record a full issue through issue-all', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
@@ -63,115 +55,15 @@ test('a scientist can record a full issue via barcode and a drawn signature', fu
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
-        'barcode' => $container->barcode,
-        'qty_issued' => '20.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '20.000000', 'unit_id' => $g->id]],
     ])->assertRedirect(route('requisitions.issue.create', $requisition));
 
     expect($requisition->fresh()->status)->toBe('ISSUED');
     expect($container->fresh()->remaining_qty_base)->toBe('30.000000');
 });
 
-test('FR-RQ-11: a receiver can be confirmed via emailed OTP instead of a signature', function () {
-    Mail::fake();
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '20.000000');
-    $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $g = Unit::where('code', 'g')->firstOrFail();
-
-    $this->actingAs($scientist)->post(route('requisitions.receiver-otp.send', $requisition))
-        ->assertRedirect();
-    Mail::assertQueued(ReceiverOtpMail::class, fn ($mail) => $mail->hasTo($staff->email));
-
-    $sentCode = null;
-    Mail::assertQueued(ReceiverOtpMail::class, function ($mail) use (&$sentCode) {
-        $sentCode = $mail->code;
-
-        return true;
-    });
-
-    $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
-        'barcode' => $container->barcode,
-        'qty_issued' => '20.000000',
-        'unit_id' => $g->id,
-        'otp_code' => $sentCode,
-    ])->assertRedirect(route('requisitions.issue.create', $requisition));
-
-    expect($requisition->fresh()->status)->toBe('ISSUED');
-});
-
-test('an incorrect OTP is rejected', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '20.000000');
-    $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $g = Unit::where('code', 'g')->firstOrFail();
-    app(ReceiverOtpService::class)->send($staff, $requisition);
-
-    $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
-        'barcode' => $container->barcode,
-        'qty_issued' => '20.000000',
-        'unit_id' => $g->id,
-        'otp_code' => '000000',
-    ])->assertSessionHasErrors('otp_code');
-
-    expect($requisition->fresh()->status)->toBe('APPROVED');
-});
-
-test('neither a signature nor an OTP is rejected by validation', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '20.000000');
-    $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '50.000000', $staff);
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $g = Unit::where('code', 'g')->firstOrFail();
-
-    $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
-        'barcode' => $container->barcode,
-        'qty_issued' => '20.000000',
-        'unit_id' => $g->id,
-    ])->assertSessionHasErrors(['signature_image', 'otp_code']);
-});
-
-test('an unknown barcode is rejected with a validation error', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '20.000000');
-    $line = $requisition->items->first();
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $g = Unit::where('code', 'g')->firstOrFail();
-
-    $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
-        'barcode' => 'BC-NOT-REAL',
-        'qty_issued' => '5.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
-    ])->assertSessionHasErrors('barcode');
-});
-
-test('issuing more than the container holds surfaces InsufficientStockException as a form error', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '100.000000');
-    $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '10.000000', $staff);
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $g = Unit::where('code', 'g')->firstOrFail();
-
-    $this->actingAs($scientist)->post(route('requisitions.items.issue', [$requisition, $line]), [
-        'barcode' => $container->barcode,
-        'qty_issued' => '20.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
-    ])->assertSessionHasErrors('issue');
-
-    expect($requisition->fresh()->status)->toBe('APPROVED');
-});
-
-test('user-requested 2026-09-23: auto-issue draws from multiple containers in one submission, no barcode needed', function () {
+test('issue-all draws from multiple containers in one submission, no barcode needed', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '2000.000000');
     $line = $requisition->items->first();
@@ -180,10 +72,8 @@ test('user-requested 2026-09-23: auto-issue draws from multiple containers in on
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
-        'qty_issued' => '2000.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '2000.000000', 'unit_id' => $g->id]],
     ])->assertRedirect(route('requisitions.issue.create', $requisition));
 
     expect($requisition->fresh()->status)->toBe('ISSUED');
@@ -191,7 +81,7 @@ test('user-requested 2026-09-23: auto-issue draws from multiple containers in on
     expect(\App\Models\IssueTransaction::where('requisition_item_id', $line->id)->count())->toBe(2);
 });
 
-test('user-requested 2026-09-23: auto-issue reports a partial result when total stock falls short', function () {
+test('issue-all reports a partial result when total stock falls short', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '2000.000000');
     $line = $requisition->items->first();
@@ -199,42 +89,24 @@ test('user-requested 2026-09-23: auto-issue reports a partial result when total 
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
-        'qty_issued' => '2000.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '2000.000000', 'unit_id' => $g->id]],
     ])->assertRedirect(route('requisitions.issue.create', $requisition));
 
     expect($requisition->fresh()->status)->toBe('PARTIALLY_ISSUED');
     expect($line->fresh()->qty_issued_base)->toBe('500.000000');
 });
 
-test('auto-issue with no containers in stock at all reports an error, not a 500', function () {
+test('issue-all with no containers in stock at all reports an error, not a 500', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '100.000000');
     $line = $requisition->items->first();
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
-    $this->actingAs($scientist)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
-        'qty_issued' => '100.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
+    $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
+        'lines' => [$line->id => ['qty' => '100.000000', 'unit_id' => $g->id]],
     ])->assertSessionHasErrors('issue');
-});
-
-test('a user without requisition.issue gets 403 on the auto-issue route', function () {
-    $staff = staffUser();
-    $requisition = approvedRequisition($staff, '50.000000');
-    $line = $requisition->items->first();
-    $labManager = labManagerUser();
-    $g = Unit::where('code', 'g')->firstOrFail();
-
-    $this->actingAs($labManager)->post(route('requisitions.items.issue-auto', [$requisition, $line]), [
-        'qty_issued' => '50.000000',
-        'unit_id' => $g->id,
-        'signature_image' => TEST_PNG_DATA_URL,
-    ])->assertStatus(403);
 });
 
 test('the issue page shows the quantity to dispense in big tiles and prefills the form with it', function () {

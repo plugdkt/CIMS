@@ -11,16 +11,11 @@ use App\Domain\Inventory\Services\ImsService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Requisition\Exceptions\ExcessiveIssueQuantityException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
-use App\Domain\Requisition\Exceptions\InvalidSignatureImageException;
 use App\Domain\Requisition\Services\IssueService;
-use App\Domain\Requisition\Services\ReceiverOtpService;
 use App\Domain\Requisition\Services\ReturnService;
 use App\Domain\Requisition\Services\ShopAvailability;
-use App\Domain\Requisition\Services\SignatureImageService;
 use App\Domain\Shared\UnitConverter;
-use App\Http\Requests\RequisitionAutoIssueRequest;
 use App\Http\Requests\RequisitionIssueAllRequest;
-use App\Http\Requests\RequisitionIssueRequest;
 use App\Models\Container;
 use App\Models\ImsLot;
 use App\Models\IssueTransaction;
@@ -31,7 +26,7 @@ use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 
-/** FR-RQ-09/10: dispensing against an APPROVED/PARTIALLY_ISSUED requisition, one container at a time. */
+/** FR-RQ-09/10: dispensing against an APPROVED/PARTIALLY_ISSUED requisition, via the issue-all form (FEFO across containers). */
 final class RequisitionIssueController extends Controller
 {
     /**
@@ -97,120 +92,9 @@ final class RequisitionIssueController extends Controller
         ]);
     }
 
-    public function store(
-        RequisitionIssueRequest $request,
-        Requisition $requisition,
-        RequisitionItem $requisitionItem,
-        IssueService $service,
-        SignatureImageService $signatures,
-        ReceiverOtpService $otp,
-    ): RedirectResponse {
-        $data = $request->validated();
-        $container = Container::where('barcode', $data['barcode'])->firstOrFail();
-        $unit = Unit::whereKey($data['unit_id'])->firstOrFail();
-
-        /** @var User $issuer */
-        $issuer = $request->user();
-        $receiver = $requisition->requester()->firstOrFail();
-
-        /** @var numeric-string $qtyIssued */
-        $qtyIssued = (string) $data['qty_issued'];
-
-        try {
-            [$signatureHash, $signatureImagePath] = $this->resolveReceiverSignature($data, $receiver, $requisition, $signatures, $otp);
-        } catch (InvalidSignatureImageException $e) {
-            return back()->withErrors(['signature_image' => $e->getMessage()]);
-        }
-
-        if ($signatureHash === null) {
-            return back()->withErrors(['otp_code' => __('requisitions.validation.otp_code_invalid')]);
-        }
-
-        try {
-            $service->issue(
-                $requisitionItem,
-                $container,
-                $qtyIssued,
-                $unit,
-                $issuer,
-                $receiver,
-                $signatureHash,
-                $signatureImagePath,
-                $data['remark'] ?? null,
-                $data['overage_approved_by'] ?? null,
-            );
-        } catch (InvalidRequisitionTransitionException|ExcessiveIssueQuantityException|InsufficientStockException $e) {
-            return back()->withErrors(['issue' => $e->getMessage()]);
-        }
-
-        return redirect()->route('requisitions.issue.create', $requisition)->with('status', __('requisitions.issue_recorded'));
-    }
-
-    /**
-     * User-requested 2026-09-23: "ให้ระบบแนะนำ/จ่ายจากหลายขวดในคลิกเดียว" — one submission, one
-     * total quantity, the FEFO-recommended containers filled in order automatically instead
-     * of the issuer repeating {@see store()} once per container.
-     */
-    public function storeAuto(
-        RequisitionAutoIssueRequest $request,
-        Requisition $requisition,
-        RequisitionItem $requisitionItem,
-        IssueService $service,
-        FefoContainerSelector $selector,
-        SignatureImageService $signatures,
-        ReceiverOtpService $otp,
-        UnitConverter $converter,
-        ImsService $ims,
-        ShopAvailability $availability,
-    ): RedirectResponse {
-        $data = $request->validated();
-        $unit = Unit::whereKey($data['unit_id'])->firstOrFail();
-
-        /** @var User $issuer */
-        $issuer = $request->user();
-        $receiver = $requisition->requester()->firstOrFail();
-
-        try {
-            [$signatureHash, $signatureImagePath] = $this->resolveReceiverSignature($data, $receiver, $requisition, $signatures, $otp);
-        } catch (InvalidSignatureImageException $e) {
-            return back()->withErrors(['signature_image' => $e->getMessage()]);
-        }
-
-        if ($signatureHash === null) {
-            return back()->withErrors(['otp_code' => __('requisitions.validation.otp_code_invalid')]);
-        }
-
-        /** @var numeric-string $qtyRequested */
-        $qtyRequested = (string) $data['qty_issued'];
-
-        $result = $this->issueLineAuto(
-            $requisitionItem,
-            $requisition,
-            $qtyRequested,
-            $unit,
-            $issuer,
-            $receiver,
-            $signatureHash,
-            $signatureImagePath,
-            $data['remark'] ?? null,
-            $data['overage_approved_by'] ?? null,
-            $service,
-            $selector,
-            $converter,
-            $ims,
-            $availability,
-        );
-
-        if ($result['error'] !== null) {
-            return back()->withErrors(['issue' => $result['error']]);
-        }
-
-        return redirect()->route('requisitions.issue.create', $requisition)->with('status', $result['message']);
-    }
-
     /**
      * One button for the whole requisition: every line that still needs dispensing is issued
-     * in one submission, with no receiver signature/OTP — instead of repeating {@see storeAuto()} per chemical.
+     * in one submission, with no receiver signature/OTP.
      */
     public function storeAll(
         RequisitionIssueAllRequest $request,
@@ -312,7 +196,7 @@ final class RequisitionIssueController extends Controller
     /**
      * Dispenses one line: working stock first, the shortfall cut from this branch's IMS store
      * (whole bottles, soonest-expiring lot first), then FEFO-allocated across containers.
-     * Only called once the receiver's signature is good, so a failed OTP never moves stock.
+     * Used by {@see storeAll()} only.
      *
      * @param  numeric-string  $qty
      * @return array{error: ?string, message: ?string}
@@ -394,39 +278,5 @@ final class RequisitionIssueController extends Controller
             : __('requisitions.issue_recorded_multi', ['containers' => count($transactions)]);
 
         return ['error' => null, 'message' => $message];
-    }
-
-    /** FR-RQ-11: the receiver's own OTP request — sent to the requisition's requester (the usual receiver). */
-    public function sendReceiverOtp(Requisition $requisition, ReceiverOtpService $otp): RedirectResponse
-    {
-        $this->authorize('issue', $requisition);
-
-        $otp->send($requisition->requester()->firstOrFail(), $requisition);
-
-        return back()->with('status', __('requisitions.otp_sent'));
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return array{0: ?string, 1: ?string} [signatureHash, signatureImagePath]
-     */
-    private function resolveReceiverSignature(
-        array $data,
-        User $receiver,
-        Requisition $requisition,
-        SignatureImageService $signatures,
-        ReceiverOtpService $otp,
-    ): array {
-        if (! empty($data['signature_image'])) {
-            $stored = $signatures->store($data['signature_image']);
-
-            return [$stored['hash'], $stored['path']];
-        }
-
-        if ($otp->verify($receiver, $requisition, (string) $data['otp_code'])) {
-            return [hash('sha256', "OTP|{$requisition->id}|{$receiver->id}|".now()->toISOString()), null];
-        }
-
-        return [null, null];
     }
 }

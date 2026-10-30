@@ -218,17 +218,11 @@ Route::middleware('auth')->prefix('requisitions')->name('requisitions.')->group(
     Route::post('/{requisition}/advisor-decide', [RequisitionApprovalController::class, 'decide'])->name('advisor-decide');
     Route::post('/{requisition}/scientist-decide', [RequisitionApprovalController::class, 'scientistDecide'])->name('scientist-decide');
     Route::get('/{requisition}/issue', [RequisitionIssueController::class, 'create'])->name('issue.create');
-    Route::post('/{requisition}/items/{requisition_item}/issue', [RequisitionIssueController::class, 'store'])->name('items.issue');
-    // User-requested 2026-09-23: one total quantity, dispensed across several FEFO-ordered
-    // containers automatically, instead of resubmitting `items.issue` once per container.
-    Route::post('/{requisition}/items/{requisition_item}/issue-auto', [RequisitionIssueController::class, 'storeAuto'])->name('items.issue-auto');
+    // ITM-2610-036: the per-line issue routes (items.issue / items.issue-auto) and the receiver
+    // OTP route were removed — they bypassed the controlled_ack check. issue-all is the only issue path.
     // One button for every line of the requisition, with a single receiver confirmation.
     Route::post('/{requisition}/issue-all', [RequisitionIssueController::class, 'storeAll'])->name('issue-all');
     Route::post('/{requisition}/items/{requisition_item}/return', [RequisitionReturnController::class, 'store'])->name('items.return');
-    // FR-RQ-11 OTP fallback: rate limited so a scientist can't spam a receiver's inbox.
-    Route::post('/{requisition}/receiver-otp', [RequisitionIssueController::class, 'sendReceiverOtp'])
-        ->middleware('throttle:5,1')
-        ->name('receiver-otp.send');
 });
 
 // FR-ST-02..04 — authorization enforced per-action inside the controller/StockTakePolicy.
