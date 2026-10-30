@@ -27,6 +27,7 @@ final class RequisitionReturnRequest extends FormRequest
             'qty_returned' => ['required', 'numeric', 'gt:0'],
             'unit_id' => ['required', 'integer', Rule::exists('units', 'id')],
             'remark' => ['nullable', 'string', 'max:500'],
+            'controlled_ack' => ['nullable', 'boolean'],
         ];
     }
 

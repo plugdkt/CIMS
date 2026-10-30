@@ -147,6 +147,61 @@ test('issue-all must NOT cut stock for a controlled substance without controlled
     expect($container->fresh()->remaining_qty_base)->toBe('45.000000');
 });
 
+/**
+ * ITM-2610-038: returns of controlled substances need controlled_ack like issues do.
+ * Sets up an issued line (50 g from a 100 g container) and returns [scientist, requisition, line, container, g].
+ */
+function issuedLineForReturn(bool $controlled): array
+{
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+    $line = $requisition->items->first();
+    $line->item()->update(['is_controlled' => $controlled]);
+    $container = stockedContainer($line->item_id, '100.000000', $staff);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $g = Unit::where('code', 'g')->firstOrFail();
+    app(\App\Domain\Requisition\Services\IssueService::class)->issue($line, $container, '50.000000', $g, $scientist, $staff, hash('sha256', 'x'));
+
+    return [$scientist, $requisition, $line, $container, $g];
+}
+
+test('return of a controlled substance without controlled_ack is refused and writes nothing', function () {
+    [$scientist, $requisition, $line, $container, $g] = issuedLineForReturn(true);
+    $before = $container->fresh()->remaining_qty_base;
+    $txBefore = IssueTransaction::where('requisition_item_id', $line->id)->count();
+    $ledgerBefore = StockLedger::count();
+
+    $this->actingAs($scientist)->post(route('requisitions.items.return', [$requisition, $line]), [
+        'container_id' => $container->id, 'qty_returned' => '20', 'unit_id' => $g->id,
+    ])->assertSessionHasErrors('controlled_ack');
+
+    expect($container->fresh()->remaining_qty_base)->toBe($before);
+    expect(IssueTransaction::where('requisition_item_id', $line->id)->count())->toBe($txBefore);
+    expect(StockLedger::count())->toBe($ledgerBefore);
+    expect($line->fresh()->qty_returned_base)->toBe('0.000000');
+});
+
+test('return of a controlled substance with controlled_ack succeeds', function () {
+    [$scientist, $requisition, $line, $container, $g] = issuedLineForReturn(true);
+
+    $this->actingAs($scientist)->post(route('requisitions.items.return', [$requisition, $line]), [
+        'container_id' => $container->id, 'qty_returned' => '20', 'unit_id' => $g->id, 'controlled_ack' => '1',
+    ])->assertSessionHasNoErrors()->assertSessionHas('status');
+
+    expect($container->fresh()->remaining_qty_base)->toBe('70.000000');
+    expect($line->fresh()->qty_returned_base)->toBe('20.000000');
+});
+
+test('return of a NON-controlled item still succeeds without controlled_ack', function () {
+    [$scientist, $requisition, $line, $container, $g] = issuedLineForReturn(false);
+
+    $this->actingAs($scientist)->post(route('requisitions.items.return', [$requisition, $line]), [
+        'container_id' => $container->id, 'qty_returned' => '20', 'unit_id' => $g->id,
+    ])->assertSessionHasNoErrors()->assertSessionHas('status');
+
+    expect($container->fresh()->remaining_qty_base)->toBe('70.000000');
+});
+
 test('the per-line issue routes no longer exist: POST is 404/405 and the stock does not move', function (string $suffix, array $extra) {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');

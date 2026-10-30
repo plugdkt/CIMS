@@ -27,6 +27,12 @@ final class RequisitionReturnController extends Controller
         abort_unless((int) $requisitionItem->requisition_id === (int) $requisition->id, 404);
 
         $data = $request->validated();
+
+        // Controlled substances: returning needs the same explicit tick-box confirmation as issuing (ITM-2610-038).
+        if ($requisitionItem->item?->is_controlled === true && empty($data['controlled_ack'])) {
+            return back()->withErrors(['controlled_ack' => __('requisitions.validation.controlled_ack_return_required')])->withInput();
+        }
+
         $container = Container::whereKey($data['container_id'])->firstOrFail();
         $unit = Unit::whereKey($data['unit_id'])->firstOrFail();
 

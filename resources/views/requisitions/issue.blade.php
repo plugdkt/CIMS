@@ -263,6 +263,12 @@
                                 <label class="block text-xs font-medium mb-1" for="return_remark-{{ $line->id }}">{{ __('requisitions.field_issue_remark') }}</label>
                                 <input type="text" name="remark" id="return_remark-{{ $line->id }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                             </div>
+                            @if ($line->item?->is_controlled)
+                                <label class="sm:col-span-4 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm">
+                                    <input type="checkbox" name="controlled_ack" value="1" class="mt-1">
+                                    <span>{{ __('requisitions.controlled_ack_return') }}</span>
+                                </label>
+                            @endif
                             <div class="sm:col-span-4">
                                 <button type="submit" class="rounded-lg border border-border hover:bg-surface-alt text-sm font-semibold px-4 py-2.5">
                                     {{ __('requisitions.record_return') }}
