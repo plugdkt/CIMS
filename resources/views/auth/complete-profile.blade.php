@@ -14,14 +14,23 @@
         @csrf
 
         <div>
-            <label for="person_type" class="block text-sm font-medium mb-1">{{ __('auth.field_person_type') }}</label>
-            <select id="person_type" name="person_type"
-                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                <option value="">—</option>
-                <option value="LECTURER" @selected(old('person_type') === 'LECTURER')>{{ __('auth.field_person_type_lecturer') }}</option>
-                <option value="STAFF" @selected(old('person_type') === 'STAFF')>{{ __('auth.field_person_type_staff') }}</option>
-                <option value="STUDENT" @selected(old('person_type') === 'STUDENT')>{{ __('auth.field_person_type_student') }}</option>
-            </select>
+            <label for="{{ $user?->personTypeFixed() ? 'person_type_display' : 'person_type' }}" class="block text-sm font-medium mb-1">{{ __('auth.field_person_type') }}</label>
+            @if ($user?->personTypeFixed())
+                {{-- Locked after the first completed profile (BR-02 hardening): shown read-only; the hidden
+                     field keeps the stored value and lets the advisor-field script below keep working. --}}
+                <input type="hidden" id="person_type" name="person_type" value="{{ $user->personTypeFixed() }}">
+                <input type="text" id="person_type_display" value="{{ __('auth.field_person_type_'.strtolower((string) $user->personTypeFixed())) }}" readonly aria-describedby="person_type_locked_help"
+                       class="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-ink-muted">
+                <p id="person_type_locked_help" class="mt-1 text-xs text-ink-faint">{{ $user->personTypeLocked() ? __('auth.person_type_locked_help') : __('auth.person_type_student_help') }}</p>
+            @else
+                <select id="person_type" name="person_type"
+                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <option value="">—</option>
+                    <option value="LECTURER" @selected(old('person_type') === 'LECTURER')>{{ __('auth.field_person_type_lecturer') }}</option>
+                    <option value="STAFF" @selected(old('person_type') === 'STAFF')>{{ __('auth.field_person_type_staff') }}</option>
+                    <option value="STUDENT" @selected(old('person_type') === 'STUDENT')>{{ __('auth.field_person_type_student') }}</option>
+                </select>
+            @endif
             @error('person_type') <p class="mt-1 text-xs text-danger">{{ $message }}</p> @enderror
         </div>
 
@@ -69,16 +78,24 @@
         </div>
 
         <div id="advisor-field" class="hidden">
-            <label for="advisor_id" class="block text-sm font-medium mb-1">{{ __('auth.field_advisor') }}</label>
-            <select id="advisor_id" name="advisor_id"
-                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                <option value="">—</option>
-                @foreach ($advisors as $advisor)
-                    <option value="{{ $advisor->id }}" @selected((string) old('advisor_id', (string) $user?->advisor_id) === (string) $advisor->id)>
-                        {{ $advisor->full_name }}@if($advisor->lab) ({{ $advisor->lab->name_th }})@endif
-                    </option>
-                @endforeach
-            </select>
+            <label for="{{ $user?->advisorLocked() ? 'advisor_display' : 'advisor_id' }}" class="block text-sm font-medium mb-1">{{ __('auth.field_advisor') }}</label>
+            @if ($user?->advisorLocked())
+                {{-- Locked once set (CEO 2026-11-02): read-only; the hidden field keeps the stored advisor. --}}
+                <input type="hidden" id="advisor_id" name="advisor_id" value="{{ $user->advisor_id }}">
+                <input type="text" id="advisor_display" value="{{ $user->advisor?->full_name }}" readonly aria-describedby="advisor_locked_help"
+                       class="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-ink-muted">
+                <p id="advisor_locked_help" class="mt-1 text-xs text-ink-faint">{{ __('auth.advisor_locked_help') }}</p>
+            @else
+                <select id="advisor_id" name="advisor_id"
+                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <option value="">—</option>
+                    @foreach ($advisors as $advisor)
+                        <option value="{{ $advisor->id }}" @selected((string) old('advisor_id', (string) $user?->advisor_id) === (string) $advisor->id)>
+                            {{ $advisor->full_name }}@if($advisor->lab) ({{ $advisor->lab->name_th }})@endif
+                        </option>
+                    @endforeach
+                </select>
+            @endif
             <p class="mt-1 text-xs text-ink-faint">{{ __('auth.field_advisor_help') }}</p>
             @error('advisor_id') <p class="mt-1 text-xs text-danger">{{ $message }}</p> @enderror
         </div>

@@ -5,6 +5,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+
+- 2026-11-02 (CEO, BR-02 hardening): (a) `ApprovalService::advisorDecide` (signed email link and in-system channel alike) now also requires the named advisor to be active, to hold `requisition.approve_advisor`, and not to be the requester, with one generic Thai refusal message; (b) the complete-profile advisor must be an active holder of `requisition.approve_advisor` and not the user themselves (the dropdown lists exactly those); (c) once a profile is completed with a person type, `person_type` can no longer be changed on the complete-profile page (shown read-only, any other submitted value is a validation error, ADMIN included); an older account flagged complete but without a person type can still fill it in. Changes to `person_type` / `advisor_id` / `lab_id` through that form are written to `audit_logs` (ids only).
+
 ### Fixed
 
 - 2026-10-30 (ITM-2610-026): The normal requisition form (`requisitions.create`) and `requisitions.store` now also redirect a user with no person type to the complete-profile page (same Thai message, no requisition created) instead of a 500; shared via `Controller::personTypeGate()`, also used by shop checkout.

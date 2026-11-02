@@ -51,6 +51,18 @@ final class ApprovalService
             throw new InvalidApprovalDecisionException('อาจารย์ที่ปรึกษาอนุมัติได้เฉพาะใบเบิกของนิสิตในความดูแลของตนเองเท่านั้น');
         }
 
+        // BR-02 hardening (CEO 2026-11-02): being named as the advisor is not enough. The advisor must
+        // still be active, still hold the advisor permission, and must not be the requester — whichever
+        // channel (signed email link or logged in) the decision comes through. One generic message, so
+        // nothing about the account or the requisition is revealed.
+        if (
+            ! $advisor->is_active
+            || $advisor->id === $requisition->requester_id
+            || ! $advisor->hasPermission('requisition.approve_advisor')
+        ) {
+            throw new InvalidApprovalDecisionException((string) __('requisitions.advisor_not_eligible'));
+        }
+
         if ($decision === 'REJECT' && trim((string) $reason) === '') {
             throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลที่ไม่อนุมัติ');
         }

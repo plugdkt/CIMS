@@ -100,6 +100,38 @@ class User extends Authenticatable
         return $this->hasRole('LAB_MANAGER') || $this->hasRole('AUDITOR');
     }
 
+    /**
+     * BR-02 hardening (CEO 2026-11-02): once the profile has been completed with a person type, that
+     * type (STUDENT / STAFF / LECTURER) can no longer be changed from the complete-profile page — a
+     * student must not turn themselves into STAFF to skip the advisor step. An older account whose
+     * profile was flagged complete but has no person type yet is not locked and can still fill it in.
+     */
+    public function personTypeLocked(): bool
+    {
+        return $this->profile_completed_at !== null && $this->person_type !== null;
+    }
+
+    /**
+     * The person type this account is forced to, or null when the user may choose.
+     * - Locked profile: the stored type (even if it looks wrong; an admin fixes that in the database).
+     * - Holds the STUDENT role (assigned by an admin, never by the user): always STUDENT, so a student
+     *   cannot pick STAFF/LECTURER at the first fill-in to skip the advisor step (BR-02).
+     */
+    public function personTypeFixed(): ?string
+    {
+        if ($this->personTypeLocked()) {
+            return $this->person_type;
+        }
+
+        return $this->hasRole('STUDENT') ? 'STUDENT' : null;
+    }
+
+    /** Same idea for the advisor (CEO 2026-11-02): once set on a completed profile, the user cannot change it themselves. */
+    public function advisorLocked(): bool
+    {
+        return $this->profile_completed_at !== null && $this->advisor_id !== null;
+    }
+
     public function hasPermission(string $code): bool
     {
         return $this->roles->flatMap(fn ($role) => $role->permissions)->contains('code', $code);

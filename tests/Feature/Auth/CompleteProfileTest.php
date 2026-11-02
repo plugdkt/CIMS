@@ -77,6 +77,18 @@ test('missing required fields are rejected', function () {
 
     $response = $this->actingAs($user)->post(route('account.complete-profile.update'), []);
 
+    // A STUDENT-role account is forced to STUDENT (ITM-2610-054 A1), so person_type is not asked of
+    // them, but they then need an advisor.
+    $response->assertSessionHasErrors(['phone', 'person_code', 'program', 'faculty', 'lab_id', 'advisor_id']);
+    $response->assertSessionDoesntHaveErrors('person_type');
+});
+
+test('missing required fields are rejected, and an account that is not a STUDENT must still say its person type', function () {
+    $user = User::factory()->create(['person_type' => null, 'profile_completed_at' => null]);
+    $user->roles()->attach(Role::where('code', 'STAFF')->firstOrFail());
+
+    $response = $this->actingAs($user)->post(route('account.complete-profile.update'), []);
+
     $response->assertSessionHasErrors(['person_type', 'phone', 'person_code', 'program', 'faculty', 'lab_id']);
 });
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,13 +27,35 @@ final class CompleteProfileRequest extends FormRequest
         return $user !== null && $user->hasRole('ADMIN');
     }
 
+    /**
+     * The person type this submission is really about: the stored one when it is locked
+     * (see User::personTypeLocked()), otherwise what was submitted.
+     */
+    public function effectivePersonType(): ?string
+    {
+        $fixed = $this->user()?->personTypeFixed();
+        if ($fixed !== null) {
+            return $fixed;
+        }
+
+        $submitted = $this->input('person_type');
+
+        return is_string($submitted) ? $submitted : null;
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
         $optional = $this->phoneAndCodeOptional();
+        $user = $this->user();
+        $lockedType = $user?->personTypeFixed();
+        $lockedAdvisor = $user !== null && $user->advisorLocked() ? (string) $user->advisor_id : null;
 
         return [
-            'person_type' => ['required', Rule::in(['LECTURER', 'STAFF', 'STUDENT'])],
+            // Locked after the first completed profile: no way to change it here, ADMIN included.
+            'person_type' => $lockedType !== null
+                ? ['nullable', Rule::in([$lockedType])]
+                : ['required', Rule::in(['LECTURER', 'STAFF', 'STUDENT'])],
             'phone' => $optional
                 ? ['nullable', 'string', 'regex:/^[0-9\-]{9,15}$/']
                 : ['required', 'string', 'regex:/^[0-9\-]{9,15}$/'],
@@ -46,12 +69,32 @@ final class CompleteProfileRequest extends FormRequest
                 'integer',
                 Rule::exists('labs', 'id')->where('is_active', true),
             ],
-            'advisor_id' => [
-                Rule::requiredIf(fn () => $this->input('person_type') === 'STUDENT'),
+            'advisor_id' => $lockedAdvisor !== null
+                // Locked once set (CEO 2026-11-02): the stored advisor, or nothing, is the only accepted value.
+                ? ['nullable', Rule::in([$lockedAdvisor])]
+                : [
+                Rule::requiredIf(fn () => $this->effectivePersonType() === 'STUDENT'),
                 'nullable',
                 'integer',
-                Rule::exists('users', 'id'),
-            ],
+                // BR-02 hardening: an advisor must really be an active advisor (holds
+                // requisition.approve_advisor) and never the person filling the form in.
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+
+                    $advisor = User::with('roles.permissions')->find((int) $value);
+                    $self = $this->user();
+                    if (
+                        $advisor === null
+                        || ! $advisor->is_active
+                        || ($self !== null && $advisor->id === $self->id)
+                        || ! $advisor->hasPermission('requisition.approve_advisor')
+                    ) {
+                        $fail(__('auth.validation.advisor_invalid'));
+                    }
+                },
+                ],
         ];
     }
 
@@ -60,15 +103,20 @@ final class CompleteProfileRequest extends FormRequest
     {
         return [
             'person_type.required' => __('auth.validation.person_type_required'),
-            'person_type.in' => __('auth.validation.person_type_invalid'),
+            'person_type.in' => $this->user()?->personTypeLocked()
+                ? __('auth.validation.person_type_locked')
+                : ($this->user()?->personTypeFixed() !== null
+                    ? __('auth.validation.person_type_student_only')
+                    : __('auth.validation.person_type_invalid')),
             'phone.required' => __('auth.validation.phone_required'),
             'phone.regex' => __('auth.validation.phone_invalid'),
             'person_code.required' => __('auth.validation.person_code_required'),
             'faculty.required' => __('auth.validation.faculty_required'),
             'lab_id.required' => __('auth.validation.lab_required'),
             'lab_id.exists' => __('auth.validation.lab_invalid'),
+            'advisor_id.in' => __('auth.validation.advisor_locked'),
             'advisor_id.required_if' => __('auth.validation.advisor_required_for_student'),
-            'advisor_id.exists' => __('auth.validation.advisor_invalid'),
+            'advisor_id.required' => __('auth.validation.advisor_required_for_student'),
         ];
     }
 }
