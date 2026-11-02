@@ -236,8 +236,8 @@ final class MenuRegistry
                     $badges[] = ['tone' => 'w', 'text' => (string) __('nav.badge_advisee_waiting', ['count' => $waiting])];
                 }
             }
-            // The cart is still one shared basket in phase 1 (split per kind in phase 2), so both cards show the same number.
-            $cart = count((array) session('shop.cart', []));
+            // Phase 2: one basket per kind, so each card shows its own basket's size.
+            $cart = count((array) session(ItemType::cartKey($type), []));
             if ($cart > 0 && $user->can('create', Requisition::class)) {
                 $badges[] = ['tone' => 'p', 'text' => (string) __('nav.badge_cart', ['count' => $cart])];
             }

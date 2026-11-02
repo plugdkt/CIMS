@@ -6,7 +6,7 @@
             <h1 class="font-display text-lg font-bold">{{ __('shop.title') }}</h1>
             <p class="text-sm text-ink-muted mt-1">{{ __('shop.subtitle') }}</p>
         </div>
-        <a href="{{ route('shop.cart', array_filter(['type' => $type])) }}" class="relative rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
+        <a href="{{ route('shop.cart', ['type' => $cartType]) }}" class="relative rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
             {{ __('shop.cart') }}
             @if ($cartCount > 0)
                 <span class="ml-1 inline-block rounded-full bg-white text-accent text-xs font-bold px-2 py-0.5">{{ $cartCount }}</span>

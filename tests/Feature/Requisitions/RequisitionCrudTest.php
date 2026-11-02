@@ -77,7 +77,7 @@ test('a STUDENT can create a DRAFT requisition with requester fields snapshotted
     $student = studentUser(['lab_id' => $lab->id]);
 
     $response = $this->actingAs($student)->post(route('requisitions.store'), [
-        'request_type' => ['CHEMICAL'],
+        'type' => 'chemical',
         'purpose_type' => 'TEACHING',
         'purpose_detail' => 'วิชาเคมีทั่วไป',
     ]);
@@ -102,11 +102,12 @@ test('a STAFF requester has no student_code snapshotted', function () {
     $staff = staffUser(['lab_id' => $lab->id]);
 
     $this->actingAs($staff)->post(route('requisitions.store'), [
-        'request_type' => ['CONSUMABLE'],
+        'type' => 'consumable',
         'purpose_type' => 'RESEARCH',
     ]);
 
     $requisition = Requisition::where('requester_id', $staff->id)->firstOrFail();
+    expect($requisition->request_type)->toBe(['CONSUMABLE']);
     expect($requisition->student_code)->toBeNull();
     expect($requisition->requester_status)->toBe('STAFF');
     expect($requisition->lab_id)->toBe($lab->id);
@@ -119,7 +120,7 @@ test('a requisition\'s lab_id is always the requester\'s own branch, never a pos
 
     $this->actingAs($student)->post(route('requisitions.store'), [
         'lab_id' => $otherLab->id, // must be ignored — snapshotted server-side
-        'request_type' => ['CHEMICAL'],
+        'type' => 'chemical',
         'purpose_type' => 'TEACHING',
     ]);
 
@@ -134,7 +135,7 @@ test('a requester with no branch assigned is redirected to the pending-lab page 
         ->assertRedirect(route('account.pending-lab'));
 
     $this->actingAs($student)->post(route('requisitions.store'), [
-        'request_type' => ['CHEMICAL'],
+        'type' => 'chemical',
         'purpose_type' => 'TEACHING',
     ])->assertStatus(403);
 
@@ -351,7 +352,7 @@ test('BR-02: a STUDENT with no advisor cannot start a requisition and is sent to
         ->assertSessionHas('status', __('requisitions.advisor_missing'));
 
     $this->actingAs($student)
-        ->post(route('requisitions.store'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->post(route('requisitions.store'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
         ->assertRedirect(route('account.complete-profile'))
         ->assertSessionHas('status', __('requisitions.advisor_missing'));
 

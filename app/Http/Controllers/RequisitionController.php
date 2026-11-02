@@ -9,6 +9,7 @@ use App\Domain\Reporting\Services\Fr01PdfService;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Services\RequisitionService;
 use App\Domain\Shared\DocumentNumberGenerator;
+use App\Domain\Shared\ItemType;
 use App\Http\Requests\RequisitionRequest;
 use App\Models\Item;
 use App\Models\Requisition;
@@ -54,7 +55,10 @@ final class RequisitionController extends Controller
             return redirect()->route('account.pending-lab');
         }
 
-        return view('requisitions.create');
+        // The kind comes from the card the user started in (?type=); without it the form asks, one kind only.
+        $type = request()->query('type');
+
+        return view('requisitions.create', ['type' => is_string($type) && ItemType::isValid($type) ? $type : null]);
     }
 
     public function store(RequisitionRequest $request, DocumentNumberGenerator $generator): RedirectResponse
@@ -77,7 +81,9 @@ final class RequisitionController extends Controller
             return $gate;
         }
 
-        $requisition = Requisition::create(array_merge($request->validated(), [
+        $requisition = Requisition::create(array_merge($request->safe()->only(['purpose_type', 'purpose_detail']), [
+            // Set by the system from the chosen kind: exactly one value.
+            'request_type' => [ItemType::requestTypeValue((string) $request->validated('type'))],
             'doc_no' => $generator->next('REQ'),
             'doc_date' => now()->toDateString(),
             'lab_id' => $user->lab_id,

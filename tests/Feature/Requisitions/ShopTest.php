@@ -73,21 +73,21 @@ test('items go into the cart, merge when added again, and cannot exceed the stoc
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '300', 'unit_id' => $this->g->id])->assertRedirect();
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '0.2', 'unit_id' => Unit::where('code', 'kg')->firstOrFail()->id])->assertRedirect();
 
-    $cart = session('shop.cart');
+    $cart = session('shop.cart.chemical');
     expect((float) $cart[$item->ulid]['qty'])->toEqual(500.0)->and($cart[$item->ulid]['unit_id'])->toBe($this->g->id);
 
     // 500 + 700 would be 1200 > 1100.
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '700', 'unit_id' => $this->g->id])->assertSessionHasErrors('cart');
-    expect((float) session('shop.cart')[$item->ulid]['qty'])->toEqual(500.0);
+    expect((float) session('shop.cart.chemical')[$item->ulid]['qty'])->toEqual(500.0);
 
     // A volume unit for a mass item is refused.
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '1', 'unit_id' => $this->ml->id])->assertSessionHasErrors('cart');
 
-    $this->actingAs($this->shopper)->get(route('shop.cart'))->assertOk()->assertSee('สารทดสอบตะกร้า');
-    $this->actingAs($this->shopper)->put(route('shop.cart.update', $item->ulid), ['qty' => '250'])->assertRedirect(route('shop.cart'));
-    expect((float) session('shop.cart')[$item->ulid]['qty'])->toEqual(250.0);
-    $this->actingAs($this->shopper)->delete(route('shop.cart.remove', $item->ulid))->assertRedirect(route('shop.cart'));
-    expect(session('shop.cart'))->toBe([]);
+    $this->actingAs($this->shopper)->get(route('shop.cart', ['type' => 'chemical']))->assertOk()->assertSee('สารทดสอบตะกร้า');
+    $this->actingAs($this->shopper)->put(route('shop.cart.update', $item->ulid), ['qty' => '250'])->assertRedirect(route('shop.cart', ['type' => 'chemical']));
+    expect((float) session('shop.cart.chemical')[$item->ulid]['qty'])->toEqual(250.0);
+    $this->actingAs($this->shopper)->delete(route('shop.cart.remove', $item->ulid))->assertRedirect(route('shop.cart', ['type' => 'chemical']));
+    expect(session('shop.cart.chemical'))->toBe([]);
 });
 
 test('checking out turns the cart into a submitted requisition with one line per item, and empties the cart', function () {
@@ -99,21 +99,22 @@ test('checking out turns the cart into a submitted requisition with one line per
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $a->ulid, 'qty' => '100', 'unit_id' => $this->g->id]);
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $b->ulid, 'qty' => '50', 'unit_id' => $this->g->id]);
 
-    $this->actingAs($this->shopper)->post(route('shop.checkout'), ['purpose_type' => 'TEACHING'])->assertSessionHasErrors('request_type');
-    $this->actingAs($this->shopper)->post(route('shop.checkout'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 3'])->assertRedirect();
+    $this->actingAs($this->shopper)->post(route('shop.checkout'), ['purpose_type' => 'TEACHING'])->assertSessionHasErrors('type');
+    $this->actingAs($this->shopper)->post(route('shop.checkout'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 3'])->assertRedirect();
 
     $requisition = Requisition::firstOrFail();
     expect($requisition->status)->toBe('SUBMITTED')->and($requisition->lab_id)->toBe($this->lab->id)
         ->and($requisition->requester_id)->toBe($this->shopper->id)->and($requisition->items)->toHaveCount(2)
         ->and((float) $requisition->items->first()->qty_requested_base)->toEqual(100.0);
-    expect(session('shop.cart'))->toBeNull();
+    expect($requisition->request_type)->toBe(['CHEMICAL']);
+    expect(session('shop.cart.chemical'))->toBeNull();
 
     // Nothing is reserved or moved at checkout.
     expect((float) ImsLot::where('item_id', $a->id)->firstOrFail()->qty_remaining_base)->toEqual(1000.0);
 });
 
 test('checking out an empty cart is refused', function () {
-    $this->actingAs($this->shopper)->post(route('shop.checkout'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING'])->assertSessionHasErrors('cart');
+    $this->actingAs($this->shopper)->post(route('shop.checkout'), ['type' => 'chemical', 'purpose_type' => 'TEACHING'])->assertSessionHasErrors('cart');
     expect(Requisition::count())->toBe(0);
 });
 

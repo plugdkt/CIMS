@@ -11,6 +11,7 @@ use App\Domain\Shared\DocumentNumberGenerator;
 use App\Domain\Shared\ItemType;
 use App\Domain\Shared\UnitConverter;
 use App\Http\Requests\ShopCartAddRequest;
+use App\Http\Requests\ShopCartPageRequest;
 use App\Http\Requests\ShopCartUpdateRequest;
 use App\Http\Requests\ShopCheckoutRequest;
 use App\Http\Requests\ShopIndexRequest;
@@ -31,12 +32,15 @@ use Illuminate\Support\Facades\Gate;
  * through the usual approval and dispensing. The cart lives in the session — it is only a
  * wish list until checkout, nothing is reserved.
  *
- * Session shape: shop.cart = [item ulid => ['qty' => string, 'unit_id' => int]]
+ * ITM-2610-052 phase 2: one requisition = one kind of stock (chemical or consumable), so there is one
+ * basket per kind. An item always lands in the basket of its own kind (decided by its category, never
+ * by the shopper), and checkout turns one basket into one requisition.
+ *
+ * Session shape: shop.cart.{chemical|consumable} = [item ulid => ['qty' => string, 'unit_id' => int]]
+ * (the old single `shop.cart` key is no longer read; baskets are only wish lists, so losing one at deploy is harmless)
  */
 final class ShopController extends Controller
 {
-    private const CART = 'shop.cart';
-
     public function index(ShopIndexRequest $request, ShopAvailability $availability): View|RedirectResponse
     {
         if ($gate = $this->gate()) {
@@ -101,7 +105,10 @@ final class ShopController extends Controller
             'search' => $search,
             'categoryId' => $categoryId,
             'type' => $type,
-            'cartCount' => count($this->cart()),
+            // The cart button always leads to a basket and shows that basket's size: this page's kind, or
+            // (no kind selected) the first basket that has something in it.
+            'cartType' => $type ?? $this->firstFilledType(),
+            'cartCount' => count($this->cart($type ?? $this->firstFilledType())),
         ]);
     }
 
@@ -159,7 +166,8 @@ final class ShopController extends Controller
             'lots' => $lots,
             'bottles' => $bottles,
             'options' => Unit::where('dimension', $item->baseUnit?->dimension)->orderBy('sort_order')->get(),
-            'cartCount' => count($this->cart()),
+            'type' => ItemType::forItem($item),
+            'cartCount' => count($this->cart(ItemType::forItem($item))),
         ]);
     }
 
@@ -172,7 +180,7 @@ final class ShopController extends Controller
         /** @var User $user */
         $user = $request->user();
         $data = $request->validated();
-        $item = Item::where('ulid', $data['item'])->firstOrFail();
+        $item = Item::with('category')->where('ulid', $data['item'])->firstOrFail();
         $unit = Unit::findOrFail((int) $data['unit_id']);
         $baseUnit = $item->baseUnit;
 
@@ -180,7 +188,9 @@ final class ShopController extends Controller
             return back()->withErrors(['cart' => __('shop.error.unit_mismatch')]);
         }
 
-        $cart = $this->cart();
+        // The item decides which basket it goes into; kinds are never mixed in one basket.
+        $type = ItemType::forItem($item);
+        $cart = $this->cart($type);
         $key = $item->ulid;
         $qty = (string) $data['qty'];
 
@@ -202,24 +212,28 @@ final class ShopController extends Controller
         }
 
         $cart[$key] = ['qty' => $this->trim($qty), 'unit_id' => $unit->id];
-        session([self::CART => $cart]);
+        session([ItemType::cartKey($type) => $cart]);
 
         return back()->with('status', __('shop.added', ['item' => $item->name_th]));
     }
 
-    public function cartPage(ShopAvailability $availability): View|RedirectResponse
+    public function cartPage(ShopCartPageRequest $request, ShopAvailability $availability): View|RedirectResponse
     {
         if ($gate = $this->gate()) {
             return $gate;
         }
 
         /** @var User $user */
-        $user = auth()->user();
-        $lines = $this->cartLines((int) $user->lab_id, $availability);
+        $user = $request->user();
+        // No `type` given: show the basket that has something in it (chemical first), else the chemical one.
+        $type = $request->filled('type') ? (string) $request->query('type') : $this->firstFilledType();
+        $lines = $this->cartLines((int) $user->lab_id, $type, $availability);
 
         return view('shop.cart', [
             'lines' => $lines,
             'cartCount' => count($lines),
+            'type' => $type,
+            'baskets' => array_combine(ItemType::all(), array_map(fn (string $t) => count($this->cart($t)), ItemType::all())),
         ]);
     }
 
@@ -231,10 +245,13 @@ final class ShopController extends Controller
 
         /** @var User $user */
         $user = $request->user();
-        $cart = $this->cart();
-        abort_unless(isset($cart[$item]), 404);
-
         $model = Item::where('ulid', $item)->firstOrFail();
+        // Find the basket that holds it rather than trusting the item's *current* category: if the
+        // category was changed after the item was put in, it is still in the basket it went into.
+        $type = $this->basketHolding($item);
+        abort_if($type === null, 404);
+        $cart = $this->cart($type);
+
         $unit = Unit::findOrFail($cart[$item]['unit_id']);
         /** @var numeric-string $qty */
         $qty = (string) $request->validated('qty');
@@ -244,20 +261,22 @@ final class ShopController extends Controller
         }
 
         $cart[$item]['qty'] = $this->trim($qty);
-        session([self::CART => $cart]);
+        session([ItemType::cartKey($type) => $cart]);
 
-        return redirect()->route('shop.cart')->with('status', __('shop.updated'));
+        return redirect()->route('shop.cart', ['type' => $type])->with('status', __('shop.updated'));
     }
 
     public function remove(string $item): RedirectResponse
     {
         Gate::authorize('create', Requisition::class);
 
-        $cart = $this->cart();
+        // Look in both baskets (not at the item's current category) so a line can always be removed.
+        $back = $this->basketHolding($item) ?? ItemType::CHEMICAL;
+        $cart = $this->cart($back);
         unset($cart[$item]);
-        session([self::CART => $cart]);
+        session([ItemType::cartKey($back) => $cart]);
 
-        return redirect()->route('shop.cart')->with('status', __('shop.removed'));
+        return redirect()->route('shop.cart', ['type' => $back])->with('status', __('shop.removed'));
     }
 
     /** Cart -> an ordinary requisition (header from the checkout form, snapshot of the requester, one line per cart row), submitted straight away. */
@@ -283,26 +302,34 @@ final class ShopController extends Controller
             return $gate;
         }
 
-        $cart = $this->cart();
+        /** @var string $type */
+        $type = $request->validated('type');
+        $cart = $this->cart($type);
         if ($cart === []) {
-            return redirect()->route('shop.index')->withErrors(['cart' => __('shop.error.empty_cart')]);
+            return redirect()->route('shop.index', ['type' => $type])->withErrors(['cart' => __('shop.error.empty_cart')]);
         }
 
         // Re-check every line against what is really there right now.
-        $items = Item::whereIn('ulid', array_keys($cart))->get()->keyBy('ulid');
+        $items = Item::with('category')->whereIn('ulid', array_keys($cart))->get()->keyBy('ulid');
         foreach ($cart as $ulid => $row) {
             $item = $items->get($ulid);
             $unit = Unit::find($row['unit_id']);
             /** @var numeric-string $qty */
             $qty = $row['qty'];
             if ($item === null || $unit === null || ! $this->withinStock($item, $unit, $qty, $availability, $converter, (int) $user->lab_id)) {
-                return redirect()->route('shop.cart')->withErrors(['cart' => __('shop.error.over_stock', ['item' => $item->name_th ?? $ulid])]);
+                return redirect()->route('shop.cart', ['type' => $type])->withErrors(['cart' => __('shop.error.over_stock', ['item' => $item->name_th ?? $ulid])]);
+            }
+            // One requisition = one kind: a basket can only hold its own kind, but re-check in case a category changed since.
+            if (ItemType::forItem($item) !== $type) {
+                return redirect()->route('shop.cart', ['type' => $type])->withErrors(['cart' => __('requisitions.validation.mixed_item_types')]);
             }
         }
 
         try {
-            $requisition = DB::transaction(function () use ($request, $user, $cart, $items, $service, $generator) {
-                $requisition = Requisition::create(array_merge($request->validated(), [
+            $requisition = DB::transaction(function () use ($request, $user, $cart, $items, $service, $generator, $type) {
+                $requisition = Requisition::create(array_merge($request->safe()->only(['purpose_type', 'purpose_detail']), [
+                    // Set by the system from the basket's kind (never ticked by the shopper): exactly one value.
+                    'request_type' => [ItemType::requestTypeValue($type)],
                     'doc_no' => $generator->next('REQ'),
                     'doc_date' => now()->toDateString(),
                     'lab_id' => $user->lab_id,
@@ -325,10 +352,10 @@ final class ShopController extends Controller
                 return $service->submit($requisition);
             });
         } catch (InvalidRequisitionTransitionException $e) {
-            return redirect()->route('shop.cart')->withErrors(['cart' => $e->getMessage()]);
+            return redirect()->route('shop.cart', ['type' => $type])->withErrors(['cart' => $e->getMessage()]);
         }
 
-        session()->forget(self::CART);
+        session()->forget(ItemType::cartKey($type));
 
         return redirect()->route('requisitions.show', $requisition)->with('status', __('shop.checked_out'));
     }
@@ -351,12 +378,36 @@ final class ShopController extends Controller
     }
 
     /** @return array<string, array{qty: numeric-string, unit_id: int}> */
-    private function cart(): array
+    private function cart(string $type): array
     {
         /** @var array<string, array{qty: numeric-string, unit_id: int}> $cart */
-        $cart = session(self::CART, []);
+        $cart = session(ItemType::cartKey($type), []);
 
         return $cart;
+    }
+
+    /** Which basket holds this item, if any. */
+    private function basketHolding(string $ulid): ?string
+    {
+        foreach (ItemType::all() as $type) {
+            if (isset($this->cart($type)[$ulid])) {
+                return $type;
+            }
+        }
+
+        return null;
+    }
+
+    /** The first basket that has something in it, else the chemical one. */
+    private function firstFilledType(): string
+    {
+        foreach (ItemType::all() as $type) {
+            if ($this->cart($type) !== []) {
+                return $type;
+            }
+        }
+
+        return ItemType::CHEMICAL;
     }
 
     /**
@@ -378,9 +429,9 @@ final class ShopController extends Controller
     /**
      * @return list<array{item: Item, unit: Unit, qty: string, stock: array{working: numeric-string, ims: numeric-string, total: numeric-string}}>
      */
-    private function cartLines(int $labId, ShopAvailability $availability): array
+    private function cartLines(int $labId, string $type, ShopAvailability $availability): array
     {
-        $cart = $this->cart();
+        $cart = $this->cart($type);
         if ($cart === []) {
             return [];
         }

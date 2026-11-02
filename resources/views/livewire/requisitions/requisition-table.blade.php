@@ -5,7 +5,7 @@
             <p class="text-sm text-ink-muted mt-1">{{ __('requisitions.index_subtitle') }}</p>
         </div>
         @can('create', App\Models\Requisition::class)
-            <a href="{{ route('requisitions.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
+            <a href="{{ route('requisitions.create', array_filter(['type' => $type])) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
                 {{ __('requisitions.new_requisition') }}
             </a>
         @endcan

@@ -1,8 +1,17 @@
 <x-layout>
     @php $fmt = fn ($v) => rtrim(rtrim((string) $v, '0'), '.') ?: '0'; @endphp
 
-    <a href="{{ route('shop.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('shop.back_to_shop') }}</a>
-    <h1 class="font-display text-lg font-bold mt-1 mb-5">{{ __('shop.cart_title') }}</h1>
+    <a href="{{ route('shop.index', ['type' => $type]) }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('shop.back_to_shop') }}</a>
+    <h1 class="font-display text-lg font-bold mt-1 mb-5">{{ __('shop.cart_title') }} <span class="text-ink-muted font-normal">({{ __('requisitions.request_type_'.$type) }})</span></h1>
+
+    {{-- Switch between the two baskets (one per kind), with how many lines each holds. --}}
+    <nav class="flex gap-1 border-b border-border mb-4 overflow-x-auto" tabindex="0" aria-label="{{ __('shop.baskets_label') }}">
+        @foreach ($baskets as $basketType => $basketCount)
+            <a href="{{ route('shop.cart', ['type' => $basketType]) }}"
+               @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 whitespace-nowrap', 'border-accent text-accent' => $basketType === $type, 'border-transparent text-ink-muted hover:text-ink' => $basketType !== $type])
+               @if ($basketType === $type) aria-current="page" @endif>{{ __('requisitions.request_type_'.$basketType) }} <span class="text-xs font-normal">({{ $basketCount }})</span></a>
+        @endforeach
+    </nav>
 
     @if (session('status'))
         <div class="mb-4 rounded-lg bg-success-soft text-success-ink text-sm px-4 py-3">{{ session('status') }}</div>
@@ -20,7 +29,7 @@
     @if ($lines === [])
         <div class="text-center py-16">
             <p class="text-ink-muted text-sm mb-4">{{ __('shop.cart_empty') }}</p>
-            <a href="{{ route('shop.index') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">{{ __('shop.back_to_shop') }}</a>
+            <a href="{{ route('shop.index', ['type' => $type]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">{{ __('shop.back_to_shop') }}</a>
         </div>
     @else
         <div class="bg-surface border border-border rounded-xl overflow-hidden mb-6">
@@ -71,19 +80,10 @@
             <h2 class="font-display text-base font-bold">{{ __('shop.checkout_title') }}</h2>
             <p class="text-xs text-ink-faint">{{ __('shop.checkout_hint') }}</p>
 
-            <div>
-                <span class="block text-sm font-medium mb-1">{{ __('requisitions.field_request_type') }}</span>
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="request_type[]" value="CHEMICAL" @checked(in_array('CHEMICAL', old('request_type', [])))>
-                        {{ __('requisitions.request_type_chemical') }}
-                    </label>
-                    <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="request_type[]" value="CONSUMABLE" @checked(in_array('CONSUMABLE', old('request_type', [])))>
-                        {{ __('requisitions.request_type_consumable') }}
-                    </label>
-                </div>
-            </div>
+            {{-- The kind is fixed by this basket (set by the system, not ticked): one requisition = one kind. --}}
+            <input type="hidden" name="type" value="{{ $type }}">
+            <p class="text-sm"><span class="text-ink-faint">{{ __('requisitions.field_request_type') }}:</span>
+                <span class="font-semibold">{{ __('requisitions.request_type_'.$type) }}</span></p>
 
             <div>
                 <label class="block text-sm font-medium mb-1" for="purpose_type">{{ __('requisitions.field_purpose_type') }}</label>

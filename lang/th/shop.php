@@ -7,6 +7,7 @@ return [
     'all_categories' => 'ทั้งหมด',
     'tabs_label' => 'ประเภทสินค้า',
     'btn_search' => 'ค้นหา',
+    'baskets_label' => 'ตะกร้าแยกตามชนิด',
     'in_stock' => 'พร้อมเบิก',
     'available' => 'เบิกได้สูงสุด',
     'from_working' => 'คลังใช้งาน',

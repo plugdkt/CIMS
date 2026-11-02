@@ -163,17 +163,31 @@ test('ADMIN sees every branch\'s work in the overview numbers it is allowed, but
     expect($overview->viewData('dispenseCount'))->toBeNull();
 });
 
-test('phase 1: the cart is still one shared basket, so both requesting cards show the same cart count (changes in phase 2)', function () {
+test('phase 2: each requesting card shows the count of its own basket only', function () {
     $staff = staffUser(['lab_id' => makeLab()->id]);
-    $cart = [
-        '01JTESTCARTITEM0000000001' => ['qty' => '1.000000', 'unit_id' => 1],
-        '01JTESTCARTITEM0000000002' => ['qty' => '2.000000', 'unit_id' => 1],
-    ];
+    $line = ['qty' => '1.000000', 'unit_id' => 1];
 
-    $badges = badgesOf($this->withSession(['shop.cart' => $cart])->actingAs($staff)->get('/')->assertOk()->getContent());
+    $badges = badgesOf($this->withSession([
+        'shop.cart.chemical' => ['01JTESTCARTITEM0000000001' => $line, '01JTESTCARTITEM0000000002' => $line],
+        'shop.cart.consumable' => ['01JTESTCARTITEM0000000003' => $line],
+    ])->actingAs($staff)->get('/')->assertOk()->getContent());
 
     expect($badges[__('nav.card_chem')])->toContain(__('nav.badge_cart', ['count' => 2]));
-    expect($badges[__('nav.card_supply')])->toContain(__('nav.badge_cart', ['count' => 2]));
+    expect($badges[__('nav.card_supply')])->toContain(__('nav.badge_cart', ['count' => 1]));
+
+    // Only one basket filled: the other card shows no cart badge.
+    $this->flushSession();
+    $onlySupply = badgesOf($this->withSession(['shop.cart.consumable' => ['01JTESTCARTITEM0000000003' => $line]])
+        ->actingAs($staff)->get('/')->assertOk()->getContent());
+    expect($onlySupply[__('nav.card_chem')])->toBe([__('nav.badge_my_open', ['count' => 0])]);
+    expect($onlySupply[__('nav.card_supply')])->toContain(__('nav.badge_cart', ['count' => 1]));
+
+    // The old single `shop.cart` key is no longer read.
+    $this->flushSession();
+    $old = badgesOf($this->withSession(['shop.cart' => ['01JTESTCARTITEM0000000004' => $line]])
+        ->actingAs($staff)->get('/')->assertOk()->getContent());
+    expect($old[__('nav.card_chem')])->toBe([__('nav.badge_my_open', ['count' => 0])]);
+    expect($old[__('nav.card_supply')])->toBe([__('nav.badge_my_open', ['count' => 0])]);
 
     // An empty cart shows no cart badge at all, only the "my open" one.
     $this->flushSession();

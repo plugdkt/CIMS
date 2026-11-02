@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Domain\Shared\ItemType;
 use App\Models\Requisition;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/** The same header fields as a normal requisition; the lines come from the cart. */
+/**
+ * The same header fields as a normal requisition; the lines come from the basket of one kind.
+ * ITM-2610-052 phase 2: `type` says which basket is being checked out. It is NOT the old ticked
+ * `request_type` box (removed): the requisition's kind is set by the system from the basket.
+ */
 final class ShopCheckoutRequest extends FormRequest
 {
     public function authorize(): bool
@@ -20,8 +25,7 @@ final class ShopCheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'request_type' => ['required', 'array', 'min:1'],
-            'request_type.*' => [Rule::in(['CHEMICAL', 'CONSUMABLE'])],
+            'type' => ['required', Rule::in(ItemType::all())],
             'purpose_type' => ['required', Rule::in(['TEACHING', 'RESEARCH', 'OTHER'])],
             'purpose_detail' => ['nullable', 'string', 'max:500'],
         ];
@@ -31,8 +35,8 @@ final class ShopCheckoutRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'request_type.required' => __('requisitions.validation.request_type_required'),
-            'request_type.min' => __('requisitions.validation.request_type_required'),
+            'type.required' => __('requisitions.validation.type_required'),
+            'type.in' => __('requisitions.validation.type_required'),
             'purpose_type.required' => __('requisitions.validation.purpose_type_required'),
         ];
     }

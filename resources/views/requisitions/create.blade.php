@@ -55,19 +55,28 @@
         <form method="POST" action="{{ route('requisitions.store') }}" class="bg-surface border border-border rounded-xl p-6 space-y-4">
             @csrf
 
-            <div>
-                <label class="block text-sm font-medium mb-1">{{ __('requisitions.field_request_type') }}</label>
-                <div class="flex gap-4">
-                    <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="request_type[]" value="CHEMICAL" @checked(in_array('CHEMICAL', old('request_type', [])))>
-                        {{ __('requisitions.request_type_chemical') }}
-                    </label>
-                    <label class="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="request_type[]" value="CONSUMABLE" @checked(in_array('CONSUMABLE', old('request_type', [])))>
-                        {{ __('requisitions.request_type_consumable') }}
-                    </label>
-                </div>
-            </div>
+            {{-- One requisition = one kind of stock. Chosen by the card the user came from; otherwise pick exactly one. --}}
+            @php $selectedType = App\Domain\Shared\ItemType::isValid(old('type')) ? old('type') : $type; @endphp
+            @if ($selectedType !== null)
+                <input type="hidden" name="type" value="{{ $selectedType }}">
+                <p class="text-sm"><span class="text-ink-faint">{{ __('requisitions.field_request_type') }}:</span>
+                    <span class="font-semibold">{{ __('requisitions.request_type_'.$selectedType) }}</span></p>
+            @else
+                <fieldset>
+                    <legend class="block text-sm font-medium mb-1">{{ __('requisitions.field_request_type') }}</legend>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="radio" name="type" value="chemical" required>
+                            {{ __('requisitions.request_type_chemical') }}
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="radio" name="type" value="consumable" required>
+                            {{ __('requisitions.request_type_consumable') }}
+                        </label>
+                    </div>
+                    <p class="text-xs text-ink-faint mt-1">{{ __('requisitions.one_kind_hint') }}</p>
+                </fieldset>
+            @endif
 
             <div>
                 <label class="block text-sm font-medium mb-1" for="purpose_type">{{ __('requisitions.field_purpose_type') }}</label>

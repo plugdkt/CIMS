@@ -22,7 +22,7 @@ test('checkout with no person type goes back to the complete-profile page and cr
     $user->forceFill(['person_type' => null])->save();
 
     $this->actingAs($user->fresh())
-        ->post(route('shop.checkout'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->post(route('shop.checkout'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
         ->assertRedirect(route('account.complete-profile'))
         ->assertSessionHas('status', __('requisitions.person_type_missing'));
 
@@ -39,7 +39,7 @@ test('requisition form and store with no person type go back to the complete-pro
         ->assertSessionHas('status', __('requisitions.person_type_missing'));
 
     $this->actingAs($user)
-        ->post(route('requisitions.store'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->post(route('requisitions.store'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
         ->assertRedirect(route('account.complete-profile'))
         ->assertSessionHas('status', __('requisitions.person_type_missing'));
 
@@ -51,7 +51,7 @@ test('requisition form and store with a person type still work', function () {
 
     $this->actingAs($user)->get(route('requisitions.create'))->assertOk();
     $this->actingAs($user)
-        ->post(route('requisitions.store'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->post(route('requisitions.store'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
         ->assertRedirect();
 
     expect(Requisition::firstOrFail()->requester_status)->toBe('STAFF');
@@ -62,7 +62,7 @@ test('checkout with a person type still creates the requisition', function () {
     $this->actingAs($user)->post(route('shop.cart.add'), ['item' => $this->item->ulid, 'qty' => '10', 'unit_id' => $this->g->id])->assertRedirect();
 
     $this->actingAs($user)
-        ->post(route('shop.checkout'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->post(route('shop.checkout'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
         ->assertRedirect();
 
     $requisition = Requisition::firstOrFail();
@@ -74,7 +74,7 @@ test('BR-02: checkout by a STUDENT with no advisor goes to complete-profile and 
     $this->actingAs($user)->post(route('shop.cart.add'), ['item' => $this->item->ulid, 'qty' => '10', 'unit_id' => $this->g->id])->assertRedirect();
 
     $this->actingAs($user)
-        ->post(route('shop.checkout'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->post(route('shop.checkout'), ['type' => 'chemical', 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
         ->assertRedirect(route('account.complete-profile'))
         ->assertSessionHas('status', __('requisitions.advisor_missing'));
 
