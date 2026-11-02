@@ -41,8 +41,9 @@ final class CompleteProfileController extends Controller
 
         $user->fill([
             'person_type' => $request->string('person_type')->toString(),
-            'phone_encrypted' => $request->string('phone')->toString(),
-            'person_code_encrypted' => $request->string('person_code')->toString(),
+            // Blank (only possible for ADMIN, see CompleteProfileRequest) is stored as NULL.
+            'phone_encrypted' => $this->blankToNull($request->string('phone')->toString()),
+            'person_code_encrypted' => $this->blankToNull($request->string('person_code')->toString()),
             'program' => $request->string('program')->toString(),
             'faculty' => $request->string('faculty')->toString(),
             'lab_id' => $request->integer('lab_id'),
@@ -53,5 +54,11 @@ final class CompleteProfileController extends Controller
 
         return redirect()->intended(route('requisitions.create'))
             ->with('status', __('auth.complete_profile_success'));
+    }
+
+    /** Only an empty string is "blank" — a value like "0" must not be dropped by PHP truthiness. */
+    private function blankToNull(string $value): ?string
+    {
+        return $value === '' ? null : $value;
     }
 }

@@ -122,7 +122,8 @@ CLAUDE.md's Known open items ว่ายังไม่ได้เลือก
 2. เปิด extensions ที่จำเป็นใน `php.ini` (`extension=`): `bcmath`, `pdo_mysql`, `mysqli`, `gd`, `zip`,
    `intl`, `exif`, `pcntl`, `opcache`, `redis` (ถ้าใช้ Memurai ให้ใช้ PECL `redis` extension ตัวเดียวกัน — 
    protocol เข้ากันได้)
-3. ใส่ค่า hardening ตาม spec §9.8 ทั้งหมดลงใน `php.ini` (`expose_php=Off`, `display_errors=Off`,
+3. ใส่ค่า hardening ตาม spec §9.8 ทั้งหมดลงใน `php.ini` พร้อมค่าเพิ่มนอก spec (2026-11-02) คือ `session.upload_progress.enabled=0` (`expose_php=Off`, `session.upload_progress.enabled=0
+   [CVE-2026-115560 ตามประกาศ ThaiCERT, CMIS ไม่ใช้ฟีเจอร์นี้, ประกาศยังไม่ระบุเวอร์ชันที่ได้รับผลกระทบ], `display_errors=Off`,
    `disable_functions=exec,passthru,shell_exec,system,proc_open,popen,parse_ini_file,show_source`,
    `open_basedir` ครอบ `D:\cmis\;D:\cmis_storage\;C:\Windows\Temp\`, `session.cookie_secure=1` ฯลฯ) —
    **ข้อควรระวัง**: `disable_functions` ที่รวม `proc_open`/`popen` จะทำให้ `php artisan queue:work`

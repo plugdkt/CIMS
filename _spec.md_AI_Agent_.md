@@ -513,7 +513,7 @@ CREATE TABLE stock_ledger (
   issuer_id        BIGINT UNSIGNED NULL,               -- F-03: ผู้จ่าย
   receiver_id      BIGINT UNSIGNED NULL,               -- F-03: ผู้รับ
   receiver_name    VARCHAR(255) NULL,
-  signature_hash   CHAR(64) NULL,                      -- F-03: ลงชื่อผู้รับ
+  signature_hash   CHAR(64) NULL,                      -- [SUPERSEDED 2026-11-02] เดิม F-03: ลงชื่อผู้รับ — CEO ตัดสิน 2026-11-02 ว่าขั้นผู้รับลงชื่อ/OTP ถูกยกเลิก คอลัมน์ "ลงชื่อผู้รับ" ไม่แสดงในบัญชีคุมถาวร; ฟิลด์นี้ยังอยู่ใน hash chain (BR-08) เพื่อตรวจความถูกต้อง ห้ามลบ/ห้ามเปลี่ยนสูตร
   remark           VARCHAR(500) NULL,                  -- F-03: หมายเหตุ
   created_by       BIGINT UNSIGNED NOT NULL,
   created_at       DATETIME(6) NOT NULL,
@@ -789,14 +789,14 @@ row_hash = SHA256(
 | FR-RQ-08 | นักวิทยาศาสตร์เลือก "เห็นควรให้เบิก" / "ไม่เห็นควรให้เบิก" — reject ต้องกรอกเหตุผล |
 | FR-RQ-09 | หน้าจ่ายของ: สแกน barcode → เลือก container (แนะนำ FEFO) → กรอกปริมาณจริง |
 | FR-RQ-10 | รองรับจ่ายหลาย container ต่อ 1 รายการ (เช่น ขอ 800 mL จ่ายจาก 2 ขวด) |
-| FR-RQ-11 | ผู้รับลงลายมือชื่อบน canvas หรือยืนยันด้วย OTP ทางอีเมล |
+| FR-RQ-11 | [SUPERSEDED 2026-11-02] ~~ผู้รับลงลายมือชื่อบน canvas หรือยืนยันด้วย OTP ทางอีเมล~~ — CEO ตัดสิน 2026-11-02 ว่าขั้นผู้รับลงชื่อ/OTP ถูกยกเลิก (ไม่มีการเซ็นของผู้รับตั้งแต่ 2026-10-16) ปัจจุบันจ่ายด้วยปุ่มเดียว; `signature_hash` ยังบันทึกเป็นตัวหมายธุรกรรมและอยู่ใน hash chain |
 | FR-RQ-12 | พิมพ์ PDF รูปแบบ F-01 พร้อม QR verify ที่มุมล่างขวา |
 
 ### 7.5 Ledger (F-03)
 | ID | Requirement |
 |---|---|
 | FR-LG-01 | หน้าบัญชีคุมรายตัว แสดงหัวเอกสารตาม F-03 (ประเภท, รายการ, ยี่ห้อ, เกรด, ขนาด, หน่วยนับ, หน่วยนับย่อย) |
-| FR-LG-02 | ตาราง: วัน/เดือน/ปี, ผู้จ่าย, ผู้รับ, รับ, จ่าย, คงเหลือ, ลายมือชื่อผู้รับ, หมายเหตุ |
+| FR-LG-02 | ตาราง: วัน/เดือน/ปี, ผู้จ่าย, ผู้รับ, รับ, จ่าย, คงเหลือ, ~~ลายมือชื่อผู้รับ~~ [SUPERSEDED 2026-11-02: CEO ตัดสินให้ซ่อนคอลัมน์นี้ถาวรทั้งหน้าจอ/PDF/Excel; `signature_hash` และ hash chain ไม่แตะ], หมายเหตุ |
 | FR-LG-03 | Dropdown สลับหน่วยแสดงผล (g ↔ mg, L ↔ mL) โดยไม่กระทบข้อมูลที่เก็บ |
 | FR-LG-04 | Filter: ช่วงวันที่, ประเภทรายการ, ผู้เบิก, container |
 | FR-LG-05 | Export PDF รูปแบบ F-03 และ Excel |
@@ -1516,7 +1516,7 @@ Task จะถือว่าเสร็จเมื่อครบทุกข
 | T-033 | Signed URL อนุมัติทางอีเมล 72 ชม. (FR-RQ-07) |
 | T-034 | หน้าพิจารณาของนักวิทยาศาสตร์ (FR-RQ-08) |
 | T-035 | หน้าจ่ายของ + FEFO + multi-container (FR-RQ-09, 10, BR-03, BR-04) |
-| T-036 | E-signature canvas + OTP fallback (FR-RQ-11) |
+| T-036 | [SUPERSEDED 2026-11-02 — CEO ยกเลิกขั้นผู้รับลงชื่อ/OTP; โค้ดถูกถอดแล้ว (dbf6d04) ประวัติเท่านั้น] E-signature canvas + OTP fallback (FR-RQ-11) |
 | T-037 | PDF F-01 + QR verify + public verify page (FR-RQ-12, §7.2) |
 | T-038 | Feature Test FT-01..FT-10 |
 

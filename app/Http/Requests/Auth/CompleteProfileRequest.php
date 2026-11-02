@@ -15,13 +15,30 @@ final class CompleteProfileRequest extends FormRequest
         return true;
     }
 
+    /**
+     * 2026-11-02 (CEO): ADMIN accounts need no phone / person code. Decided from the role
+     * the system assigned (roles table), never from anything the user submits.
+     */
+    private function phoneAndCodeOptional(): bool
+    {
+        $user = $this->user();
+
+        return $user !== null && $user->hasRole('ADMIN');
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $optional = $this->phoneAndCodeOptional();
+
         return [
             'person_type' => ['required', Rule::in(['LECTURER', 'STAFF', 'STUDENT'])],
-            'phone' => ['required', 'string', 'regex:/^[0-9\-]{9,15}$/'],
-            'person_code' => ['required', 'string', 'max:32'],
+            'phone' => $optional
+                ? ['nullable', 'string', 'regex:/^[0-9\-]{9,15}$/']
+                : ['required', 'string', 'regex:/^[0-9\-]{9,15}$/'],
+            'person_code' => $optional
+                ? ['nullable', 'string', 'max:32']
+                : ['required', 'string', 'max:32'],
             'program' => ['required', 'string', 'max:255'],
             'faculty' => ['required', 'string', 'max:255'],
             'lab_id' => [

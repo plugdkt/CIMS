@@ -13,6 +13,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- 2026-11-02 (CEO): ADMIN accounts no longer have to give a phone number or person code on the complete-profile page (blank is stored as NULL; a phone, if given, is still format-checked). Decided from the user's assigned ADMIN role, never from submitted data. All other roles are unchanged (phone and person code required; STUDENT advisor/BR-02 gate untouched). Tests in `CompleteProfileAdminTest`.
+- 2026-11-02 (CEO decision): The receiver-signature/OTP step is formally cancelled and the F-03 "ลงชื่อผู้รับ" column stays hidden permanently (screen, PDF, Excel). Spec updated with `[SUPERSEDED 2026-11-02]` on §5.2 `stock_ledger.signature_hash` comment, FR-RQ-11, FR-LG-02 and T-036. Docs only: `signature_hash`, its place in the BR-08 hash chain and `ledger:verify` are unchanged and must be kept for integrity checks.
+- 2026-11-02 (hardening): `docker/php-fpm/hardening.ini` sets `session.upload_progress.enabled=0` (PHP CVE-2026-115560 per ThaiCERT notice; CMIS does not use the feature; affected versions not yet stated in the advisory). Config only, takes effect on next image rebuild/restart of the fpm image.
 - 2026-10-30 (ITM-2610-031): The stock ledger (F-03) no longer shows the "ลงชื่อผู้รับ" column on screen, in the PDF or in the Excel export (there has been no receiver signing since 2026-10-16). Display only: `stock_ledger.signature_hash`, the hash chain and `ledger:verify` are untouched.
 - 2026-10-29: Issue page text no longer mentions receiver signing (the all-in-one issue form has one button, a receiver picker and a controlled-substance tick box). Screen text only; signature/OTP code, routes and tests are untouched.
 
