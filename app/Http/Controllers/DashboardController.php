@@ -4,39 +4,30 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Domain\Reporting\Services\DashboardService;
+use App\Domain\Navigation\MenuRegistry;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 
 /**
- * §7.9: the pending-requisition count is role-scoped for every logged-in user; the
- * reorder/expiry/top-items/monthly-chart cards only render for `report.view` holders
- * (gated in the Blade view itself, same as every other report-adjacent nav link).
+ * ITM-2610-052: the home page is a set of cards (see MenuRegistry), shown only for what the
+ * viewer may use. An account with a single card skips the page and lands inside that card; one
+ * with none gets an explanation. The old dashboard numbers/charts moved to the warehouse
+ * overview (WarehouseController).
  */
 final class DashboardController extends Controller
 {
-    public function index(DashboardService $dashboard): View
+    public function index(MenuRegistry $menu): View|RedirectResponse
     {
         $user = auth()->user();
         if ($user === null) {
             return view('welcome');
         }
 
-        $labId = $user->isBranchManager() ? $user->lab_id : null;
-
-        $data = ['pendingRequisitions' => $dashboard->pendingRequisitionsCount($user)];
-
-        if ($user->can('report.view')) {
-            $belowReorderItems = $dashboard->belowReorderPointItems($labId);
-            $expiringContainers = $dashboard->expiringWithin30DaysContainers($labId);
-
-            $data['belowReorderCount'] = $belowReorderItems->count();
-            $data['belowReorderItems'] = $belowReorderItems->take(5);
-            $data['expiringCount'] = $expiringContainers->count();
-            $data['expiringContainers'] = $expiringContainers->take(5);
-            $data['topItems'] = $dashboard->topIssuedItems(10, $labId);
-            $data['monthlySeries'] = $dashboard->monthlyIssuanceSeries($labId);
+        $cards = $menu->cardsFor($user, false);
+        if (count($cards) === 1) {
+            return redirect()->to($cards[0]['url']);
         }
 
-        return view('home', $data);
+        return view('home', ['cards' => $menu->cardsFor($user)]);
     }
 }

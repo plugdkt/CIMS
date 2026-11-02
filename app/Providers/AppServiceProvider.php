@@ -8,6 +8,7 @@ use App\Domain\Attachments\Contracts\VirusScanner;
 use App\Domain\Attachments\Services\ClamAvScanner;
 use App\Domain\Auth\Services\SsoClient;
 use App\Domain\Chemicals\Services\PubChemClient;
+use App\Domain\Navigation\MenuRegistry;
 use App\Models\Item;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -71,6 +72,11 @@ class AppServiceProvider extends ServiceProvider
 
             return $hasPermission ? true : null;
         });
+
+        // ITM-2610-052: derived from existing abilities (no new permission codes), so they
+        // never match Gate::before's permission lookup above and need explicit definitions.
+        Gate::define('access-warehouse', fn (User $user) => app(MenuRegistry::class)->canAccessWarehouse($user));
+        Gate::define('access-backoffice', fn (User $user) => app(MenuRegistry::class)->canAccessBackoffice($user));
 
         $basePath = trim((string) parse_url((string) config('app.url'), PHP_URL_PATH), '/');
         if ($basePath !== '') {

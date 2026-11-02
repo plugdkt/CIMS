@@ -6,7 +6,7 @@
             <h1 class="font-display text-lg font-bold">{{ __('shop.title') }}</h1>
             <p class="text-sm text-ink-muted mt-1">{{ __('shop.subtitle') }}</p>
         </div>
-        <a href="{{ route('shop.cart') }}" class="relative rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
+        <a href="{{ route('shop.cart', array_filter(['type' => $type])) }}" class="relative rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-4 py-2.5 whitespace-nowrap">
             {{ __('shop.cart') }}
             @if ($cartCount > 0)
                 <span class="ml-1 inline-block rounded-full bg-white text-accent text-xs font-bold px-2 py-0.5">{{ $cartCount }}</span>
@@ -24,13 +24,13 @@
     {{-- One tab per item type that has something on the shelf --}}
     <nav class="flex gap-1 border-b border-border mb-4 overflow-x-auto" tabindex="0" aria-label="{{ __('shop.tabs_label') }}">
         @php $allActive = $categoryId === null; @endphp
-        <a href="{{ route('shop.index', array_filter(['search' => $search])) }}"
+        <a href="{{ route('shop.index', array_filter(['type' => $type, 'search' => $search])) }}"
            @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 whitespace-nowrap', 'border-accent text-accent' => $allActive, 'border-transparent text-ink-muted hover:text-ink' => ! $allActive])
            @if ($allActive) aria-current="page" @endif>{{ __('shop.all_categories') }} <span class="text-xs font-normal">({{ $counts->sum() }})</span></a>
         @foreach ($categories as $category)
             @if (($counts[$category->id] ?? 0) > 0 || $categoryId === $category->id)
                 @php $active = $categoryId === $category->id; @endphp
-                <a href="{{ route('shop.index', array_filter(['category' => $category->id, 'search' => $search])) }}"
+                <a href="{{ route('shop.index', array_filter(['type' => $type, 'category' => $category->id, 'search' => $search])) }}"
                    @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2 whitespace-nowrap', 'border-accent text-accent' => $active, 'border-transparent text-ink-muted hover:text-ink' => ! $active])
                    @if ($active) aria-current="page" @endif>{{ $category->name_th }} <span class="text-xs font-normal">({{ $counts[$category->id] ?? 0 }})</span></a>
             @endif
@@ -38,6 +38,9 @@
     </nav>
 
     <form method="GET" action="{{ route('shop.index') }}" class="flex flex-wrap items-center gap-3 mb-5">
+        @if ($type !== null)
+            <input type="hidden" name="type" value="{{ $type }}">
+        @endif
         @if ($categoryId !== null)
             <input type="hidden" name="category" value="{{ $categoryId }}">
         @endif

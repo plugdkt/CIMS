@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Domain\Shared\ItemType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -80,6 +82,21 @@ class Requisition extends Model
         }
 
         return 'requisitions.status_'.strtolower($this->status);
+    }
+
+    /**
+     * ITM-2610-052: requisitions that contain at least one line of the given kind, judged by
+     * the lines' real catalog categories — `request_type` is a box the requester ticked, so it
+     * is not trusted for filtering. A legacy mixed requisition matches both kinds.
+     *
+     * @param  Builder<Requisition>  $query
+     * @return Builder<Requisition>
+     */
+    public function scopeOfItemType(Builder $query, string $slug): Builder
+    {
+        $isChemical = ItemType::isChemical($slug);
+
+        return $query->whereHas('items.item.category', fn (Builder $c) => $c->where('is_chemical', $isChemical));
     }
 
     /** @return BelongsTo<Lab, $this> */

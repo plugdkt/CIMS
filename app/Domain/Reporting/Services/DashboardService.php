@@ -78,6 +78,59 @@ final class DashboardService
     }
 
     /**
+     * ITM-2610-052 home-card badge: requisitions the viewer filed that are still in flight,
+     * for one kind of stock (judged by the lines' real categories, see Requisition::scopeOfItemType).
+     */
+    public function myOpenRequisitionsCount(User $user, string $itemType): int
+    {
+        return Requisition::where('requester_id', $user->id)
+            ->whereNotIn('status', ['ISSUED', 'REJECTED', 'CANCELLED'])
+            ->ofItemType($itemType)
+            ->count();
+    }
+
+    /** Home-card badge for an ADVISOR: advisees' SUBMITTED requisitions waiting on this user. */
+    public function adviseeWaitingCount(User $user, string $itemType): int
+    {
+        return Requisition::where('advisor_id', $user->id)
+            ->where('status', 'SUBMITTED')
+            ->ofItemType($itemType)
+            ->count();
+    }
+
+    /**
+     * Warehouse card badge "รออนุมัติ": same queue the scientist-decision ability opens
+     * (ADVISOR_APPROVED, or SUBMITTED from a non-student), branch-scoped for branch managers.
+     * Null when the viewer cannot decide requisitions at all (ADMIN, dispensers) so the card
+     * shows no misleading zero.
+     */
+    public function approvalQueueCount(User $user): ?int
+    {
+        if (! $user->can('requisition.approve_scientist')) {
+            return null;
+        }
+
+        return Requisition::where(function ($q) {
+            $q->where('status', 'ADVISOR_APPROVED')
+                ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
+        })
+            ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+            ->count();
+    }
+
+    /** Warehouse card badge "รอจ่ายของ": own-branch approved requisitions; null when the viewer cannot dispense. */
+    public function dispenseQueueCount(User $user): ?int
+    {
+        if (! $user->can('requisition.issue') || $user->lab_id === null) {
+            return null;
+        }
+
+        return Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
+            ->where('lab_id', $user->lab_id)
+            ->count();
+    }
+
+    /**
      * User-requested 2026-09-21: the dashboard should show *what* is running low, not
      * just a count — every item genuinely below its own reorder point, cheapest
      * (lowest remaining-vs-reorder-point ratio) first, so the most urgent one is on

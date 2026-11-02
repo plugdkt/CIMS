@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Livewire\Requisitions;
 
+use App\Domain\Shared\ItemType;
 use App\Models\Requisition;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -20,6 +22,10 @@ use Livewire\WithPagination;
 final class RequisitionTable extends Component
 {
     use WithPagination;
+
+    /** ITM-2610-052: narrows the list to one kind of stock (chemical / consumable) by the lines' real categories. */
+    #[Url(as: 'type')]
+    public ?string $type = null;
 
     public function mount(): void
     {
@@ -36,6 +42,10 @@ final class RequisitionTable extends Component
         $query->where(function ($q) use ($user) {
             $q->where('requester_id', $user->id)->orWhere('advisor_id', $user->id);
         });
+
+        if (ItemType::isValid($this->type)) {
+            $query->ofItemType((string) $this->type);
+        }
 
         return view('livewire.requisitions.requisition-table', [
             'requisitions' => $query->paginate(20),

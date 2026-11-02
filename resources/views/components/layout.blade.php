@@ -8,137 +8,90 @@
     @livewireStyles
 </head>
 {{--
-    Mobile drawer uses a plain checkbox toggle, not Alpine x-data — Alpine's expression
-    evaluator needs `unsafe-eval`, which the CSP (SecurityHeaders middleware) explicitly
-    forbids in script-src. See CLAUDE.md for the full reasoning.
+    ITM-2610-052: navigation = the home-page cards (MenuRegistry) plus, on every page that belongs to a
+    card, a sidebar that lists only that card's menu (card name as the group heading, "back to home" on
+    top). The home page itself has no sidebar. Desktop: permanent left column.
+
+    Progressive enhancement on a phone: without JavaScript the sidebar is an ordinary block stacked above
+    the page content, so the menu is always reachable. A small nonce'd script then turns it into an
+    off-canvas drawer (classes below) opened by the header button, and adds aria-expanded, Escape to close,
+    focus hand-over and `inert` on the page behind. Plain vanilla JS is used for this because it is a few
+    lines and has no dependency; Livewire/Alpine already load on the page (the CSP carries 'unsafe-eval'
+    for them, see CLAUDE.md) but the menu does not need them. The bell, "my data" and logout stay in the
+    header on every page.
 --}}
-<body class="h-full bg-bg text-ink antialiased md:grid md:grid-cols-[16rem_1fr] md:min-h-full">
-    <input type="checkbox" id="drawer-toggle" class="peer hidden">
+@php
+    $menu = app(App\Domain\Navigation\MenuRegistry::class)->contextFor(auth()->user(), request());
+    $hasSidebar = $menu['section'] !== null || $menu['showBack'];
+@endphp
+<body @class(['h-full bg-bg text-ink antialiased', 'md:grid md:grid-cols-[16rem_minmax(0,1fr)] md:min-h-full' => $hasSidebar])>
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:border focus:border-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold">{{ __('nav.skip_to_content') }}</a>
 
-    <label for="drawer-toggle" class="hidden peer-checked:block fixed inset-0 bg-ink/40 z-30 md:hidden" aria-hidden="true"></label>
+    @if ($hasSidebar)
+        <div id="drawer-overlay" class="hidden fixed inset-0 bg-ink/40 z-30 md:hidden" aria-hidden="true"></div>
 
-    <aside class="fixed z-40 inset-y-0 left-0 w-64 bg-surface border-r border-border p-4 flex flex-col gap-6 -translate-x-full transition-transform peer-checked:translate-x-0 md:static md:translate-x-0">
-        <a href="{{ route('dashboard') }}" class="flex items-center gap-3 px-1">
-            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-gold flex items-center justify-center text-white font-display font-bold text-sm">
-                CM
-            </div>
-            <div>
-                <div class="font-display font-bold text-sm leading-none">{{ __('auth.app_name') }}</div>
-                <div class="text-xs text-ink-muted mt-0.5">{{ __('auth.app_tagline') }}</div>
-            </div>
-        </a>
+        {{-- Default (no JS): a normal block above the content on a phone, the left column from md up.
+             The scripted drawer classes are added by the script right after this element. --}}
+        <aside id="app-sidebar" aria-label="{{ __('nav.sidebar_label') }}" tabindex="0"
+               class="w-full bg-surface border-b border-border p-4 flex flex-col gap-4 overflow-y-auto md:static md:w-64 md:border-b-0 md:border-r focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+            <button id="drawer-close" type="button" class="hidden self-end w-9 h-9 rounded-lg border border-border items-center justify-center text-ink-muted hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-label="{{ __('nav.close_menu') }}">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
 
-        <nav class="flex flex-col gap-1">
-            <x-nav-link route="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')" class="mb-2">
-                <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 11.5 12 4l9 7.5M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg></x-slot:icon>
-                {{ __('nav.dashboard') }}
-            </x-nav-link>
+            <nav class="flex flex-col gap-1" aria-label="{{ __('nav.tabs_label') }}">
+                @if ($menu['showBack'])
+                    <a href="{{ route('dashboard') }}" class="flex items-center gap-2 rounded-lg border border-border bg-accent-soft text-accent-soft-ink text-sm font-bold px-3 py-2.5 mb-3 hover:bg-surface-alt focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">{{ __('nav.back_home') }}</a>
+                @endif
 
-            <div class="text-xs font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1">
-                {{ __('nav.group_inventory') }}
-            </div>
-            @can('create', App\Models\Requisition::class)
-                <x-nav-link route="{{ route('shop.index') }}" :active="request()->routeIs('shop.*')" :sub="count(session('shop.cart', [])) > 0 ? __('shop.cart').' ('.count(session('shop.cart', [])).')' : __('nav.shop_sub')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h2l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg></x-slot:icon>
-                    {{ __('nav.shop') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\ImsLot::class)
-                <x-nav-link route="{{ route('ims.lots.index') }}" :active="request()->routeIs('ims.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 12 3l9 4.5M3 7.5V17l9 4 9-4V7.5M3 7.5l9 4.5m9-4.5-9 4.5m0 0V21"/></svg></x-slot:icon>
-                    {{ __('nav.ims_lots') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\Container::class)
-                <x-nav-link route="{{ route('stock-in.index') }}" :active="request()->routeIs('stock-in.*')" :sub="__('nav.stock_in_sub')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v10m0 0 4-4m-4 4-4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></x-slot:icon>
-                    {{ __('nav.stock_in') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\Requisition::class)
-                <x-nav-link route="{{ route('requisitions.index') }}" :active="request()->routeIs('requisitions.*') && ! request()->routeIs('requisitions.manage')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75h6a1 1 0 0 1 1 1V5h1.25A1.75 1.75 0 0 1 19 6.75v12.5A1.75 1.75 0 0 1 17.25 21H6.75A1.75 1.75 0 0 1 5 19.25V6.75A1.75 1.75 0 0 1 6.75 5H8v-.25a1 1 0 0 1 1-1Z"/><path stroke-linecap="round" d="M8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></x-slot:icon>
-                    {{ __('nav.requisitions') }}
-                </x-nav-link>
-            @endcan
-            @can('manage', App\Models\Requisition::class)
-                <x-nav-link route="{{ route('requisitions.manage') }}" :active="request()->routeIs('requisitions.manage')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></x-slot:icon>
-                    {{ __('nav.requisitions_manage') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\StockTake::class)
-                <x-nav-link route="{{ route('stock-takes.index') }}" :active="request()->routeIs('stock-takes.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4M9 5h6a1 1 0 0 1 1 1v.25h1a1.75 1.75 0 0 1 1.75 1.75v11.25A1.75 1.75 0 0 1 17.05 20H6.95A1.75 1.75 0 0 1 5.2 18.25V7A1.75 1.75 0 0 1 7 5.25h1V6a1 1 0 0 0 1 1Z"/></svg></x-slot:icon>
-                    {{ __('nav.stock_takes') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\Disposal::class)
-                <x-nav-link route="{{ route('disposals.index') }}" :active="request()->routeIs('disposals.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m1 0-.7 11.2A2 2 0 0 1 15.3 21H8.7a2 2 0 0 1-2-1.8L6 7m4 4v6m4-6v6"/></svg></x-slot:icon>
-                    {{ __('nav.disposals') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAdjustments', App\Models\StockLedger::class)
-                <x-nav-link route="{{ route('adjustments.index') }}" :active="request()->routeIs('adjustments.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 4v16m0-16 3 3m-3-3-3 3m15 10v3m0-16v10m0 6 3-3m-3 3-3-3M6 14h.01M18 10h.01" /><path stroke-linecap="round" stroke-linejoin="round" d="M4 14a2 2 0 1 0 4 0 2 2 0 0 0-4 0Zm12-4a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/></svg></x-slot:icon>
-                    {{ __('nav.adjustments') }}
-                </x-nav-link>
-            @endcan
-            @can('report.view')
-                <x-nav-link route="{{ route('reports.index') }}" :active="request()->routeIs('reports.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20V10m6 10V4m6 16v-7"/></svg></x-slot:icon>
-                    {{ __('nav.reports') }}
-                </x-nav-link>
-            @endcan
-            @can('manageMembers', App\Models\Lab::class)
-                <x-nav-link route="{{ route('labs.members') }}" :active="request()->routeIs('labs.members')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm9 9v-1a4 4 0 0 0-2.4-3.66M15.5 4.1a3.5 3.5 0 0 1 0 6.79"/></svg></x-slot:icon>
-                    {{ __('nav.lab_members') }}
-                </x-nav-link>
-            @endcan
+                @if ($menu['section'] !== null)
+                    <div class="font-display font-bold text-base px-2 mb-1">{{ $menu['title'] }}</div>
+                @endif
 
-            <div class="text-xs font-semibold tracking-wide uppercase text-ink-faint px-2 mb-1 mt-3">
-                {{ __('nav.group_system') }}
-            </div>
-            @can('viewAny', App\Models\Item::class)
-                <x-nav-link route="{{ route('items.index') }}" :active="request()->routeIs('items.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 0v18m8-13.5L12 12m0 0L4 7.5"/></svg></x-slot:icon>
-                    {{ __('nav.items') }}
-                </x-nav-link>
-            @endcan
-            @can('item.view')
-                <x-nav-link route="{{ route('chemicals.lookup') }}" :active="request()->routeIs('chemicals.lookup')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path stroke-linecap="round" d="m20 20-4.7-4.7"/></svg></x-slot:icon>
-                    {{ __('nav.chemical_lookup') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\Location::class)
-                <x-nav-link route="{{ route('locations.index') }}" :active="request()->routeIs('locations.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-6.4 7-11.5a7 7 0 1 0-14 0C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.25"/></svg></x-slot:icon>
-                    {{ __('nav.locations') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\Lab::class)
-                <x-nav-link route="{{ route('admin.labs.index') }}" :active="request()->routeIs('admin.labs.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 21V6a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v15M12 10h7a1 1 0 0 1 1 1v10M8 9h.01M8 12h.01M8 15h.01M16 14h.01M16 17h.01"/></svg></x-slot:icon>
-                    {{ __('nav.labs') }}
-                </x-nav-link>
-            @endcan
-            @can('viewAny', App\Models\User::class)
-                <x-nav-link route="{{ route('admin.users.index') }}" :active="request()->routeIs('admin.users.*')">
-                    <x-slot:icon><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M3 20v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M16 4.5a3 3 0 0 1 0 6M21 20v-1a4.5 4.5 0 0 0-3-4.24"/></svg></x-slot:icon>
-                    {{ __('nav.users_roles') }}
-                </x-nav-link>
-            @endcan
-        </nav>
-    </aside>
+                @foreach ($menu['tabs'] as $tab)
+                    <a href="{{ $tab['url'] }}"
+                       @class([
+                           'flex items-center pl-3 pr-2 py-2.5 rounded-lg text-base border-l-[3px] transition-colors motion-reduce:transition-none leading-tight focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent',
+                           'bg-accent-soft text-accent-soft-ink font-semibold border-accent' => $tab['active'],
+                           'text-ink-muted font-medium border-transparent hover:bg-surface-alt hover:text-ink' => ! $tab['active'],
+                       ])
+                       @if ($tab['active']) aria-current="page" @endif>{{ $tab['label'] }}</a>
+                @endforeach
+            </nav>
+        </aside>
 
-    <div class="flex flex-col min-w-0">
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}">
+            // Runs right after the <aside> so the phone layout never flashes the stacked version.
+            (function () {
+                var aside = document.getElementById('app-sidebar');
+                if (!aside) { return; }
+                // max-md:* classes: only the phone layout becomes a drawer, md and up keep the column.
+                aside.classList.add('max-md:fixed', 'max-md:z-40', 'max-md:inset-y-0', 'max-md:left-0', 'max-md:w-64', 'max-md:border-b-0', 'max-md:border-r',
+                    'max-md:-translate-x-full', 'max-md:invisible', 'max-md:transition-transform', 'max-md:motion-reduce:transition-none');
+                document.getElementById('drawer-close').classList.add('max-md:flex');
+                var opener = document.getElementById('drawer-open');
+                if (opener) { opener.classList.add('max-md:flex'); }
+                document.documentElement.setAttribute('data-drawer', 'ready');
+            })();
+        </script>
+    @endif
+
+    <div id="page-column" class="flex flex-col min-w-0 min-h-full">
         <header class="sticky top-0 z-20 flex items-center gap-3 px-4 md:px-6 py-3 bg-surface border-b border-border">
-            <label for="drawer-toggle" class="md:hidden w-9 h-9 rounded-lg border border-border flex items-center justify-center cursor-pointer">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-            </label>
+            @if ($hasSidebar)
+                <button id="drawer-open" type="button" class="hidden w-9 h-9 rounded-lg border border-border items-center justify-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent" aria-label="{{ __('nav.open_menu') }}" aria-controls="app-sidebar" aria-expanded="false">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+                </button>
+            @endif
+
+            <a href="{{ $menu['homeUrl'] }}" class="flex items-center gap-3 px-1">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-accent to-gold flex items-center justify-center text-white font-display font-bold text-sm">
+                    CM
+                </div>
+                <div>
+                    <div class="font-display font-bold text-sm leading-none">{{ __('auth.app_name') }}</div>
+                    <div class="text-xs text-ink-muted mt-0.5 hidden sm:block">{{ __('auth.app_tagline') }}</div>
+                </div>
+            </a>
 
             <div class="ml-auto flex items-center gap-3">
                 @php($unreadCount = auth()->user()->notifications()->whereNull('read_at')->count())
@@ -167,7 +120,7 @@
             </div>
         </header>
 
-        <main class="flex-1 p-4 md:p-6">
+        <main id="main-content" tabindex="-1" class="flex-1 focus:outline-none p-4 md:p-6 {{ $hasSidebar ? '' : 'w-full max-w-7xl mx-auto' }}">
             @if (session('status'))
                 <div class="mb-4 rounded-lg bg-success-soft text-success-ink text-sm px-4 py-3">
                     {{ session('status') }}
@@ -177,6 +130,37 @@
             {{ $slot }}
         </main>
     </div>
+
+    @if ($hasSidebar)
+        <script nonce="{{ request()->attributes->get('csp_nonce') }}">
+            (function () {
+                var openBtn = document.getElementById('drawer-open');
+                var closeBtn = document.getElementById('drawer-close');
+                var aside = document.getElementById('app-sidebar');
+                var overlay = document.getElementById('drawer-overlay');
+                var page = document.getElementById('page-column');
+                if (!openBtn || !closeBtn || !aside || !overlay || !page) { return; }
+
+                function setOpen(open) {
+                    aside.classList.toggle('max-md:translate-x-0', open);
+                    aside.classList.toggle('max-md:-translate-x-full', !open);
+                    aside.classList.toggle('max-md:invisible', !open);
+                    overlay.classList.toggle('hidden', !open);
+                    // Keep the keyboard and screen reader inside the drawer while it is open.
+                    if (open) { page.setAttribute('inert', ''); } else { page.removeAttribute('inert'); }
+                    openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                    if (open) { closeBtn.focus(); } else { openBtn.focus(); }
+                }
+
+                openBtn.addEventListener('click', function () { setOpen(true); });
+                closeBtn.addEventListener('click', function () { setOpen(false); });
+                overlay.addEventListener('click', function () { setOpen(false); });
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape' && openBtn.getAttribute('aria-expanded') === 'true') { setOpen(false); }
+                });
+            })();
+        </script>
+    @endif
 
     @livewireScripts
 </body>

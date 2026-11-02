@@ -19,31 +19,54 @@ test('a SCIENTIST no longer reaches reports, stock takes, disposals or adjustmen
     $this->actingAs($scientist)->get(route('adjustments.index'))->assertStatus(403);
 });
 
-test('none of those four menus render in a SCIENTIST\'s sidebar', function () {
-    $scientist = scientistUser(['lab_id' => makeLab()->id]);
+// ITM-2610-052: the sidebar is gone. The four pages are now tabs of the warehouse card
+// (งานคลัง), so the "menu" checks look at the home page and at that card's tab bar.
+test('none of those four menus is offered to a SCIENTIST (home page or warehouse tab bar)', function () {
+    $scientist = navUser('scientist');
+    $labels = [__('nav.reports'), __('nav.stock_takes'), __('nav.disposals'), __('nav.adjustments')];
+    $urls = [route('reports.index'), route('stock-takes.index'), route('disposals.index'), route('adjustments.index')];
 
-    $this->actingAs($scientist)->get(route('dashboard'))
-        ->assertOk()
-        ->assertDontSee(__('nav.reports'))
-        ->assertDontSee(__('nav.stock_takes'))
-        ->assertDontSee(__('nav.disposals'))
-        ->assertDontSee(__('nav.adjustments'));
+    // Home page: the SCIENTIST has a warehouse card (for dispensing) but nothing leads to the four pages.
+    $home = $this->actingAs($scientist)->get(route('dashboard'))->assertOk();
+    foreach ($labels as $label) {
+        $home->assertDontSee($label);
+    }
+    foreach ($urls as $url) {
+        $home->assertDontSee($url, false);
+    }
+
+    // Inside the warehouse card: neither the tab bar nor the page itself links to them.
+    foreach ([route('warehouse.overview'), route('requisitions.manage', ['tab' => 'to_issue'])] as $page) {
+        $response = $this->actingAs($scientist)->get($page)->assertOk();
+        $tabLabels = array_column(layoutNav($response->getContent())['tabs'], 'label');
+        foreach ($labels as $label) {
+            expect($tabLabels)->not->toContain($label);
+        }
+        foreach ($urls as $url) {
+            $response->assertDontSee($url, false);
+        }
+    }
 });
 
-test('a warehouse manager reaches all four, and sees them in the sidebar', function () {
-    $manager = auditorUser(['lab_id' => makeLab()->id]);
+test('a warehouse manager reaches all four, and finds them as tabs of the warehouse card', function () {
+    $manager = navUser('auditor');
 
     $this->actingAs($manager)->get(route('reports.index'))->assertOk();
     $this->actingAs($manager)->get(route('stock-takes.index'))->assertOk();
     $this->actingAs($manager)->get(route('disposals.index'))->assertOk();
     $this->actingAs($manager)->get(route('adjustments.index'))->assertOk();
 
-    $this->actingAs($manager)->get(route('dashboard'))
-        ->assertOk()
-        ->assertSee(__('nav.reports'))
-        ->assertSee(__('nav.stock_takes'))
-        ->assertSee(__('nav.disposals'))
-        ->assertSee(__('nav.adjustments'));
+    // Home: the warehouse card exists (the four pages are its tabs, no longer home-page links).
+    $cards = homeCards($this->actingAs($manager)->get(route('dashboard'))->assertOk()->getContent());
+    expect(array_column($cards, 'title'))->toContain(__('nav.card_ops'));
+
+    // The warehouse card's tab bar links all four.
+    $tabs = layoutNav($this->actingAs($manager)->get(route('warehouse.overview'))->assertOk()->getContent())['tabs'];
+    $byLabel = array_column($tabs, 'href', 'label');
+    expect($byLabel)->toHaveKey(__('nav.reports'), route('reports.index'))
+        ->toHaveKey(__('nav.stock_takes'), route('stock-takes.index'))
+        ->toHaveKey(__('nav.disposals'), route('disposals.index'))
+        ->toHaveKey(__('nav.adjustments'), route('adjustments.index'));
 });
 
 test('an ADMIN reaches all four too', function () {
@@ -60,7 +83,7 @@ test('spec §3: an ADMIN reads the adjustment history but gets no "new adjustmen
 
     $this->actingAs($admin)->get(route('adjustments.index'))
         ->assertOk()
-        // The label also appears in the page title and the sidebar, so assert on the link.
+        // The label also appears in the page title and the tab bar, so assert on the link.
         ->assertDontSee(route('adjustments.create'), false);
 
     $this->actingAs($admin)->get(route('adjustments.create'))->assertStatus(403);

@@ -311,3 +311,185 @@ if (! function_exists('appendLedgerRow')) {
         return $row;
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// ITM-2610-052 phase 1 (home cards / section tabs) helpers.
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('categoryId')) {
+    /** Id of a seeded item category by code (CHEMICAL, DYE, MATERIAL, CONSUMABLE, GLASSWARE, ...). */
+    function categoryId(string $code): int
+    {
+        return (int) \App\Models\ItemCategory::where('code', $code)->firstOrFail()->id;
+    }
+}
+
+if (! function_exists('userWithPermissions')) {
+    /**
+     * A user whose only role is a throw-away role holding exactly these permission codes — for
+     * "holds no card at all" / "holds exactly one card" cases no seeded role produces.
+     *
+     * @param  list<string>  $permissionCodes
+     */
+    function userWithPermissions(array $permissionCodes, array $overrides = []): \App\Models\User
+    {
+        $role = \App\Models\Role::create(['code' => 'T'.strtoupper(\Illuminate\Support\Str::random(10)), 'name_th' => 'บทบาททดสอบ']);
+        $role->permissions()->attach(\App\Models\Permission::whereIn('code', $permissionCodes)->pluck('id'));
+
+        $user = \App\Models\User::factory()->create($overrides);
+        $user->roles()->attach($role);
+
+        return $user->fresh();
+    }
+}
+
+if (! function_exists('navUser')) {
+    /**
+     * Builds a user for navigation tests. `$kinds` is one kind or several joined with "+"
+     * (e.g. "staff+auditor") — the first is created with its usual fixture, the rest are extra roles.
+     * Every user gets a branch and a completed profile so branch/shop pages open instead of redirecting.
+     * Kinds: student, staff, advisor, scientist, lab_manager, auditor, admin, nocard (a role holding
+     * only `audit.view`, which opens no card).
+     */
+    function navUser(string $kinds, array $extra = []): \App\Models\User
+    {
+        $attrs = array_merge(['lab_id' => makeLab()->id, 'profile_completed_at' => now()], $extra);
+        $parts = explode('+', $kinds);
+        $first = array_shift($parts);
+
+        $user = match ($first) {
+            'student' => studentUser($attrs),
+            'staff' => staffUser($attrs),
+            'scientist' => scientistUser($attrs),
+            'lab_manager' => labManagerUser($attrs),
+            'auditor' => auditorUser($attrs),
+            'admin' => adminUser($attrs),
+            'advisor' => (function () use ($attrs) {
+                $u = \App\Models\User::factory()->create(array_merge(['person_type' => 'LECTURER'], $attrs));
+                $u->roles()->attach(\App\Models\Role::where('code', 'ADVISOR')->firstOrFail());
+
+                return $u;
+            })(),
+            'nocard' => userWithPermissions(['audit.view'], $attrs),
+        };
+
+        foreach ($parts as $code) {
+            $user->roles()->attach(\App\Models\Role::where('code', strtoupper($code))->firstOrFail());
+        }
+
+        return $user->fresh();
+    }
+}
+
+if (! function_exists('requisitionWithLines')) {
+    /**
+     * A requisition with one line per given category code (e.g. ['CHEMICAL'], ['GLASSWARE', 'DYE']).
+     * `request_type` (the SET the requester ticked) is deliberately left at makeRequisition's default
+     * unless overridden, because ITM-2610-052 filters on the lines' real categories, not on that box.
+     *
+     * @param  list<string>  $categoryCodes
+     */
+    function requisitionWithLines(\App\Models\User $requester, array $categoryCodes, array $overrides = []): \App\Models\Requisition
+    {
+        $requisition = makeRequisition($requester, $overrides);
+        $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
+
+        foreach (array_values($categoryCodes) as $i => $code) {
+            $requisition->items()->create([
+                'line_no' => $i + 1,
+                'item_id' => makeItem(['category_id' => categoryId($code)])->id,
+                'qty_requested' => '5.000000',
+                'unit_id' => $g->id,
+                'qty_requested_base' => '5.000000',
+            ]);
+        }
+
+        return $requisition->fresh();
+    }
+}
+
+if (! function_exists('htmlXPath')) {
+    function htmlXPath(string $html): \DOMXPath
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return new \DOMXPath($dom);
+    }
+}
+
+if (! function_exists('homeCards')) {
+    /**
+     * The cards on the home page, in document order: title, link, and the badge texts on each.
+     *
+     * @return list<array{title: string, href: string, badges: list<string>}>
+     */
+    function homeCards(string $html): array
+    {
+        $xp = htmlXPath($html);
+        $cards = [];
+
+        foreach ($xp->query('//main//a[contains(concat(" ", normalize-space(@class), " "), " rounded-xl ")]') as $a) {
+            $badges = [];
+            foreach ($xp->query('.//span[contains(@class, "rounded-full")]', $a) as $badge) {
+                $badges[] = trim((string) preg_replace('/\s+/u', ' ', $badge->textContent));
+            }
+            $cards[] = [
+                'title' => trim((string) $xp->evaluate('string(.//span[contains(@class, "text-base")][1])', $a)),
+                'href' => $a->getAttribute('href'),
+                'badges' => $badges,
+            ];
+        }
+
+        return $cards;
+    }
+}
+
+if (! function_exists('layoutNav')) {
+    /**
+     * What the shared layout drew around a page (ITM-2610-052, sidebar layout): the <aside> with its
+     * <nav aria-label=tabs_label> holding the "back to home" link, the section title (div.font-display)
+     * and the menu links. `tabs` excludes the back link; `hasSidebar` is false on pages with no <aside>
+     * (home page, single-card accounts' ... pages outside every card for them).
+     *
+     * @return array{title: string, tabs: list<array{label: string, href: string, active: bool}>, hasSidebar: bool, back: string|null, logo: string}
+     */
+    function layoutNav(string $html): array
+    {
+        $xp = htmlXPath($html);
+        $backText = (string) __('nav.back_home');
+        $tabs = [];
+        $back = null;
+        $title = '';
+        $asides = $xp->query('//aside[@id="app-sidebar"]');
+        $hasSidebar = $asides !== false && $asides->length > 0;
+
+        if ($hasSidebar) {
+            $navs = $xp->query('.//nav[@aria-label="'.__('nav.tabs_label').'"]', $asides->item(0));
+            if ($navs !== false && $navs->length > 0) {
+                $nav = $navs->item(0);
+                $title = trim((string) $xp->evaluate('string(./div[contains(@class, "font-display")][1])', $nav));
+                foreach ($xp->query('.//a', $nav) as $a) {
+                    $label = trim((string) preg_replace('/\s+/u', ' ', $a->textContent));
+                    if ($label === $backText) {
+                        $back = $a->getAttribute('href');
+
+                        continue;
+                    }
+                    $tabs[] = ['label' => $label, 'href' => $a->getAttribute('href'), 'active' => $a->getAttribute('aria-current') === 'page'];
+                }
+            }
+        }
+
+        return [
+            'title' => $title,
+            'tabs' => $tabs,
+            'hasSidebar' => $hasSidebar,
+            'back' => $back,
+            'logo' => (string) $xp->evaluate('string(//header//a[not(@id)][1]/@href)'),
+        ];
+    }
+}

@@ -4,142 +4,57 @@
         <p class="text-sm text-ink-muted mt-1">{{ __('home.subtitle') }}</p>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <a href="{{ auth()->user()->can('manage', \App\Models\Requisition::class) ? route('requisitions.manage') : route('requisitions.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
-            <div class="text-xs text-ink-muted">{{ __('home.pending_requisitions') }}</div>
-            <div class="font-display text-2xl font-bold mt-1">{{ $pendingRequisitions }}</div>
-        </a>
-        @if (isset($belowReorderCount))
-            <a href="{{ route('reports.index', ['tab' => 'below_reorder']) }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
-                <div class="text-xs text-ink-muted">{{ __('home.below_reorder') }}</div>
-                <div class="font-display text-2xl font-bold mt-1 {{ $belowReorderCount > 0 ? 'text-warning' : '' }}">{{ $belowReorderCount }}</div>
-            </a>
-        @endif
-        @if (isset($expiringCount))
-            <a href="{{ route('reports.index', ['tab' => 'expiring_stock']) }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
-                <div class="text-xs text-ink-muted">{{ __('home.expiring_soon') }}</div>
-                <div class="font-display text-2xl font-bold mt-1 {{ $expiringCount > 0 ? 'text-danger' : '' }}">{{ $expiringCount }}</div>
-            </a>
-        @endif
-    </div>
+    @if ($cards === [])
+        <p class="rounded-lg bg-surface-alt text-ink-muted text-sm px-4 py-3">{{ __('home.no_access') }}</p>
+    @else
+        {{-- Cards are plain links (not buttons) so keyboard, screen readers and "open in new tab" all work. --}}
+        @php
+            $icons = [
+                'chem' => 'M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3M7.5 15h9',
+                'supply' => 'M3 7.5 12 3l9 4.5M3 7.5V17l9 4 9-4V7.5M3 7.5l9 4.5m9-4.5-9 4.5m0 0V21',
+                'ops' => 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+                'adm' => 'M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+            ];
+            $main = array_values(array_filter($cards, fn ($c) => $c['tone'] === 'main'));
+            $ops = array_values(array_filter($cards, fn ($c) => $c['key'] === 'ops'));
+            $adm = array_values(array_filter($cards, fn ($c) => $c['key'] === 'adm'));
+        @endphp
 
-    @if (isset($belowReorderItems) || isset($expiringContainers))
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            @if (isset($belowReorderItems))
-                <div class="bg-surface border border-border rounded-xl p-5">
-                    <h2 class="font-semibold text-sm mb-3">{{ __('home.below_reorder_list_title') }}</h2>
-                    @if ($belowReorderItems->isEmpty())
-                        <p class="text-xs text-ink-faint">{{ __('home.below_reorder_empty') }}</p>
-                    @else
-                        <ul class="space-y-2">
-                            @foreach ($belowReorderItems as $row)
-                                <li class="flex items-center justify-between text-sm gap-2">
-                                    <a href="{{ route('items.show', $row['item']) }}" class="truncate hover:text-accent">{{ $row['item']->name_th }}</a>
-                                    <span class="text-warning whitespace-nowrap">
-                                        {{ rtrim(rtrim((string) $row['balance'], '0'), '.') }} / {{ rtrim(rtrim((string) $row['item']->reorder_point_base, '0'), '.') }} {{ $row['item']->baseUnit?->code }}
-                                    </span>
-                                </li>
-                            @endforeach
-                        </ul>
-                        @if ($belowReorderCount > $belowReorderItems->count())
-                            <a href="{{ route('reports.index', ['tab' => 'below_reorder']) }}" class="block mt-3 text-xs font-semibold text-accent hover:text-accent-strong">
-                                {{ __('home.view_all', ['count' => $belowReorderCount]) }}
-                            </a>
-                        @endif
-                    @endif
-                </div>
-            @endif
-
-            @if (isset($expiringContainers))
-                <div class="bg-surface border border-border rounded-xl p-5">
-                    <h2 class="font-semibold text-sm mb-3">{{ __('home.expiring_list_title') }}</h2>
-                    @if ($expiringContainers->isEmpty())
-                        <p class="text-xs text-ink-faint">{{ __('home.expiring_empty') }}</p>
-                    @else
-                        <ul class="space-y-2">
-                            @foreach ($expiringContainers as $container)
-                                <li class="flex items-center justify-between text-sm gap-2">
-                                    <span class="truncate">{{ $container->item?->name_th }}</span>
-                                    <span class="text-danger whitespace-nowrap">{{ $container->expiry_date?->format('d/m/Y') }}</span>
-                                </li>
-                            @endforeach
-                        </ul>
-                        @if ($expiringCount > $expiringContainers->count())
-                            <a href="{{ route('reports.index', ['tab' => 'expiring_stock']) }}" class="block mt-3 text-xs font-semibold text-accent hover:text-accent-strong">
-                                {{ __('home.view_all', ['count' => $expiringCount]) }}
-                            </a>
-                        @endif
-                    @endif
-                </div>
-            @endif
-        </div>
-    @endif
-
-    @if (isset($topItems) && isset($monthlySeries))
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <div class="bg-surface border border-border rounded-xl p-5">
-                <h2 class="font-semibold text-sm mb-3">{{ __('home.top_items_title') }}</h2>
-                @if ($topItems->isEmpty())
-                    <p class="text-xs text-ink-faint">{{ __('home.top_items_empty') }}</p>
-                @else
-                    <ol class="space-y-2">
-                        @foreach ($topItems as $row)
-                            <li class="flex items-center justify-between text-sm gap-2">
-                                <span class="truncate">{{ $loop->iteration }}. {{ $row['item']->name_th }}</span>
-                                <span class="text-ink-muted whitespace-nowrap text-right">
-                                    {{ $row['issue_count'] }} {{ __('home.issue_count_unit') }}
-                                    <span class="text-ink-faint">
-                                        ({{ rtrim(rtrim((string) $row['qty_issued'], '0'), '.') }} {{ $row['item']->baseUnit?->code }})
-                                    </span>
-                                </span>
-                            </li>
-                        @endforeach
-                    </ol>
+        @foreach ([['cards' => $main, 'label' => null], ['cards' => $ops, 'label' => 'nav.group_ops'], ['cards' => $adm, 'label' => 'nav.group_adm']] as $group)
+            @if ($group['cards'] !== [])
+                @if ($group['label'] !== null)
+                    <h2 class="text-xs font-semibold tracking-wide text-ink-faint mt-6 mb-2">{{ __($group['label']) }}</h2>
                 @endif
-            </div>
-
-            <div class="bg-surface border border-border rounded-xl p-5">
-                <h2 class="font-semibold text-sm mb-3">{{ __('home.monthly_chart_title') }}</h2>
-                @php
-                    $maxCount = max(1, $monthlySeries->max('count'));
-                @endphp
-                <svg viewBox="0 0 360 140" class="w-full" role="img" aria-label="{{ __('home.monthly_chart_title') }}">
-                    @foreach ($monthlySeries as $i => $row)
-                        @php
-                            $barWidth = 22;
-                            $gap = 8;
-                            $x = $i * ($barWidth + $gap) + 4;
-                            $barHeight = (int) round(($row['count'] / $maxCount) * 90);
-                            $y = 100 - $barHeight;
-                        @endphp
-                        <rect x="{{ $x }}" y="{{ $y }}" width="{{ $barWidth }}" height="{{ $barHeight }}" rx="2" fill="#6d28d9"></rect>
-                        <text x="{{ $x + $barWidth / 2 }}" y="112" text-anchor="middle" font-size="8" fill="currentColor" class="text-ink-faint">{{ $row['month']->format('m') }}</text>
-                        <text x="{{ $x + $barWidth / 2 }}" y="{{ max(10, $y - 3) }}" text-anchor="middle" font-size="8" fill="currentColor">{{ $row['count'] }}</text>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
+                    @foreach ($group['cards'] as $card)
+                        <a href="{{ $card['url'] }}"
+                           @class([
+                               'flex flex-col gap-2 rounded-xl border p-5 min-h-[9rem] transition-colors hover:border-accent focus-visible:border-accent focus-visible:outline-none',
+                               'bg-surface border-border' => $card['tone'] === 'main',
+                               'bg-gold-soft border-gold' => $card['tone'] === 'ops',
+                               'bg-neutral-soft border-border' => $card['tone'] === 'adm',
+                           ])>
+                            <span class="w-11 h-11 rounded-xl bg-accent-soft text-accent-soft-ink flex items-center justify-center">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ $icons[$card['key']] }}"/></svg>
+                            </span>
+                            <span class="font-display font-bold text-base">{{ $card['title'] }}</span>
+                            <span class="text-sm text-ink-muted">{{ $card['desc'] }}</span>
+                            @if ($card['badges'] !== [])
+                                <span class="mt-auto flex flex-wrap gap-1.5 pt-1">
+                                    @foreach ($card['badges'] as $badge)
+                                        <span @class([
+                                            'rounded-full text-xs font-bold px-2.5 py-0.5 whitespace-nowrap',
+                                            'bg-neutral-soft text-neutral-ink' => $badge['tone'] === 'n',
+                                            'bg-warning-soft text-warning-ink' => $badge['tone'] === 'w',
+                                            'bg-accent-soft text-accent-soft-ink' => $badge['tone'] === 'p',
+                                        ])>{{ $badge['text'] }}</span>
+                                    @endforeach
+                                </span>
+                            @endif
+                        </a>
                     @endforeach
-                </svg>
-            </div>
-        </div>
+                </div>
+            @endif
+        @endforeach
     @endif
-
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-        @can('viewAny', App\Models\Item::class)
-            <a href="{{ route('items.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
-                <div class="w-9 h-9 rounded-lg bg-accent-soft text-accent-soft-ink flex items-center justify-center mb-3">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M10 3h4M10.5 3v6.5L5.8 18a1.6 1.6 0 0 0 1.4 2.4h9.6a1.6 1.6 0 0 0 1.4-2.4l-4.7-8.5V3"/></svg>
-                </div>
-                <div class="font-semibold text-sm">{{ __('nav.items') }}</div>
-                <div class="text-xs text-ink-muted mt-1">{{ __('home.items_desc') }}</div>
-            </a>
-        @endcan
-
-        @can('viewAny', App\Models\User::class)
-            <a href="{{ route('admin.users.index') }}" class="block bg-surface border border-border rounded-xl p-5 hover:border-accent transition-colors">
-                <div class="w-9 h-9 rounded-lg bg-accent-soft text-accent-soft-ink flex items-center justify-center mb-3">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="8.3" r="3.3"/><path d="M5 20c1-3.6 4-5.5 7-5.5s6 1.9 7 5.5"/></svg>
-                </div>
-                <div class="font-semibold text-sm">{{ __('nav.users_roles') }}</div>
-                <div class="text-xs text-ink-muted mt-1">{{ __('home.users_desc') }}</div>
-            </a>
-        @endcan
-    </div>
 </x-layout>

@@ -33,6 +33,7 @@ use App\Http\Controllers\ImsPlaceController;
 use App\Http\Controllers\ImsReceiptController;
 use App\Http\Controllers\StockInController;
 use App\Http\Controllers\StockTakeController;
+use App\Http\Controllers\WarehouseController;
 use App\Livewire\Admin\UserRoleManager;
 use App\Livewire\Inventory\LabInventoryTable;
 use App\Livewire\Reports\ReportsDashboard;
@@ -188,6 +189,10 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::get('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transferForm'])->name('lots.transfer.form');
     Route::post('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transfer'])->name('lots.transfer');
 });
+
+// ITM-2610-052: the warehouse card's overview (queue numbers + the old dashboard analytics).
+// Authorization: WarehouseOverviewRequest (access-warehouse); analytics additionally need report.view.
+Route::middleware('auth')->get('/warehouse', [WarehouseController::class, 'overview'])->name('warehouse.overview');
 
 // "Shopping" requisition: browse stock, fill a cart, check out into a normal requisition.
 Route::middleware('auth')->prefix('shop')->name('shop.')->group(function () {

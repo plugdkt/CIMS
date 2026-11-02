@@ -8,6 +8,7 @@ use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Services\RequisitionService;
 use App\Domain\Requisition\Services\ShopAvailability;
 use App\Domain\Shared\DocumentNumberGenerator;
+use App\Domain\Shared\ItemType;
 use App\Domain\Shared\UnitConverter;
 use App\Http\Requests\ShopCartAddRequest;
 use App\Http\Requests\ShopCartUpdateRequest;
@@ -47,6 +48,16 @@ final class ShopController extends Controller
         $labId = (int) $user->lab_id;
         $search = trim((string) $request->query('search', ''));
         $categoryId = $request->filled('category') ? (int) $request->query('category') : null;
+        $type = $request->filled('type') ? (string) $request->query('type') : null;
+
+        // ITM-2610-052 phase 1: browsing is narrowed to one kind of stock by the items' real category
+        // (is_chemical). Read-only filter — the cart and checkout are still one shared basket until phase 2.
+        $matchesType = function ($q) use ($type) {
+            $q->when($type !== null, fn ($q) => $q->whereHas(
+                'category',
+                fn ($c) => $c->where('is_chemical', ItemType::isChemical((string) $type)),
+            ));
+        };
 
         $matchesSearch = function ($q) use ($search) {
             $q->when($search !== '', function ($q) use ($search) {
@@ -59,13 +70,14 @@ final class ShopController extends Controller
         };
 
         // How many shelf items each type tab holds (for the current search), so empty types don't clutter the tab bar.
-        $counts = $availability->shelf($labId)->tap($matchesSearch)
+        $counts = $availability->shelf($labId)->tap($matchesSearch)->tap($matchesType)
             ->selectRaw('category_id, count(*) as n')->groupBy('category_id')->pluck('n', 'category_id');
 
         $items = $availability->shelf($labId)
             ->with(['baseUnit', 'category'])
             ->when($categoryId !== null, fn ($q) => $q->where('category_id', $categoryId))
             ->tap($matchesSearch)
+            ->tap($matchesType)
             ->orderBy('name_th')
             ->paginate(24)
             ->withQueryString();
@@ -84,10 +96,11 @@ final class ShopController extends Controller
             'stock' => $availability->forItems($ids, $labId),
             'photos' => $photos,
             'units' => Unit::orderBy('sort_order')->get()->groupBy('dimension'),
-            'categories' => ItemCategory::orderBy('id')->get(),
+            'categories' => ItemCategory::when($type !== null, fn ($q) => $q->where('is_chemical', ItemType::isChemical((string) $type)))->orderBy('id')->get(),
             'counts' => $counts,
             'search' => $search,
             'categoryId' => $categoryId,
+            'type' => $type,
             'cartCount' => count($this->cart()),
         ]);
     }
