@@ -123,7 +123,8 @@ test('the manage page leaves out drafts and shows the next-step button for each 
     $manager = labManagerUser(['lab_id' => $lab->id]);
     $scientist = scientistUser(['lab_id' => $lab->id]);
     makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72001', 'status' => 'DRAFT']);
-    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72002', 'status' => 'SUBMITTED']);
+    // A student's requisition reaches the manager only after the advisor approved it (BR-02).
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72002', 'status' => 'ADVISOR_APPROVED']);
     $approved = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72003', 'status' => 'APPROVED']);
     makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72004', 'status' => 'REJECTED']);
 
@@ -146,5 +147,5 @@ test('the requester list shows the next step: send a draft, or wait for the ware
 
     $this->actingAs($student)->get(route('requisitions.index'))->assertOk()
         ->assertSee('REQ-2569-73001')->assertSee(__('requisitions.act_continue_draft'))
-        ->assertSee(__('requisitions.act_waiting_decision'))->assertSee(__('requisitions.act_waiting_issue'));
+        ->assertSee(__('requisitions.act_waiting_advisor'))->assertSee(__('requisitions.act_waiting_issue'));
 });

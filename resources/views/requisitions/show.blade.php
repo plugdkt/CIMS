@@ -18,7 +18,7 @@
                     };
                 @endphp
                 <span class="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap {{ $badge }}">
-                    {{ __('requisitions.status_'.strtolower($requisition->status)) }}
+                    {{ __($requisition->statusLabelKey()) }}
                 </span>
             </div>
             <div class="flex items-center gap-4 mt-1">

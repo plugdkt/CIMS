@@ -55,16 +55,51 @@ test('an advisor who is not the requisition\'s own advisor cannot decide it', fu
         ->toThrow(InvalidApprovalDecisionException::class);
 });
 
-test('in working stock, the scientist can approve a STUDENT requisition straight from SUBMITTED', function () {
+test('FT-01: the scientist cannot approve a STUDENT requisition with no advisor sign-off yet (BR-02)', function () {
     $student = studentUser();
-    $requisition = submittedRequisition($student); // still SUBMITTED
+    $requisition = submittedRequisition($student); // still SUBMITTED, advisor_signed_at is NULL
     $scientist = scientistUser();
 
-    $result = app(ApprovalService::class)->scientistDecide($requisition, $scientist, 'APPROVE');
+    expect(fn () => app(ApprovalService::class)->scientistDecide($requisition, $scientist, 'APPROVE'))
+        ->toThrow(InvalidApprovalDecisionException::class, 'BR-02');
 
-    expect($result->status)->toBe('APPROVED');
-    expect($result->scientist_id)->toBe($scientist->id);
-    expect($result->scientist_decision)->toBe('APPROVE');
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('SUBMITTED');
+    expect($fresh->scientist_id)->toBeNull();
+    expect(RequisitionApproval::where('requisition_id', $requisition->id)->count())->toBe(0);
+});
+
+test('BR-02: the scientist cannot reject a STUDENT requisition before the advisor has acted either', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $scientist = scientistUser();
+
+    expect(fn () => app(ApprovalService::class)->scientistDecide($requisition, $scientist, 'REJECT', 'ไม่จำเป็น'))
+        ->toThrow(InvalidApprovalDecisionException::class, 'BR-02');
+
+    expect($requisition->fresh()->status)->toBe('SUBMITTED');
+});
+
+test('BR-02 is checked against advisor_signed_at itself, not just the status string', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $requisition->update(['status' => 'ADVISOR_APPROVED']); // inconsistent data: no advisor_signed_at
+    $scientist = scientistUser();
+
+    expect(fn () => app(ApprovalService::class)->scientistDecide($requisition->fresh(), $scientist, 'APPROVE'))
+        ->toThrow(InvalidApprovalDecisionException::class, 'BR-02');
+
+    expect($requisition->fresh()->status)->toBe('ADVISOR_APPROVED');
+});
+
+test('an advisor rejection ends a STUDENT requisition, so the scientist can never approve it', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    app(ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'REJECT', 'ไม่เหมาะสม');
+
+    expect(fn () => app(ApprovalService::class)->scientistDecide($requisition->fresh(), scientistUser(), 'APPROVE'))
+        ->toThrow(InvalidApprovalDecisionException::class);
+    expect($requisition->fresh()->status)->toBe('REJECTED');
 });
 
 test('the scientist can approve once the advisor has signed off (BR-02 satisfied)', function () {

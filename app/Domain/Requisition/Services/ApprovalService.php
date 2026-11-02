@@ -15,8 +15,9 @@ use App\Models\User;
 
 /**
  * FR-RQ-06/07/08: the advisor and scientist (warehouse manager) decisions on a SUBMITTED
- * requisition. Since BR-02 was removed the advisor step is informational, not a gate: the
- * scientist may decide straight from SUBMITTED. Every decision — approve or reject — writes one
+ * requisition. BR-02 (restored by CEO decision 2026-10-30, ITM-2610-046): a STUDENT's
+ * requisition needs the advisor's sign-off before the scientist may decide; any other
+ * requester's SUBMITTED requisition goes straight to the scientist. Every decision — approve or reject — writes one
  * `requisition_approvals` row (the audit trail FR-RQ-07/08 both rely on) and advances
  * `Requisition::status` through `RequisitionState` (BR-01).
  */
@@ -75,10 +76,13 @@ final class ApprovalService
     }
 
     /**
-     * Scientist (warehouse manager) decision on a SUBMITTED or ADVISOR_APPROVED requisition.
-     * BR-02 was cancelled, so there is no `advisor_signed_at` / advisor sign-off check any
-     * more: any requester's SUBMITTED requisition can be approved or rejected directly
-     * (the transition itself is validated by `RequisitionState`). A REJECT needs a reason.
+     * Scientist (warehouse manager) decision on a requisition.
+     * BR-02: a STUDENT's requisition can never be decided by the scientist without a prior
+     * advisor sign-off — checked directly against `advisor_signed_at` (not merely inferred
+     * from the current `status`), so this holds even if `status` were somehow
+     * ADVISOR_APPROVED while `advisor_signed_at` is NULL. A non-student's SUBMITTED
+     * requisition may be decided at once (the transition is validated by `RequisitionState`).
+     * A REJECT needs a reason.
      *
      * @param  'APPROVE'|'REJECT'  $decision
      * @param  array<int, string>  $approvedQuantities  requisition_item id => approved qty, in that line's own unit
@@ -91,6 +95,12 @@ final class ApprovalService
         ?string $ipAddress = null,
         array $approvedQuantities = [],
     ): Requisition {
+        if ($requisition->requester_status === 'STUDENT' && $requisition->advisor_signed_at === null) {
+            throw new InvalidApprovalDecisionException(
+                'ไม่สามารถพิจารณาได้ (BR-02): ใบเบิกของนิสิตต้องผ่านการอนุมัติจากอาจารย์ที่ปรึกษาก่อน'
+            );
+        }
+
         if ($decision === 'REJECT' && trim((string) $reason) === '') {
             throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลที่ไม่เห็นควรให้เบิก');
         }

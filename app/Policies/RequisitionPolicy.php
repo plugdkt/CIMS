@@ -98,10 +98,10 @@ final class RequisitionPolicy extends Policy
     }
 
     /**
-     * FR-RQ-08: the scientist reviews a requisition that is SUBMITTED or ADVISOR_APPROVED.
-     * BR-02 (advisor sign-off before the scientist may act) is removed: the advisor step is
-     * informational only, so a scientist may decide a SUBMITTED STUDENT requisition at once.
-     * This ability gates who may open the review action.
+     * FR-RQ-08 + BR-02 (restored by CEO decision 2026-10-30, ITM-2610-046): the scientist
+     * reviews an ADVISOR_APPROVED requisition, or a SUBMITTED one whose requester is not a
+     * STUDENT. A STUDENT's SUBMITTED requisition is still waiting for the advisor, so no
+     * decision form is offered yet. This ability gates who may open the review action.
      */
     public function scientistDecide(User $user, Requisition $requisition): bool
     {
@@ -109,8 +109,15 @@ final class RequisitionPolicy extends Policy
             return false;
         }
 
-        return $this->hasPermission($user, 'requisition.approve_scientist')
-            && in_array($requisition->status, ['SUBMITTED', 'ADVISOR_APPROVED'], true);
+        if (! $this->hasPermission($user, 'requisition.approve_scientist')) {
+            return false;
+        }
+
+        if ($requisition->status === 'ADVISOR_APPROVED') {
+            return true;
+        }
+
+        return $requisition->status === 'SUBMITTED' && $requisition->requester_status !== 'STUDENT';
     }
 
     /** FR-RQ-09/10: dispensing only makes sense once a requisition has been approved. */

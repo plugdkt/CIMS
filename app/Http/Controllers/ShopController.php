@@ -266,6 +266,10 @@ final class ShopController extends Controller
             return $gate;
         }
 
+        if ($gate = $this->advisorGate($user)) {
+            return $gate;
+        }
+
         $cart = $this->cart();
         if ($cart === []) {
             return redirect()->route('shop.index')->withErrors(['cart' => __('shop.error.empty_cart')]);

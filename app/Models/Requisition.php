@@ -69,6 +69,19 @@ class Requisition extends Model
         );
     }
 
+    /**
+     * BR-02: a STUDENT's SUBMITTED requisition is waiting on the advisor, not on the
+     * warehouse — say so, rather than the generic "submitted, awaiting a decision".
+     */
+    public function statusLabelKey(): string
+    {
+        if ($this->status === 'SUBMITTED' && $this->requester_status === 'STUDENT') {
+            return 'requisitions.status_submitted_student';
+        }
+
+        return 'requisitions.status_'.strtolower($this->status);
+    }
+
     /** @return BelongsTo<Lab, $this> */
     public function lab(): BelongsTo
     {

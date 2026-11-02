@@ -14,6 +14,17 @@ pest()->extend(TestCase::class)->beforeEach(function () {
     $this->seed();
 })->in('Feature');
 
+// Shared by Admin/UserRoleManagerTest and Security/RoleEscalationTest (moved here so each file runs alone).
+if (! function_exists('userWithRole')) {
+    function userWithRole(string $roleCode): \App\Models\User
+    {
+        $user = \App\Models\User::factory()->create();
+        $user->roles()->attach(\App\Models\Role::where('code', $roleCode)->firstOrFail());
+
+        return $user;
+    }
+}
+
 if (! function_exists('makeItem')) {
     function makeItem(array $overrides = []): \App\Models\Item
     {
@@ -272,5 +283,31 @@ if (! function_exists('issueOneLine')) {
 
         app(\App\Domain\Requisition\Services\IssueService::class)
             ->issue($line, $container, $qty, $g, $scientist, $requisition->requester, 'sig-hash');
+    }
+}
+
+if (! function_exists('appendLedgerRow')) {
+    /** Appends one hash-chained stock_ledger row (shared by the ledger:verify and hash-chain notification tests). */
+    function appendLedgerRow(int $itemId, int $unitId, int $userId, string $qtyIn, string $balance): \App\Models\StockLedger
+    {
+        $hasher = app(\App\Domain\Inventory\Services\LedgerHasher::class);
+        $last = \App\Models\StockLedger::where('item_id', $itemId)->orderByDesc('id')->first();
+
+        $row = new \App\Models\StockLedger([
+            'item_id' => $itemId,
+            'txn_date' => now()->toDateString(),
+            'txn_type' => $last === null ? 'OPENING' : 'RECEIVE',
+            'qty_in_base' => $qtyIn,
+            'qty_out_base' => '0.000000',
+            'balance_base' => $balance,
+            'display_unit_id' => $unitId,
+            'created_by' => $userId,
+            'created_at' => now(),
+            'prev_row_hash' => $last?->row_hash,
+        ]);
+        $row->row_hash = $hasher->compute($row);
+        $row->save();
+
+        return $row;
     }
 }

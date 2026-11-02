@@ -63,13 +63,24 @@ final class RequisitionService
      *
      * FR-RQ-07: for a STUDENT's requisition the advisor is emailed a 72-hour signed link the
      * moment it's submitted (plus an in-app notification), so they can approve without
-     * logging in. This is for their information only: BR-02 is removed, so it does not gate
-     * the scientist, who may approve and issue without waiting for the advisor.
+     * logging in. BR-02 (restored by CEO decision 2026-10-30, ITM-2610-046): that sign-off is
+     * a gate for a STUDENT's requisition — the scientist cannot decide it until the advisor
+     * has approved. So a STUDENT with no advisor could never get it decided: refuse to
+     * submit such a requisition rather than let it sit SUBMITTED forever. (If the requester
+     * has since chosen an advisor on their profile, the draft picks it up here.)
      */
     public function submit(Requisition $requisition): Requisition
     {
         if ($requisition->items()->count() === 0) {
             throw new InvalidRequisitionTransitionException('ต้องมีอย่างน้อย 1 รายการก่อนส่งใบเบิก');
+        }
+
+        if ($requisition->requester_status === 'STUDENT' && $requisition->advisor_id === null) {
+            $profileAdvisorId = $requisition->requester?->advisor_id;
+            if ($profileAdvisorId === null) {
+                throw new InvalidRequisitionTransitionException((string) __('requisitions.advisor_missing'));
+            }
+            $requisition->advisor_id = $profileAdvisorId;
         }
 
         $requisition->status = $this->state->apply($requisition->status, 'submit');
@@ -89,10 +100,11 @@ final class RequisitionService
                 ]),
                 route('requisitions.show', $requisition),
             );
+        } elseif ($requisition->requester_status !== 'STUDENT') {
+            // A STUDENT's requisition is not actionable by the warehouse until the advisor
+            // approves (ApprovalService::advisorDecide() notifies them then).
+            $this->notifyScientistsPending($requisition);
         }
-
-        // Always notify scientists so they can review and issue immediately
-        $this->notifyScientistsPending($requisition);
 
         return $requisition;
     }

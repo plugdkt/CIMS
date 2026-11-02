@@ -45,10 +45,30 @@ test('FR-RQ-08: "ไม่เห็นควรให้เบิก" with a rea
     expect($fresh->reject_reason)->toBe('ของหมดชั่วคราว');
 });
 
-test('in working stock, a warehouse manager can approve a STUDENT requisition straight from SUBMITTED via the HTTP layer', function () {
+test('BR-02: a warehouse manager cannot approve or reject a STUDENT requisition still waiting for the advisor (HTTP layer)', function () {
     $student = studentUser();
     $requisition = submittedRequisition($student);
     $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+    ])->assertForbidden();
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'REJECT',
+        'reason' => 'ไม่จำเป็น',
+    ])->assertForbidden();
+
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('SUBMITTED');
+    expect($fresh->scientist_id)->toBeNull();
+});
+
+test('BR-02: once the advisor has approved, a warehouse manager can approve the STUDENT requisition via the HTTP layer', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    app(\App\Domain\Requisition\Services\ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'APPROVE');
 
     $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
         'decision' => 'APPROVE',
@@ -57,6 +77,46 @@ test('in working stock, a warehouse manager can approve a STUDENT requisition st
     $fresh = $requisition->fresh();
     expect($fresh->status)->toBe('APPROVED');
     expect($fresh->scientist_id)->toBe($auditor->id);
+});
+
+test('BR-02: an ADVISOR_APPROVED STUDENT requisition with no advisor_signed_at gets a friendly decision error from the service', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $requisition->update(['status' => 'ADVISOR_APPROVED']); // inconsistent data, advisor_signed_at NULL
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+    ])->assertSessionHasErrors('decision');
+
+    expect($requisition->fresh()->status)->toBe('ADVISOR_APPROVED');
+});
+
+test('BR-02: the decision form is hidden on a STUDENT requisition until the advisor has approved', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($auditor)->get(route('requisitions.show', $requisition))
+        ->assertOk()
+        ->assertDontSee(__('requisitions.scientist_approve_decision'))
+        ->assertSee(__('requisitions.status_submitted_student'));
+
+    app(\App\Domain\Requisition\Services\ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'APPROVE');
+
+    $this->actingAs($auditor)->get(route('requisitions.show', $requisition))
+        ->assertSee(__('requisitions.scientist_approve_decision'));
+});
+
+test('BR-02: the manage list tells the warehouse manager a STUDENT requisition is waiting for the advisor, with no decide button', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($auditor)->get(route('requisitions.manage'))
+        ->assertOk()
+        ->assertSee(__('requisitions.act_waiting_advisor'))
+        ->assertDontSee(__('requisitions.act_decide'));
 });
 
 test('a SCIENTIST without requisition.approve_scientist gets 403 on the decision action', function () {

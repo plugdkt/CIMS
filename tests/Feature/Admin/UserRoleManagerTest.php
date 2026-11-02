@@ -9,13 +9,7 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
-function userWithRole(string $roleCode): User
-{
-    $user = User::factory()->create();
-    $user->roles()->attach(Role::where('code', $roleCode)->firstOrFail());
-
-    return $user;
-}
+// userWithRole() lives in tests/Pest.php (shared with Security/RoleEscalationTest).
 
 test('a user without user.manage gets HTTP 403 on the admin users page', function () {
     $scientist = userWithRole('SCIENTIST');

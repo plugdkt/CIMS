@@ -68,3 +68,15 @@ test('checkout with a person type still creates the requisition', function () {
     $requisition = Requisition::firstOrFail();
     expect($requisition->requester_status)->toBe('STAFF')->and($requisition->requester_id)->toBe($user->id);
 });
+
+test('BR-02: checkout by a STUDENT with no advisor goes to complete-profile and creates no requisition', function () {
+    $user = studentUser(['lab_id' => $this->lab->id, 'advisor_id' => null]);
+    $this->actingAs($user)->post(route('shop.cart.add'), ['item' => $this->item->ulid, 'qty' => '10', 'unit_id' => $this->g->id])->assertRedirect();
+
+    $this->actingAs($user)
+        ->post(route('shop.checkout'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->assertRedirect(route('account.complete-profile'))
+        ->assertSessionHas('status', __('requisitions.advisor_missing'));
+
+    expect(Requisition::count())->toBe(0);
+});

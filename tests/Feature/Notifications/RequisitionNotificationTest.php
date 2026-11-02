@@ -93,3 +93,14 @@ test('FR-NT-04: a scientist decision (approve or reject) notifies the requester'
     expect($notification)->not->toBeNull();
     expect($notification->title)->toContain($requisition->doc_no);
 });
+
+test('BR-02: submitting a STUDENT requisition does not notify warehouse managers yet (only after the advisor approves)', function () {
+    Mail::fake();
+    $student = studentUser();
+    $auditor = auditorUser();
+    $requisition = withOneLine(makeRequisition($student));
+
+    app(RequisitionService::class)->submit($requisition);
+
+    expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.pending_scientist')->exists())->toBeFalse();
+});

@@ -341,3 +341,59 @@ if (! function_exists('makeRequisition')) {
         ], $overrides));
     }
 }
+
+test('BR-02: a STUDENT with no advisor cannot start a requisition and is sent to complete-profile', function () {
+    // A branch is assigned so that the 403 for "no branch" does not mask the advisor gate under test.
+    $student = studentUser(['advisor_id' => null, 'lab_id' => makeLab()->id]);
+
+    $this->actingAs($student)->get(route('requisitions.create'))
+        ->assertRedirect(route('account.complete-profile'))
+        ->assertSessionHas('status', __('requisitions.advisor_missing'));
+
+    $this->actingAs($student)
+        ->post(route('requisitions.store'), ['request_type' => ['CHEMICAL'], 'purpose_type' => 'TEACHING', 'purpose_detail' => 'ทดลองที่ 1'])
+        ->assertRedirect(route('account.complete-profile'))
+        ->assertSessionHas('status', __('requisitions.advisor_missing'));
+
+    expect(Requisition::where('requester_id', $student->id)->count())->toBe(0);
+});
+
+test('BR-02: a STUDENT draft that has no advisor cannot be submitted, and stays DRAFT', function () {
+    $student = studentUser(['advisor_id' => null]);
+    $requisition = makeRequisition($student); // advisor_id snapshot = null
+    $item = makeItem();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $requisition->items()->create([
+        'line_no' => 1, 'item_id' => $item->id, 'qty_requested' => '5.000000', 'unit_id' => $g->id, 'qty_requested_base' => '5.000000',
+    ]);
+
+    $this->actingAs($student)->post(route('requisitions.submit', $requisition))
+        ->assertSessionHasErrors(['submit' => __('requisitions.advisor_missing')]);
+
+    expect($requisition->fresh()->status)->toBe('DRAFT');
+});
+
+test('BR-02: a STUDENT draft with no advisor snapshot picks up the advisor chosen on the profile since, then submits', function () {
+    $student = studentUser();
+    $requisition = makeRequisition($student, ['advisor_id' => null]);
+    $item = makeItem();
+    $g = Unit::where('code', 'g')->firstOrFail();
+    $requisition->items()->create([
+        'line_no' => 1, 'item_id' => $item->id, 'qty_requested' => '5.000000', 'unit_id' => $g->id, 'qty_requested_base' => '5.000000',
+    ]);
+
+    $this->actingAs($student)->post(route('requisitions.submit', $requisition))
+        ->assertRedirect(route('requisitions.show', $requisition));
+
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('SUBMITTED');
+    expect($fresh->advisor_id)->toBe($student->advisor_id);
+});
+
+test('BR-02: the complete-profile page shows the reason after the redirect (not only in the session)', function () {
+    $student = studentUser(['advisor_id' => null, 'lab_id' => makeLab()->id]);
+
+    $this->actingAs($student)->followingRedirects()->get(route('requisitions.create'))
+        ->assertOk()
+        ->assertSee(__('requisitions.advisor_missing'));
+});

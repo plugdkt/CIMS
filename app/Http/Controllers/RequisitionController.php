@@ -46,6 +46,10 @@ final class RequisitionController extends Controller
             return $gate;
         }
 
+        if ($gate = $this->advisorGate($user)) {
+            return $gate;
+        }
+
         if ($user->lab_id === null) {
             return redirect()->route('account.pending-lab');
         }
@@ -66,6 +70,10 @@ final class RequisitionController extends Controller
 
         // Same for `requester_status` (NOT NULL, from person_type) on a direct POST.
         if ($gate = $this->personTypeGate($user)) {
+            return $gate;
+        }
+
+        if ($gate = $this->advisorGate($user)) {
             return $gate;
         }
 

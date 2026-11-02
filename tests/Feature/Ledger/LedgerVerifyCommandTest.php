@@ -1,6 +1,5 @@
 <?php
 
-use App\Domain\Inventory\Services\LedgerHasher;
 use App\Models\StockLedger;
 use App\Models\Unit;
 use App\Models\User;
@@ -8,28 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-function appendLedgerRow(int $itemId, int $unitId, int $userId, string $qtyIn, string $balance): StockLedger
-{
-    $hasher = app(LedgerHasher::class);
-    $last = StockLedger::where('item_id', $itemId)->orderByDesc('id')->first();
-
-    $row = new StockLedger([
-        'item_id' => $itemId,
-        'txn_date' => now()->toDateString(),
-        'txn_type' => $last === null ? 'OPENING' : 'RECEIVE',
-        'qty_in_base' => $qtyIn,
-        'qty_out_base' => '0.000000',
-        'balance_base' => $balance,
-        'display_unit_id' => $unitId,
-        'created_by' => $userId,
-        'created_at' => now(),
-        'prev_row_hash' => $last?->row_hash,
-    ]);
-    $row->row_hash = $hasher->compute($row);
-    $row->save();
-
-    return $row;
-}
+// appendLedgerRow() lives in tests/Pest.php (also used by NotifyHashChainCommandTest).
 
 test('ledger:verify reports success for an intact chain (CT-03-style check)', function () {
     $item = makeItem();

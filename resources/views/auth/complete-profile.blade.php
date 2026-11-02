@@ -6,6 +6,10 @@
     <h1 class="font-display text-lg font-bold mb-1">{{ __('auth.complete_profile_title') }}</h1>
     <p class="text-sm text-ink-muted mb-5">{{ __('auth.complete_profile_body') }}</p>
 
+    @if (session('status'))
+        <div class="mb-4 rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm" role="status">{{ session('status') }}</div>
+    @endif
+
     <form method="POST" action="{{ route('account.complete-profile') }}" class="space-y-4">
         @csrf
 

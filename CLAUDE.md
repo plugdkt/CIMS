@@ -321,7 +321,7 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   lightweight non-repudiation marker for a decision made without a drawn signature (that's T-036's
   e-signature canvas, for the *receiver* at issue time, not the advisor). Scoped to one decision, not
   a chain. Revisit if a later task needs to verify this hash rather than just record it.
-- **BR-02's check lives in `ApprovalService::scientistDecide()` itself, checked directly against
+- **[REINSTATED 2026-10-30 by CEO decision: BR-02 is enforced again; see ITM-2610-046 and the Post-launch section at the end of this file. The 2026-09-14 removal is history only.]** **BR-02's check lives in `ApprovalService::scientistDecide()` itself, checked directly against
   `advisor_signed_at`, not delegated to `RequisitionState`** — even though `RequisitionState` (T-030)
   already refuses a STUDENT's `SUBMITTED → scientistApprove` transition via its own requester-status
   check. The two checks aren't redundant: `RequisitionState` only knows the abstract state diagram
@@ -372,13 +372,13 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   established preference (GRN's add-line pattern, T-031's requisition lines) for one straightforward
   page over a multi-step flow. Each line's form POSTs independently, so issuing against one line never
   disturbs another line's in-progress input.
-- **T-036's OTP (FR-RQ-11 fallback) is stored in the cache (Redis), not a database table.** It's a
+- **[SUPERSEDED — commit dbf6d04 removed `ReceiverOtpService`, its mail, the signature-image service and the per-line OTP routes; receivers no longer sign (957b738). Old signature/OTP rows are still read by F-01. History only.]** **T-036's OTP (FR-RQ-11 fallback) is stored in the cache (Redis), not a database table.** It's a
   single-use, 10-minute-TTL confirmation that the named receiver is present and agrees to the issue —
   not a credential and not something that needs an audit trail of its own (the resulting
   `issue_transactions.signature_hash` is the durable record), so there was no reason to add a table
   spec's own schema never called for. `ReceiverOtpService` mirrors the shape of `RequisitionState`
   et al. — small, single-purpose, no persistence beyond what the feature strictly needs.
-- **The signature pad (T-036) is a hand-rolled `<canvas>` with plain pointer/touch listeners wired
+- **[SUPERSEDED — the receiver signature pad/partial was removed in dbf6d04 (receivers no longer sign); the canvas-`$nextTick` lesson below still applies to any future canvas.]** **The signature pad (T-036) is a hand-rolled `<canvas>` with plain pointer/touch listeners wired
   through Alpine, not a signature-pad library.** Same reasoning already used for the mobile nav
   checkbox toggle and the complete-profile page's conditional field: the simplest tool that satisfies
   the requirement, and in this case CSP's script-src has no allowance for a third-party signature-pad
@@ -447,7 +447,7 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   switching units for a stock take count, so this avoids introducing a third unit-conversion path
   (`UnitConverter::toItemBase()`) where the two existing ones (issue, return) already fully cover the
   cases spec actually asks to convert.
-- **T-042's disposal approval has no BR-06-style distinct-actor check beyond ordinary role
+- **[PARTLY SUPERSEDED — per `PermissionSeeder` today SCIENTIST holds neither `disposal.request` nor `disposal.approve`; LAB_MANAGER/AUDITOR hold both, ADMIN holds `disposal.request` only. Still no same-person check (CEO, 2026-09-22).]** **T-042's disposal approval has no BR-06-style distinct-actor check beyond ordinary role
   separation.** BR-06 ("ผู้อนุมัติต้องไม่ใช่คนเดียวกับผู้สร้างรายการ") is titled "การปรับปรุงยอด" (stock
   adjustment) and is never repeated under §7.6's disposal requirement (FR-ST-05), unlike how T-041's
   stock take approval explicitly reuses it for adjustments a count produces. `disposal.request`
@@ -1095,7 +1095,7 @@ notes assumed.
   Eloquent resource for a Policy to attach to at create time). `GoodsReceipt`/GRN code itself was
   **not removed** — only no longer the primary path; check before assuming it's fully retired if a
   later task touches it.
-- **BR-02 (a STUDENT requisition needs advisor sign-off before a scientist may approve) is
+- **[REINSTATED 2026-10-30 by CEO decision: BR-02 is enforced again; see ITM-2610-046. The text below is the 2026-09-14 history; do NOT treat BR-02 as removed or the flow as single-step for STUDENT requesters.]** **BR-02 (a STUDENT requisition needs advisor sign-off before a scientist may approve) is
   removed.** `RequisitionState::can()`/`apply()` now allow `SUBMITTED → scientistApprove/Reject`
   for every requester status including STUDENT; `ApprovalService::scientistDecide()` no longer
   throws for a STUDENT with `advisor_signed_at === null`. The advisor step itself still exists
@@ -1327,3 +1327,25 @@ only to `ims.view` holders (not requesters).
   accepts both. Of the sample report's 452 distinct codes, 399 are now in the catalog; the other 53 are office/
   cleaning supplies (AS01xxxx/AS03xxxx) that neither export covers.
 
+## Post-launch — Security and permission fixes (2026-10-30)
+
+- **Legacy goods receipts (`/goods-receipts`) are branch-scoped (commit 740318b, CEO decision 2026-10-30).**
+  Non-ADMIN holders of `receiving.manage` (LAB_MANAGER/AUDITOR) see, create, edit, confirm and cancel only
+  GRNs whose `lab_id` equals their own `users.lab_id`; ADMIN keeps every branch (decision E7). The list is
+  filtered, the create form offers only the own branch, a mismatching `lab_id` is refused with
+  `goods_receipts.validation.lab_not_own_branch`, and a non-ADMIN user with no `lab_id` sees
+  `goods_receipts.no_branch_assigned` and no create button. Enforced in `GoodsReceiptPolicy` and
+  `GoodsReceiptRequest`. **Deploy note: every LAB_MANAGER/AUDITOR must have a `lab_id`**, otherwise they can no
+  longer open goods receipts. Nested routes (`RequisitionReturnController::store`,
+  `RequisitionItemController::destroy`, `GoodsReceiptItemController::destroy`) abort 404 unless the line
+  belongs to the parent in the URL.
+- **Returning a controlled substance needs `controlled_ack` (commit 2caedde)**, like issuing one:
+  `RequisitionReturnController::store` refuses an `is_controlled` item without it before writing anything;
+  the return form shows the tick-box only for controlled lines.
+- **The per-line issue and receiver-OTP routes were removed (commit dbf6d04)** because they cut stock for
+  controlled substances without `controlled_ack`; `issue-all` is the only issue path. Removed together with
+  `ReceiverOtpService`, its mail, the signature-image service/exception and the signature partial. Columns,
+  migrations, `signature_hash` and the hash chain are untouched. `PermissionBoundaryTest` pins that ADMIN is
+  refused on every ledger-writing path except the legacy GRN (decision E7).
+
+- **BR-02 reinstated (CEO decision 2026-10-30, ITM-2610-046).** A STUDENT requisition must be approved by the advisor before a scientist/warehouse manager may decide on it; the advisor step is a real gate again (the system emails the advisor a 72-hour signed link on submit; advisor approves or rejects; a rejection ends the requisition as rejected). Non-STUDENT requesters stay single-step. This overrides the 2026-09-14 "BR-02 removed / single-step" note above and the doc wording written earlier on 2026-10-30. Code change is by dev-fullstack; docs (user/admin manual, UAT #1/A1) updated accordingly.

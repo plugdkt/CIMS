@@ -23,4 +23,19 @@ abstract class Controller
 
         return null;
     }
+
+    /**
+     * BR-02 (restored 2026-10-30): a STUDENT's requisition needs their advisor's approval
+     * before the warehouse can decide it, so a student with no advisor on file must pick
+     * one (complete-profile page) before starting a requisition — otherwise it would sit
+     * SUBMITTED forever.
+     */
+    protected function advisorGate(User $user): ?RedirectResponse
+    {
+        if ($user->person_type === 'STUDENT' && $user->advisor_id === null) {
+            return redirect()->route('account.complete-profile')->with('status', __('requisitions.advisor_missing'));
+        }
+
+        return null;
+    }
 }

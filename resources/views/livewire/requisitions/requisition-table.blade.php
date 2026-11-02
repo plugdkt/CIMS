@@ -41,7 +41,7 @@
                                     };
                                 @endphp
                                 <span class="px-2.5 py-1 rounded-full text-xs font-semibold {{ $badge }}">
-                                    {{ __('requisitions.status_'.strtolower($requisition->status)) }}
+                                    {{ __($requisition->statusLabelKey()) }}
                                 </span>
                             </td>
                             <td class="px-4 py-3 align-top text-right whitespace-nowrap">
@@ -49,6 +49,8 @@
                                     <a href="{{ route('requisitions.show', $requisition) }}" class="inline-block rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('requisitions.act_continue_draft') }}</a>
                                 @elsecan('advisorDecide', $requisition)
                                     <a href="{{ route('requisitions.show', $requisition) }}" class="inline-block rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('requisitions.act_advisor_decide') }}</a>
+                                @elseif ($requisition->status === 'SUBMITTED' && $requisition->requester_status === 'STUDENT')
+                                    <span class="text-xs text-ink-muted">{{ __('requisitions.act_waiting_advisor') }}</span>
                                 @elseif (in_array($requisition->status, ['SUBMITTED', 'ADVISOR_APPROVED'], true))
                                     <span class="text-xs text-ink-muted">{{ __('requisitions.act_waiting_decision') }}</span>
                                 @elseif (in_array($requisition->status, ['APPROVED', 'PARTIALLY_ISSUED'], true))

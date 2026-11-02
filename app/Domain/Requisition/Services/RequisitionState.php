@@ -12,11 +12,16 @@ use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
  * `apply()` for the next status and persist it themselves; `Requisition::status` is the
  * only place the result is ever stored.
  *
- * `$requesterStatus` is accepted but currently ignored: BR-02 (a STUDENT's requisition must
- * pass through ADVISOR_APPROVED first) was cancelled, so a SUBMITTED requisition may go
- * straight to a scientist decision (`scientistApprove` / `scientistReject`) for every
- * requester type, as well as via ADVISOR_APPROVED. See CLAUDE.md (BR-02 cancellation).
- * This class only knows the abstract state diagram.
+ * `$requesterStatus` disambiguates the one context-dependent edge in the spec's diagram: a
+ * SUBMITTED requisition only goes straight to a scientist decision (`scientistApprove` /
+ * `scientistReject`) when the requester is NOT a STUDENT — spec's "SUBMITTED(non-student)"
+ * branch, grouped with ADVISOR_APPROVED in "ADVISOR_APPROVED | SUBMITTED(non-student) ──
+ * scientist APPROVE/REJECT──►". A STUDENT's requisition must pass through ADVISOR_APPROVED
+ * first (BR-02, restored by CEO decision 2026-10-30, ITM-2610-046, after the single-step
+ * change of commit ecd9131). An unknown (null) requester status is treated like a STUDENT.
+ * BR-02's stronger check (actually verifying `advisor_signed_at` is set on the real model,
+ * not just the requester's type) belongs to `ApprovalService` (T-032) — this class only
+ * knows the abstract state diagram.
  */
 final class RequisitionState
 {
@@ -53,7 +58,7 @@ final class RequisitionState
     public function can(string $from, string $event, ?string $requesterStatus = null): bool
     {
         if ($from === 'SUBMITTED' && in_array($event, self::SUBMITTED_SCIENTIST_EVENTS, true)) {
-            return true;
+            return $requesterStatus !== null && $requesterStatus !== 'STUDENT';
         }
 
         return isset(self::TRANSITIONS[$from][$event]);
@@ -65,6 +70,12 @@ final class RequisitionState
     public function apply(string $from, string $event, ?string $requesterStatus = null): string
     {
         if ($from === 'SUBMITTED' && in_array($event, self::SUBMITTED_SCIENTIST_EVENTS, true)) {
+            if ($requesterStatus === null || $requesterStatus === 'STUDENT') {
+                throw new InvalidRequisitionTransitionException(
+                    "ไม่สามารถเปลี่ยนสถานะจาก {$from} ด้วยเหตุการณ์ {$event} ได้"
+                );
+            }
+
             return $event === 'scientistApprove' ? 'APPROVED' : 'REJECTED';
         }
 
