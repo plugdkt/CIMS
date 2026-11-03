@@ -20,6 +20,9 @@ if (! function_exists('userWithRole')) {
     {
         $user = \App\Models\User::factory()->create();
         $user->roles()->attach(\App\Models\Role::where('code', $roleCode)->firstOrFail());
+        if (in_array($roleCode, ['LAB_MANAGER', 'AUDITOR'], true)) {
+            grantItemTypes($user);
+        }
 
         return $user;
     }
@@ -43,11 +46,32 @@ if (! function_exists('makeItem')) {
     }
 }
 
+if (! function_exists('grantItemTypes')) {
+    /**
+     * ITM-2610-052 phase 3: warehouse managers (LAB_MANAGER/AUDITOR) are deny-by-default until they hold
+     * rows in user_item_types. Test managers get both kinds unless a test narrows them with
+     * ['itemTypes' => ['chemical']] (an empty list = no rows at all).
+     *
+     * @param  list<string>  $types
+     */
+    function grantItemTypes(\App\Models\User $user, array $types = ['chemical', 'consumable']): void
+    {
+        foreach ($types as $type) {
+            \Illuminate\Support\Facades\DB::table('user_item_types')->insertOrIgnore(['user_id' => $user->id, 'item_type' => $type]);
+        }
+    }
+}
+
 if (! function_exists('labManagerUser')) {
+    /** `itemTypes` (not a user column) narrows the kinds of stock this manager is responsible for; default both. */
     function labManagerUser(array $overrides = []): \App\Models\User
     {
+        $types = $overrides['itemTypes'] ?? ['chemical', 'consumable'];
+        unset($overrides['itemTypes']);
+
         $user = \App\Models\User::factory()->create($overrides);
         $user->roles()->attach(\App\Models\Role::where('code', 'LAB_MANAGER')->firstOrFail());
+        grantItemTypes($user, $types);
 
         return $user;
     }
@@ -79,8 +103,12 @@ if (! function_exists('adminUser')) {
 if (! function_exists('auditorUser')) {
     function auditorUser(array $overrides = []): \App\Models\User
     {
+        $types = $overrides['itemTypes'] ?? ['chemical', 'consumable'];
+        unset($overrides['itemTypes']);
+
         $user = \App\Models\User::factory()->create($overrides);
         $user->roles()->attach(\App\Models\Role::where('code', 'AUDITOR')->firstOrFail());
+        grantItemTypes($user, $types);
 
         return $user;
     }
@@ -375,6 +403,9 @@ if (! function_exists('navUser')) {
 
         foreach ($parts as $code) {
             $user->roles()->attach(\App\Models\Role::where('code', strtoupper($code))->firstOrFail());
+            if (in_array(strtoupper($code), ['LAB_MANAGER', 'AUDITOR'], true)) {
+                grantItemTypes($user);
+            }
         }
 
         return $user->fresh();
@@ -491,5 +522,20 @@ if (! function_exists('layoutNav')) {
             'back' => $back,
             'logo' => (string) $xp->evaluate('string(//header//a[not(@id)][1]/@href)'),
         ];
+    }
+}
+
+if (! function_exists('managedBadge')) {
+    /**
+     * The "ดูแล: ..." badge a warehouse manager's card shows (ITM-2610-052 phase 3), built from the real
+     * lang keys. Kinds are listed in the order MenuRegistry lists them (chemical before consumable).
+     *
+     * @param  list<string>  $kinds  ItemType slugs
+     */
+    function managedBadge(array $kinds): string
+    {
+        return (string) __('nav.badge_managed_types', [
+            'types' => implode(' + ', array_map(fn (string $k) => (string) __('requisitions.request_type_'.$k), $kinds)),
+        ]);
     }
 }

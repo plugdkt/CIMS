@@ -99,6 +99,61 @@ class Requisition extends Model
         return $query->whereHas('items.item.category', fn (Builder $c) => $c->where('is_chemical', $isChemical));
     }
 
+    /**
+     * ITM-2610-052 phase 3: requisitions with a line of any of the given kinds (what a manager who
+     * is responsible for those kinds may see; kept in step with itemKinds(), which the policy
+     * uses for a single requisition). No kinds = nothing (deny by default).
+     *
+     * @param  Builder<Requisition>  $query
+     * @param  list<string>  $slugs
+     * @return Builder<Requisition>
+     */
+    public function scopeOfAnyItemType(Builder $query, array $slugs): Builder
+    {
+        if ($slugs === []) {
+            return $query->whereRaw('0 = 1');
+        }
+
+        return $query->where(function (Builder $q) use ($slugs) {
+            // Same rule as itemKinds(): the kind of the real lines when there are lines, otherwise
+            // (a requisition with no lines yet) the `request_type` it was filed under.
+            foreach ($slugs as $slug) {
+                $q->orWhere(fn (Builder $inner) => $inner
+                    ->ofItemType($slug)
+                    ->orWhere(fn (Builder $noLines) => $noLines
+                        ->whereDoesntHave('items')
+                        ->whereRaw('FIND_IN_SET(?, request_type) > 0', [ItemType::requestTypeValue($slug)])));
+            }
+        });
+    }
+
+    /**
+     * The kinds of stock this requisition really contains, from its lines' categories (a legacy
+     * mixed requisition has both). A requisition with no lines yet falls back to the `request_type`
+     * it was filed under.
+     *
+     * @return list<string>
+     */
+    public function itemKinds(): array
+    {
+        $kinds = [];
+        if ($this->items()->whereHas('item.category', fn ($c) => $c->where('is_chemical', true))->exists()) {
+            $kinds[] = ItemType::CHEMICAL;
+        }
+        if ($this->items()->whereHas('item.category', fn ($c) => $c->where('is_chemical', false))->exists()) {
+            $kinds[] = ItemType::CONSUMABLE;
+        }
+        if ($kinds !== []) {
+            return $kinds;
+        }
+
+        foreach ($this->request_type as $value) {
+            $kinds[] = $value === 'CHEMICAL' ? ItemType::CHEMICAL : ItemType::CONSUMABLE;
+        }
+
+        return array_values(array_unique($kinds));
+    }
+
     /** @return BelongsTo<Lab, $this> */
     public function lab(): BelongsTo
     {

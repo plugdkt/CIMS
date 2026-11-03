@@ -93,13 +93,13 @@ test('the approval badge counts the branch queue only: ADVISOR_APPROVED plus non
 
     $badges = badgesOf($this->actingAs($auditor)->get('/')->assertOk()->getContent());
 
-    // A manager cannot dispense, so only the approval badge exists on the warehouse card.
-    expect($badges[__('nav.card_ops')])->toBe([__('nav.badge_approval', ['count' => 2])]);
+    // A manager cannot dispense: the warehouse card shows the kinds they hold, then the approval badge (no dispense badge).
+    expect($badges[__('nav.card_ops')])->toBe([managedBadge(['chemical', 'consumable']), __('nav.badge_approval', ['count' => 2])]);
 
     // The other branch's manager sees only their own two.
     $auditorB = auditorUser(['lab_id' => $labB->id]);
     $badgesB = badgesOf($this->actingAs($auditorB)->get('/')->assertOk()->getContent());
-    expect($badgesB[__('nav.card_ops')])->toBe([__('nav.badge_approval', ['count' => 2])]);
+    expect($badgesB[__('nav.card_ops')])->toBe([managedBadge(['chemical', 'consumable']), __('nav.badge_approval', ['count' => 2])]);
 });
 
 test('the dispense badge counts own-branch APPROVED and PARTIALLY_ISSUED only, and a dispenser gets no approval badge', function () {
@@ -129,7 +129,7 @@ test('a dispenser with no branch assigned gets no dispense badge rather than a m
     expect($badges[__('nav.card_ops')])->toBe([]);
 });
 
-test('a user who both approves and dispenses (AUDITOR + SCIENTIST) sees both badges on the warehouse card, approval first', function () {
+test('a user who both approves and dispenses (AUDITOR + SCIENTIST) sees both badges on the warehouse card (kinds held, then approval, then dispense)', function () {
     $lab = makeLab();
     $user = auditorUser(['lab_id' => $lab->id]);
     $user->roles()->attach(\App\Models\Role::where('code', 'SCIENTIST')->firstOrFail());
@@ -142,6 +142,7 @@ test('a user who both approves and dispenses (AUDITOR + SCIENTIST) sees both bad
     $badges = badgesOf($this->actingAs($user->fresh())->get('/')->assertOk()->getContent());
 
     expect($badges[__('nav.card_ops')])->toBe([
+        managedBadge(['chemical', 'consumable']),
         __('nav.badge_approval', ['count' => 1]),
         __('nav.badge_dispense', ['count' => 2]),
     ]);
@@ -193,4 +194,19 @@ test('phase 2: each requesting card shows the count of its own basket only', fun
     $this->flushSession();
     $empty = badgesOf($this->actingAs($staff)->get('/')->assertOk()->getContent());
     expect($empty[__('nav.card_chem')])->toBe([__('nav.badge_my_open', ['count' => 0])]);
+});
+
+test('a single-kind manager sees only their own kind in the "ดูแล" badge, and a manager with no kinds sees the warning instead', function () {
+    $lab = makeLab();
+
+    $chem = badgesOf($this->actingAs(auditorUser(['lab_id' => $lab->id, 'itemTypes' => ['chemical']]))->get('/')->assertOk()->getContent());
+    expect($chem[__('nav.card_ops')])->toBe([managedBadge(['chemical']), __('nav.badge_approval', ['count' => 0])]);
+    expect($chem[__('nav.card_ops')][0])->not->toContain(__('requisitions.request_type_consumable'));
+
+    $supply = badgesOf($this->actingAs(labManagerUser(['lab_id' => $lab->id, 'itemTypes' => ['consumable']]))->get('/')->assertOk()->getContent());
+    expect($supply[__('nav.card_ops')])->toBe([managedBadge(['consumable']), __('nav.badge_approval', ['count' => 0])]);
+    expect($supply[__('nav.card_ops')][0])->not->toContain(__('requisitions.request_type_chemical'));
+
+    $none = badgesOf($this->actingAs(auditorUser(['lab_id' => $lab->id, 'itemTypes' => []]))->get('/')->assertOk()->getContent());
+    expect($none[__('nav.card_ops')])->toBe([__('nav.badge_no_types'), __('nav.badge_approval', ['count' => 0])]);
 });

@@ -107,6 +107,12 @@ IMS is per branch (`labs`). Quantities are packs × catalog package size; price 
 - catalog import if the server DB has not got it yet: `php artisan catalog:import database/data/catalog_chemicals.csv --category=CHEMICAL`
   and `catalog_materials.csv --category=MATERIAL`
 - IMS lots need a storage location or the automatic IMS→working-stock cut at dispensing fails (by design, with a clear message)
+- **ITM-2610-052 phase 3 (per-kind warehouse managers) — draft, CEO to review.** Order matters:
+  1. back up the database;
+  2. `php artisan migrate` (creates an empty `user_item_types` table; the migration backfills nothing);
+  3. run `docker/mariadb/restrict_app_grants.sql` again on **every** database (new table), and once more on `cmis_testing` after its first test run;
+  4. `php artisan managers:backfill-item-types` — gives every LAB_MANAGER/AUDITOR that has no kind row yet both kinds; safe to re-run, never restores a kind an ADMIN removed.
+  **If step 4 is forgotten every warehouse manager holds no kind (deny by default) and cannot see, list, approve or be notified of any requisition**, until the command is run or an ADMIN assigns kinds user by user (users page, ADMIN only). Managers of the other kind get HTTP 403 on a requisition's page and PDF by design; a legacy mixed requisition can be viewed by a manager of either kind but only decided by one holding both.
 
 ## 6. Verification (human pass needed)
 

@@ -6,6 +6,7 @@ namespace App\Domain\Notification\Services;
 
 use App\Mail\NotificationMail;
 use App\Models\Notification;
+use App\Models\Requisition;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
@@ -68,6 +69,67 @@ final class NotificationService
             ->where('is_active', true)
             ->get()
             ->unique('id');
+    }
+
+    /**
+     * ITM-2610-052 phase 3: who is told that a requisition is waiting for a warehouse decision — the
+     * active managers of the requisition's own branch who hold approval rights and are responsible
+     * for the kind(s) of stock in it (every kind, for a legacy mixed one). Before phase 3 this went to
+     * every approver of every branch.
+     *
+     * @return Collection<int, User>
+     */
+    public function approversFor(Requisition $requisition): Collection
+    {
+        $kinds = $requisition->itemKinds();
+
+        return User::whereHas('roles.permissions', fn ($q) => $q->where('code', 'requisition.approve_scientist'))
+            ->where('is_active', true)
+            ->where('lab_id', $requisition->lab_id)
+            ->with(['roles', 'itemTypes'])
+            ->get()
+            ->filter(fn (User $user) => $kinds !== [] && array_diff($kinds, $user->managedItemTypes()) === [])
+            ->values();
+    }
+
+    /**
+     * FR-NT-03: a requisition just became actionable by the warehouse. Tell its approvers (see
+     * approversFor()); if nobody in that branch is responsible for its kind, tell every ADMIN to go and
+     * assign a manager (ADMIN cannot approve requisitions themselves), so it never waits unseen.
+     */
+    public function notifyApprovalPending(Requisition $requisition): void
+    {
+        $link = route('requisitions.show', $requisition);
+        $approvers = $this->approversFor($requisition);
+
+        if ($approvers->isNotEmpty()) {
+            foreach ($approvers as $approver) {
+                $this->notifyInAppAndEmail(
+                    $approver,
+                    'requisition.pending_scientist',
+                    (string) __('notifications.pending_scientist_title'),
+                    (string) __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]),
+                    $link,
+                );
+            }
+
+            return;
+        }
+
+        $kindLabels = array_map(fn (string $kind) => (string) __('requisitions.request_type_'.$kind), $requisition->itemKinds());
+        foreach ($this->usersWithRole('ADMIN') as $admin) {
+            $this->notifyInAppAndEmail(
+                $admin,
+                'requisition.no_approver',
+                (string) __('notifications.no_approver_title'),
+                (string) __('notifications.no_approver_body', [
+                    'doc_no' => $requisition->doc_no,
+                    'lab' => (string) $requisition->lab?->name_th,
+                    'kind' => implode(' + ', $kindLabels),
+                ]),
+                $link,
+            );
+        }
     }
 
     /** @return Collection<int, User> */

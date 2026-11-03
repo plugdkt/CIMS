@@ -41,24 +41,44 @@ test('FR-NT-03: submitting a STUDENT requisition notifies the advisor in-app (em
     Mail::assertNotQueued(NotificationMail::class); // no duplicate generic email for the advisor step
 });
 
-test('FR-NT-03 (updated 2026-09-21: review moved from SCIENTIST to warehouse managers): submitting a non-student requisition notifies every warehouse manager in-app and by email', function () {
+test('FR-NT-03 (updated 2026-09-21, per-kind since ITM-2610-052 phase 3): submitting a non-student requisition notifies the warehouse managers of its own branch in-app and by email, and nobody elsewhere', function () {
     Mail::fake();
-    $staff = staffUser();
-    $auditor = auditorUser();
-    $labManager = labManagerUser();
-    $requisition = withOneLine(makeRequisition($staff));
+    $lab = makeLab();
+    $staff = staffUser(['lab_id' => $lab->id]);
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $labManager = labManagerUser(['lab_id' => $lab->id]);
+    $otherBranch = auditorUser(['lab_id' => makeLab()->id]);   // holds both kinds, but another branch
+    $requisition = withOneLine(makeRequisition($staff));       // one chemical line
 
     app(RequisitionService::class)->submit($requisition);
 
     expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
     expect(Notification::where('user_id', $labManager->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $otherBranch->id)->exists())->toBeFalse();
     Mail::assertQueued(NotificationMail::class, 2);
 });
 
-test('FR-NT-04 + FR-NT-03 (updated 2026-09-21): an advisor approving notifies the requester of the result and every warehouse manager that it is now pending', function () {
+test('FR-NT-03 phase 3: with no responsible manager in the branch, the pending notice goes to ADMIN (requisition.no_approver) instead of broadcasting to other branches', function () {
     Mail::fake();
-    $student = studentUser();
-    $auditor = auditorUser();
+    $lab = makeLab();
+    $staff = staffUser(['lab_id' => $lab->id]);
+    $admin = adminUser();
+    $elsewhere = auditorUser(['lab_id' => makeLab()->id]);
+    $requisition = withOneLine(makeRequisition($staff));
+
+    app(RequisitionService::class)->submit($requisition);
+
+    expect(Notification::where('user_id', $admin->id)->where('type', 'requisition.no_approver')->exists())->toBeTrue();
+    expect(Notification::where('type', 'requisition.pending_scientist')->exists())->toBeFalse();
+    expect(Notification::where('user_id', $elsewhere->id)->exists())->toBeFalse();
+});
+
+test('FR-NT-04 + FR-NT-03 (updated 2026-09-21): an advisor approving notifies the requester of the result and the warehouse managers of its branch that it is now pending', function () {
+    Mail::fake();
+    $lab = makeLab();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $otherBranch = auditorUser(['lab_id' => makeLab()->id]);
     $requisition = withOneLine(makeRequisition($student, ['status' => 'SUBMITTED', 'submitted_at' => now()]));
     $advisor = $requisition->advisor;
 
@@ -66,6 +86,7 @@ test('FR-NT-04 + FR-NT-03 (updated 2026-09-21): an advisor approving notifies th
 
     expect(Notification::where('user_id', $student->id)->where('type', 'requisition.decision')->exists())->toBeTrue();
     expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $otherBranch->id)->where('type', 'requisition.pending_scientist')->exists())->toBeFalse();
 });
 
 test('FR-NT-04: an advisor rejecting notifies the requester but not the scientist pool', function () {

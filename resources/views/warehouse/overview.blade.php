@@ -4,6 +4,10 @@
         <p class="text-sm text-ink-muted mt-1">{{ __('home.overview_subtitle') }}</p>
     </div>
 
+    @if (auth()->user()->isBranchManager() && auth()->user()->managedItemTypes() === [])
+        <p class="mb-4 rounded-lg bg-warning-soft text-warning-ink text-sm px-4 py-3" role="status">{{ __('admin.no_item_types_notice') }}</p>
+    @endif
+
     @if ($approvalCount === null && $dispenseCount === null && ! isset($belowReorderCount, $expiringCount))
         <p class="rounded-lg bg-surface-alt text-ink-muted text-sm px-4 py-3">{{ __('home.overview_empty') }}</p>
     @endif

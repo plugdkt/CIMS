@@ -60,6 +60,34 @@
                                         </span>
                                     @endif
                                 </div>
+
+                                {{-- ITM-2610-052 phase 3: kinds of stock a warehouse manager is responsible for. --}}
+                                @if ($user->roles->contains('code', 'ADMIN') && ($user->roles->contains('code', 'LAB_MANAGER') || $user->roles->contains('code', 'AUDITOR')))
+                                    {{-- ADMIN holds every kind (User::managedItemTypes), so toggles would do nothing. --}}
+                                    <p class="mt-2 text-xs text-ink-faint">{{ __('admin.item_types_admin_exempt') }}</p>
+                                @elseif ($user->roles->contains('code', 'LAB_MANAGER') || $user->roles->contains('code', 'AUDITOR'))
+                                    <div class="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label="{{ __('admin.item_types_label') }}">
+                                        <span class="text-xs text-ink-faint">{{ __('admin.item_types_label') }}</span>
+                                        @foreach (App\Domain\Shared\ItemType::all() as $itemType)
+                                            @php $held = $user->itemTypes->contains('item_type', $itemType); @endphp
+                                            <button
+                                                type="button"
+                                                wire:click="toggleItemType({{ $user->id }}, '{{ $itemType }}')"
+                                                aria-pressed="{{ $held ? 'true' : 'false' }}"
+                                                @class([
+                                                    'px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors',
+                                                    'bg-gold-soft text-gold-ink border-gold' => $held,
+                                                    'bg-surface text-ink-faint border-border hover:border-ink-faint' => ! $held,
+                                                ])
+                                            >
+                                                {{ __('requisitions.request_type_'.$itemType) }}
+                                            </button>
+                                        @endforeach
+                                        @if ($user->itemTypes->isEmpty())
+                                            <span class="text-xs font-semibold text-warning-ink">{{ __('admin.item_types_none') }}</span>
+                                        @endif
+                                    </div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 align-top whitespace-nowrap">
                                 <select wire:change="setLab({{ $user->id }}, $event.target.value || null)"

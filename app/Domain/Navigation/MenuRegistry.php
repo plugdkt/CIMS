@@ -244,6 +244,16 @@ final class MenuRegistry
         }
 
         if ($section === self::OPS) {
+            // Phase 3: which kinds of stock this manager is responsible for (none = deny by default).
+            if ($user->isBranchManager()) {
+                $managed = $user->managedItemTypes();
+                $badges[] = $managed === []
+                    ? ['tone' => 'w', 'text' => (string) __('nav.badge_no_types')]
+                    : ['tone' => 'n', 'text' => (string) __('nav.badge_managed_types', [
+                        'types' => implode(' + ', array_map(fn (string $t) => (string) __('requisitions.request_type_'.$t), $managed)),
+                    ])];
+            }
+
             $approval = $this->dashboard->approvalQueueCount($user);
             if ($approval !== null) {
                 $badges[] = ['tone' => 'w', 'text' => (string) __('nav.badge_approval', ['count' => $approval])];

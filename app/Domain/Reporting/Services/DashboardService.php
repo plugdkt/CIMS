@@ -51,7 +51,7 @@ final class DashboardService
                     $q->where('status', 'ADVISOR_APPROVED')
                         ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
                 })
-                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id)->ofAnyItemType($user->managedItemTypes()))
                 ->count();
             }
 
@@ -60,7 +60,7 @@ final class DashboardService
             }
 
             return Requisition::whereNotIn('status', ['ISSUED', 'REJECTED', 'CANCELLED'])
-                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id)->ofAnyItemType($user->managedItemTypes()))
                 ->count();
         }
 
@@ -114,7 +114,7 @@ final class DashboardService
             $q->where('status', 'ADVISOR_APPROVED')
                 ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
         })
-            ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id))
+            ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id)->ofAnyItemType($user->managedItemTypes()))
             ->count();
     }
 

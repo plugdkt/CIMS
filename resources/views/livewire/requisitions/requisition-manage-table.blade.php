@@ -4,6 +4,10 @@
         <p class="text-sm text-ink-muted mt-1">{{ __('requisitions.manage_subtitle') }}</p>
     </div>
 
+    @if (auth()->user()->isBranchManager() && auth()->user()->managedItemTypes() === [])
+        <p class="mb-4 rounded-lg bg-warning-soft text-warning-ink text-sm px-4 py-3" role="status">{{ __('admin.no_item_types_notice') }}</p>
+    @endif
+
     <nav class="flex gap-1 border-b border-border mb-4 overflow-x-auto" tabindex="0" aria-label="{{ __('requisitions.manage_tabs_label') }}">
         @foreach ($tabs as $key)
             @php $active = $tab === $key; @endphp

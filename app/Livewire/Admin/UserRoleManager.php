@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Livewire\Admin;
 
+use App\Domain\Shared\ItemType;
 use App\Models\AuditLog;
 use App\Models\Lab;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\UserItemType;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -170,6 +172,49 @@ final class UserRoleManager extends Component
         );
     }
 
+    /**
+     * ITM-2610-052 phase 3: which kinds of stock (chemical / consumable) a warehouse manager is
+     * responsible for. ADMIN-only (same `manageRoles` ability as roles/branch); only accounts that
+     * hold LAB_MANAGER or AUDITOR can be given kinds; every change is written to the audit log.
+     */
+    public function toggleItemType(int $userId, string $type): void
+    {
+        /** @var User $target */
+        $target = User::findOrFail($userId);
+        $this->authorize('manageRoles', $target);
+
+        // ADMIN holds every kind anyway (User::managedItemTypes), so there is nothing to toggle for them.
+        if (
+            ! ItemType::isValid($type)
+            || $target->hasRole('ADMIN')
+            || ! ($target->hasRole('LAB_MANAGER') || $target->hasRole('AUDITOR'))
+        ) {
+            return;
+        }
+
+        $before = $target->itemTypes()->pluck('item_type')->sort()->values()->all();
+
+        $existing = UserItemType::where('user_id', $target->id)->where('item_type', $type);
+        if ($existing->exists()) {
+            $existing->delete();
+        } else {
+            // insertOrIgnore: two quick clicks must not collide on the composite key (500).
+            UserItemType::insertOrIgnore([['user_id' => $target->id, 'item_type' => $type]]);
+        }
+
+        $after = $target->itemTypes()->pluck('item_type')->sort()->values()->all();
+
+        AuditLog::record(
+            action: 'ITEM_TYPE_CHANGE',
+            userId: $this->authId(),
+            username: auth()->user()?->username,
+            entityType: User::class,
+            entityId: $target->id,
+            oldValue: ['item_types' => $before],
+            newValue: ['item_types' => $after],
+        );
+    }
+
     public function toggleActive(int $userId): void
     {
         /** @var User $target */
@@ -204,7 +249,7 @@ final class UserRoleManager extends Component
             self::TAB_UNASSIGNED => $this->personnelQuery()->whereNull('lab_id'),
             default => $this->personnelQuery()->where('lab_id', (int) $this->tab),
         })
-            ->with('roles')
+            ->with(['roles', 'itemTypes'])
             ->when($this->search !== '', function ($query) {
                 $query->where(function ($q) {
                     $q->where('full_name', 'like', "%{$this->search}%")

@@ -60,6 +60,8 @@ return [
     'badge_my_open' => 'ใบเบิกของฉันที่ยังไม่จบ :count ใบ',
     'badge_advisee_waiting' => 'รอคุณอนุมัติ :count ใบ',
     'badge_cart' => 'ในตะกร้า :count รายการ',
+    'badge_managed_types' => 'ดูแล: :types',
+    'badge_no_types' => 'ยังไม่ได้กำหนดชนิดที่ดูแล',
     'badge_approval' => 'รออนุมัติ :count',
     'badge_dispense' => 'รอจ่ายของ :count',
 ];

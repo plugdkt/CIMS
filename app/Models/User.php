@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Domain\Shared\ItemType;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -69,6 +70,35 @@ class User extends Authenticatable
     public function advisees(): HasMany
     {
         return $this->hasMany(self::class, 'advisor_id');
+    }
+
+    /** @return HasMany<UserItemType, $this> */
+    public function itemTypes(): HasMany
+    {
+        return $this->hasMany(UserItemType::class);
+    }
+
+    /**
+     * ITM-2610-052 phase 3: the kinds of stock (App\Domain\Shared\ItemType slugs) this account is
+     * responsible for. ADMIN holds every kind (and still cannot decide requisitions: that needs
+     * `requisition.approve_scientist`, which ADMIN does not have). Everyone else holds exactly the rows in
+     * `user_item_types` — none by default (deny by default). Only warehouse managers
+     * (isBranchManager) are narrowed by this; other roles never consult it.
+     *
+     * @return list<string>
+     */
+    public function managedItemTypes(): array
+    {
+        if ($this->hasRole('ADMIN')) {
+            return ItemType::all();
+        }
+
+        return array_values($this->itemTypes->pluck('item_type')->map(fn ($type) => (string) $type)->all());
+    }
+
+    public function managesItemType(string $slug): bool
+    {
+        return in_array($slug, $this->managedItemTypes(), true);
     }
 
     /** @return BelongsToMany<Role, $this> */

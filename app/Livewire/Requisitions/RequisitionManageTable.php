@@ -60,7 +60,9 @@ final class RequisitionManageTable extends Component
             // never ones still awaiting a decision. Mirrors RequisitionPolicy::sharesBranch().
             $base->where('lab_id', $user->lab_id)->whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED']);
         } elseif ($user->isBranchManager()) {
-            $base->where('lab_id', $user->lab_id);
+            // Phase 3: own branch, and only the kinds of stock this manager is responsible for
+            // (none assigned = nothing, deny by default; a legacy mixed one shows if either kind is held).
+            $base->where('lab_id', $user->lab_id)->ofAnyItemType($user->managedItemTypes());
         }
 
         // Counts per tab for the badges (same scope, before the tab filter).

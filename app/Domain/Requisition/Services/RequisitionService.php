@@ -203,15 +203,7 @@ final class RequisitionService
     /** FR-NT-03: a requisition just became actionable by a scientist — notify every SCIENTIST. */
     private function notifyScientistsPending(Requisition $requisition): void
     {
-        foreach ($this->notifications->usersWithAnyPermission('requisition.approve_scientist') as $scientist) {
-            $this->notifications->notifyInAppAndEmail(
-                $scientist,
-                'requisition.pending_scientist',
-                __('notifications.pending_scientist_title'),
-                __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]),
-                route('requisitions.show', $requisition),
-            );
-        }
+        $this->notifications->notifyApprovalPending($requisition);
     }
 
     /** BR-01: DRAFT | SUBMITTED → CANCELLED. */

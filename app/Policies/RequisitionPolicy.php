@@ -35,7 +35,9 @@ final class RequisitionPolicy extends Policy
                 return true;
             }
 
-            if ($requisition->lab_id === $user->lab_id) {
+            // Phase 3: a warehouse manager sees their own branch's requisitions of the kinds they
+            // are responsible for (a legacy mixed one if they hold either kind).
+            if ($requisition->lab_id === $user->lab_id && $this->managesKinds($user, $requisition, false)) {
                 return true;
             }
         }
@@ -113,6 +115,11 @@ final class RequisitionPolicy extends Policy
             return false;
         }
 
+        // Phase 3: only for the kinds this manager is responsible for (a mixed legacy one needs both).
+        if (! $this->managesKinds($user, $requisition, true)) {
+            return false;
+        }
+
         if ($requisition->status === 'ADVISOR_APPROVED') {
             return true;
         }
@@ -134,6 +141,25 @@ final class RequisitionPolicy extends Policy
         return $this->hasPermission($user, 'requisition.issue')
             && $this->sharesBranch($user, $requisition)
             && in_array($requisition->status, ['PARTIALLY_ISSUED', 'ISSUED'], true);
+    }
+
+    /**
+     * ITM-2610-052 phase 3: does this warehouse manager hold the kinds of stock in the requisition?
+     * `$all` = every kind (deciding), otherwise any kind (viewing). People who are not branch
+     * managers (ADMIN, dispensers, requesters) are not narrowed by kind here.
+     */
+    private function managesKinds(User $user, Requisition $requisition, bool $all): bool
+    {
+        if (! $user->isBranchManager()) {
+            return true;
+        }
+
+        $kinds = $requisition->itemKinds();
+        $managed = $user->managedItemTypes();
+        $held = array_intersect($kinds, $managed);
+
+        // No kind at all (no lines and an empty request_type) matches nobody, as in the queue scope.
+        return $kinds !== [] && ($all ? count($held) === count($kinds) : $held !== []);
     }
 
     /**

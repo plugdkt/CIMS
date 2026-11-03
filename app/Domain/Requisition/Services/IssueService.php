@@ -247,6 +247,11 @@ final class IssueService
         if ($approver->isBranchManager() && $approver->lab_id !== $requisition->lab_id) {
             throw new ExcessiveIssueQuantityException('ผู้อนุมัติต้องเป็นหัวหน้าสาขาวิชาหรือผู้ดูแลคลังของสาขาที่ยื่นใบเบิกนี้ (BR-04)');
         }
+
+        // ITM-2610-052 phase 3: a manager may only approve an overage on the kinds of stock they are responsible for.
+        if ($approver->isBranchManager() && array_diff($requisition->itemKinds(), $approver->managedItemTypes()) !== []) {
+            throw new ExcessiveIssueQuantityException((string) __('requisitions.overage_approver_wrong_kind'));
+        }
     }
 
     /** BR-01: APPROVED → PARTIALLY_ISSUED, or → ISSUED once every line's `qty_issued_base` meets its request. */

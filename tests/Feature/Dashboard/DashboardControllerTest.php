@@ -145,7 +145,7 @@ test('dashboard: a warehouse manager (AUDITOR) only sees pending requisitions in
     expect($overview->assertOk()->viewData('approvalCount'))->toBe(1);
 
     $cards = collect(homeCards($this->actingAs($auditor)->get('/')->assertOk()->getContent()))->keyBy('title');
-    expect($cards[__('nav.card_ops')]['badges'])->toBe([__('nav.badge_approval', ['count' => 1])]);
+    expect($cards[__('nav.card_ops')]['badges'])->toBe([managedBadge(['chemical', 'consumable']), __('nav.badge_approval', ['count' => 1])]);
 });
 
 test('dashboard: a warehouse manager (AUDITOR) only sees expiring containers from their own branch', function () {
