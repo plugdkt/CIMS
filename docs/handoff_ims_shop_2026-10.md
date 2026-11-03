@@ -107,6 +107,14 @@ IMS is per branch (`labs`). Quantities are packs × catalog package size; price 
 - catalog import if the server DB has not got it yet: `php artisan catalog:import database/data/catalog_chemicals.csv --category=CHEMICAL`
   and `catalog_materials.csv --category=MATERIAL`
 - IMS lots need a storage location or the automatic IMS→working-stock cut at dispensing fails (by design, with a clear message)
+- **ITM-2610-051 borrow / return module, step 1 (register + "available to lend") — draft, CEO to review.** Order matters:
+  1. back up the database;
+  2. `php artisan migrate` (two `2026_11_04_*` files; empty `loan_assets` and `loan_movements`);
+  3. run `docker/mariadb/restrict_app_grants.sql` again on **every** database (it now keeps `loan_movements` append-only: SELECT + INSERT only), once more on `cmis_testing` after its first test run;
+  4. `php artisan db:seed --class=PermissionSeeder` (13 `loan.*` codes);
+  5. check every manager has a `lab_id` and every active branch has at least 2 managers (adjust/retire need a different approver);
+  6. `loans:verify --notify` is scheduled hourly (`routes/console.php`); run `php artisan loans:verify` once by hand, expect exit code 0.
+  Without step 3 `cmis_app` is denied on the new tables; without step 4 nobody holds a `loan.*` permission and the loan card never shows.
 - **ITM-2610-052 phase 3 (per-kind warehouse managers) — draft, CEO to review.** Order matters:
   1. back up the database;
   2. `php artisan migrate` (creates an empty `user_item_types` table; the migration backfills nothing);

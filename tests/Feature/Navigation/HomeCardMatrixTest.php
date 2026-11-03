@@ -19,13 +19,13 @@ dataset('home card matrix', [
     'STUDENT' => ['student', ['chem', 'supply']],
     'STAFF' => ['staff', ['chem', 'supply']],
     'ADVISOR' => ['advisor', ['chem', 'supply']],
-    'SCIENTIST (dispenses, so has the warehouse card)' => ['scientist', ['chem', 'supply', 'ops']],
-    'LAB_MANAGER' => ['lab_manager', ['chem', 'supply', 'ops']],
-    'AUDITOR (same grants as LAB_MANAGER)' => ['auditor', ['chem', 'supply', 'ops']],
-    'ADMIN (warehouse card and back office)' => ['admin', ['chem', 'supply', 'ops', 'adm']],
-    'STAFF + AUDITOR (several roles)' => ['staff+auditor', ['chem', 'supply', 'ops']],
-    'ADVISOR + SCIENTIST (several roles)' => ['advisor+scientist', ['chem', 'supply', 'ops']],
-    'STAFF + ADMIN (several roles)' => ['staff+admin', ['chem', 'supply', 'ops', 'adm']],
+    'SCIENTIST (dispenses, so has the warehouse card and the loan counter)' => ['scientist', ['chem', 'supply', 'loan', 'ops']],
+    'LAB_MANAGER' => ['lab_manager', ['chem', 'supply', 'loan', 'ops']],
+    'AUDITOR (same grants as LAB_MANAGER)' => ['auditor', ['chem', 'supply', 'loan', 'ops']],
+    'ADMIN (loans, warehouse card and back office)' => ['admin', ['chem', 'supply', 'loan', 'ops', 'adm']],
+    'STAFF + AUDITOR (several roles)' => ['staff+auditor', ['chem', 'supply', 'loan', 'ops']],
+    'ADVISOR + SCIENTIST (several roles)' => ['advisor+scientist', ['chem', 'supply', 'loan', 'ops']],
+    'STAFF + ADMIN (several roles)' => ['staff+admin', ['chem', 'supply', 'loan', 'ops', 'adm']],
 ]);
 
 test('the home page shows exactly the cards the role may use, and the others are not in the HTML', function (string $kind, array $expected) {
@@ -39,6 +39,7 @@ test('the home page shows exactly the cards the role may use, and the others are
     $firstUrl = [
         'chem' => route('shop.index', ['type' => 'chemical']),
         'supply' => route('shop.index', ['type' => 'consumable']),
+        'loan' => route('loans.available'),
         'ops' => route('warehouse.overview'),
         'adm' => route('admin.users.index'),
     ];
@@ -48,7 +49,7 @@ test('the home page shows exactly the cards the role may use, and the others are
     expect(array_column($cards, 'href'))->toBe(array_map(fn (string $k) => $firstUrl[$k], $expected));
 
     // Absent: neither the card's title, its group heading nor the page it leads to is in the HTML.
-    $absent = array_values(array_diff(['chem', 'supply', 'ops', 'adm'], $expected));
+    $absent = array_values(array_diff(['chem', 'supply', 'loan', 'ops', 'adm'], $expected));
     foreach ($absent as $key) {
         expect($html)->not->toContain(__('nav.card_'.$key));
         expect($html)->not->toContain($firstUrl[$key]);
@@ -101,7 +102,7 @@ test('the cards are plain links (keyboard, screen readers and open-in-new-tab al
     $html = $this->actingAs(navUser('admin'))->get('/')->assertOk()->getContent();
     $xp = htmlXPath($html);
 
-    expect($xp->query('//main//a[contains(concat(" ", normalize-space(@class), " "), " rounded-xl ")]')->length)->toBe(4);
+    expect($xp->query('//main//a[contains(concat(" ", normalize-space(@class), " "), " rounded-xl ")]')->length)->toBe(5);
     expect($xp->query('//main//button')->length)->toBe(0);
     // Every card's icon is decorative.
     foreach ($xp->query('//main//a[contains(concat(" ", normalize-space(@class), " "), " rounded-xl ")]//svg') as $svg) {

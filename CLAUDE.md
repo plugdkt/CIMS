@@ -265,6 +265,13 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   INSERT` on both append-only tables, full CRUD elsewhere, plus the DDL privileges `php artisan migrate`
   needs). **Any fresh clone of this repo must run this script by hand once, right after its first
   migration, on both databases** — nothing currently automates this reminder.
+- **ITM-2610-051 added a third append-only table, `loan_movements`** (the lending ledger). `restrict_app_grants.sql` now keeps it
+  out of the full-DML list and grants `cmis_app` SELECT + INSERT only (IF EXISTS guard like the other two); the
+  `trg_loan_movements_no_update/_no_delete` triggers are layer #2. Re-run the script on every database after the two
+  `2026_11_04_*` loan migrations (otherwise `cmis_app` is denied on the new tables, and `cmis_testing` tests fail with
+  "command denied"). Deploy order for step 1: migrate -> re-run the grants script on every DB -> `db:seed --class=PermissionSeeder`
+  -> every manager has a `lab_id` and each branch has >= 2 managers (adjust/retire need a different approver) -> `loans:verify`
+  runs hourly from the scheduler.
 - **T-027 only restricts `cmis_app`'s own grants (SEC-DB-02's literal ask); it does NOT split the app
   into three separate DB users** (`cmis_app`/`cmis_ledger`/`cmis_report`) the way SEC-DB-01's broader
   wording suggests. That would need the app to manage multiple DB connections for what's currently one

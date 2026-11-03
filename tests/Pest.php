@@ -539,3 +539,49 @@ if (! function_exists('managedBadge')) {
         ]);
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// ITM-2610-051 (borrow / return module), step 1 helpers.
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('makeCountItem')) {
+    /** An item that may be lent: base unit of dimension COUNT (pcs). Pass a unit code to build a non-lendable one. */
+    function makeCountItem(array $overrides = [], string $unitCode = 'pcs'): \App\Models\Item
+    {
+        return makeItem(array_merge([
+            'name_th' => 'อุปกรณ์ให้ยืมทดสอบ',
+            'category_id' => categoryId('MATERIAL'),
+            'base_unit_id' => \App\Models\Unit::where('code', $unitCode)->firstOrFail()->id,
+        ], $overrides));
+    }
+}
+
+if (! function_exists('loanService')) {
+    function loanService(): \App\Domain\Loan\Services\LoanLedgerService
+    {
+        return app(\App\Domain\Loan\Services\LoanLedgerService::class);
+    }
+}
+
+if (! function_exists('registerLoanAsset')) {
+    /** Registers a POOL (default) or UNIT asset through the real service, as the given manager. */
+    function registerLoanAsset(\App\Models\User $actor, ?\App\Models\Lab $lab = null, string $mode = 'POOL', int|string $qty = 10, ?\App\Models\Item $item = null): \App\Models\LoanAsset
+    {
+        return loanService()->register($actor, [
+            'lab_id' => ($lab ?? \App\Models\Lab::findOrFail($actor->lab_id))->id,
+            'item_id' => ($item ?? makeCountItem())->id,
+            'tracking_mode' => $mode,
+            'qty' => $mode === 'UNIT' ? 1 : $qty,
+        ]);
+    }
+}
+
+if (! function_exists('loanManagers')) {
+    /** Two managers of one branch (needed: adjust/retire require a different approver). @return array{\App\Models\Lab, \App\Models\User, \App\Models\User} */
+    function loanManagers(): array
+    {
+        $lab = makeLab();
+
+        return [$lab, auditorUser(['lab_id' => $lab->id]), labManagerUser(['lab_id' => $lab->id])];
+    }
+}

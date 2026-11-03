@@ -31,6 +31,11 @@ Schedule::command('notifications:check-shelf-life')->dailyAt('07:00');
 // docblock) — hourly is the closest practical stand-in for a periodic integrity scan.
 Schedule::command('notifications:check-hash-chain')->hourly();
 
+// ITM-2610-051: integrity check of the lending ledger (hash chain, totals, approvers), emailing ADMIN on a
+// problem. Hourly like the stock ledger's check above; nothing in the app can break the chain, so this
+// only ever catches changes made outside the application.
+Schedule::command('loans:verify --notify')->hourly();
+
 // T-047: monthly ledger balance snapshot (performance) — runs early on the 1st, covering
 // the calendar month that just closed (the command's own default with no argument).
 Schedule::command('ledger:snapshot')->monthlyOn(1, '01:00');

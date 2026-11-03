@@ -139,5 +139,59 @@ final class PermissionSeeder extends Seeder
             $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view', 'requisition.issue'])->pluck('id');
             $auditorRole->permissions()->detach($staleAuditorPermissionIds);
         }
+
+        $this->seedLoanPermissions();
+    }
+
+    /**
+     * ITM-2610-051 (borrow / return module): the loan.* permission codes and who holds them. A separate block
+     * (own arrays) so nothing above changes. LAB_MANAGER and AUDITOR get the IDENTICAL set (RoleScopingTest
+     * pins that); ADMIN gets every code except loan.approve_advisor (the advisor step is never ADMIN's,
+     * BR-L03), and that exception to the "ADMIN never writes a ledger" rule covers loan_movements only, never
+     * stock_ledger. `loan.verify` is ADMIN only. SCIENTIST is the counter role: it borrows like anyone and
+     * hands out / receives back for its own branch.
+     */
+    private function seedLoanPermissions(): void
+    {
+        $loanCatalog = [
+            'loan.create' => 'สร้าง/ส่งคำขอยืมของตนเอง',
+            'loan.view_own' => 'ดูรายการยืมของตนเอง',
+            'loan.view_all' => 'ดูรายการยืมทั้งหมด (จำกัดสาขาตามบทบาท)',
+            'loan.approve_advisor' => 'อนุมัติคำขอยืมของนิสิตในความดูแล',
+            'loan.approve' => 'อนุมัติ/ปฏิเสธคำขอยืม',
+            'loan.handout' => 'ส่งมอบของ รับคืน บันทึกสภาพ และบันทึกเหตุเสียหาย/สูญหาย',
+            'loan.view_queue' => 'ดูคิวส่งมอบ/รับคืนของสาขา',
+            'loan.renew' => 'ขอต่อกำหนดคืน',
+            'loan.cancel' => 'ยกเลิกเอกสารยืมก่อนส่งมอบ',
+            'loan.incident_resolve' => 'บันทึกผลเรื่องเสียหาย/สูญหาย',
+            'loan.asset_manage' => 'ขึ้นทะเบียน/ปรับ/ปลดระวางของให้ยืม',
+            'loan.verify' => 'ตรวจ hash chain ของบัญชีของให้ยืม',
+            'loan.report' => 'รายงานและ Dashboard ยืม-คืน',
+        ];
+
+        foreach ($loanCatalog as $code => $nameTh) {
+            Permission::updateOrCreate(['code' => $code], ['name_th' => $nameTh]);
+        }
+
+        $borrower = ['loan.create', 'loan.view_own', 'loan.renew', 'loan.cancel'];
+        $branchManager = [
+            'loan.create', 'loan.view_own', 'loan.view_all', 'loan.approve', 'loan.handout', 'loan.view_queue',
+            'loan.renew', 'loan.cancel', 'loan.incident_resolve', 'loan.asset_manage', 'loan.report',
+        ];
+
+        $loanGrants = [
+            'STUDENT' => $borrower,
+            'STAFF' => $borrower,
+            'ADVISOR' => array_merge($borrower, ['loan.approve_advisor']),
+            'SCIENTIST' => array_merge($borrower, ['loan.handout', 'loan.view_queue']),
+            'LAB_MANAGER' => $branchManager,
+            'AUDITOR' => $branchManager,
+            'ADMIN' => array_values(array_diff(array_keys($loanCatalog), ['loan.approve_advisor'])),
+        ];
+
+        foreach ($loanGrants as $roleCode => $permissionCodes) {
+            $role = Role::where('code', $roleCode)->firstOrFail();
+            $role->permissions()->syncWithoutDetaching(Permission::whereIn('code', $permissionCodes)->pluck('id'));
+        }
     }
 }

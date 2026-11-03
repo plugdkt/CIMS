@@ -112,3 +112,11 @@ test('an AUDITOR is scoped to their own branch in items.show and cannot see othe
         ->assertSee($contA->barcode)
         ->assertDontSee($contB->barcode);
 });
+
+test('ITM-2610-051: LAB_MANAGER and AUDITOR hold the identical loan.* permission set, so a manager flavour never changes lending rights', function () {
+    $loanCodes = fn (string $role) => Role::where('code', $role)->firstOrFail()->permissions
+        ->pluck('code')->filter(fn ($c) => str_starts_with($c, 'loan.'))->sort()->values()->all();
+
+    expect($loanCodes('LAB_MANAGER'))->not->toBe([]);
+    expect($loanCodes('AUDITOR'))->toBe($loanCodes('LAB_MANAGER'));
+});

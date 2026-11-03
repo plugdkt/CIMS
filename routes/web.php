@@ -283,6 +283,9 @@ Route::middleware('auth')->prefix('reports')->name('reports.')->group(function (
     Route::get('/stock-takes/{stock_take}/pdf', [ReportController::class, 'stockTakeVariancePdf'])->name('stock-take.pdf');
 });
 
+// ITM-2610-051: borrow / return module (its own route file, one line here).
+require __DIR__.'/loans.php';
+
 // T-053 (ZAP baseline scan, AC #10): a truly unmatched path never enters the 'web'
 // group's middleware at all (there's no route to attach it to), so ForceHttps/
 // SecurityHeaders never ran on it — ZAP flagged the resulting 404 as missing CSP

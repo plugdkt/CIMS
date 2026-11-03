@@ -62,6 +62,11 @@ return [
     'badge_cart' => 'ในตะกร้า :count รายการ',
     'badge_managed_types' => 'ดูแล: :types',
     'badge_no_types' => 'ยังไม่ได้กำหนดชนิดที่ดูแล',
+    // ITM-2610-051: borrow / return card.
+    'card_loan' => 'ยืม-คืนวัสดุ',
+    'card_loan_desc' => 'ยืมวัสดุ/อุปกรณ์ของสาขา ดูของที่พร้อมให้ยืม และจัดการทะเบียนของให้ยืม',
+    'tab_loan_available' => 'พร้อมให้ยืม',
+    'tab_loan_registry' => 'ทะเบียนของให้ยืม',
     'badge_approval' => 'รออนุมัติ :count',
     'badge_dispense' => 'รอจ่ายของ :count',
 ];

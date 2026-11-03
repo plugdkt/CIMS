@@ -93,3 +93,40 @@ test('the DB grant restriction is specific to stock_ledger/audit_logs, not the w
 
     expect(Item::find($item->id)->name_th)->toBe('อัปเดตแล้ว');
 });
+
+// ITM-2610-051: loan_movements is the third append-only table. These need restrict_app_grants.sql to have been
+// re-run on the test database after the loan migrations (it lists loan_movements as SELECT + INSERT only).
+
+test('a raw UPDATE against loan_movements is rejected at the DB grant level', function () {
+    [$lab, $manager] = loanManagers();
+    $asset = registerLoanAsset($manager, $lab, 'POOL', 5);
+    $row = \App\Models\LoanMovement::where('loan_asset_id', $asset->id)->firstOrFail();
+
+    assertCommandDenied(fn () => DB::table('loan_movements')->where('id', $row->id)->update(['qty' => '999.000000']));
+});
+
+test('a raw DELETE against loan_movements is rejected at the DB grant level', function () {
+    [$lab, $manager] = loanManagers();
+    $asset = registerLoanAsset($manager, $lab, 'POOL', 5);
+    $row = \App\Models\LoanMovement::where('loan_asset_id', $asset->id)->firstOrFail();
+
+    assertCommandDenied(fn () => DB::table('loan_movements')->where('id', $row->id)->delete());
+});
+
+test('the app user can still INSERT and SELECT loan_movements, and fully write loan_assets (the restriction is table-specific)', function () {
+    [$lab, $manager] = loanManagers();
+    $asset = registerLoanAsset($manager, $lab, 'POOL', 5);   // INSERT into both tables through the service
+
+    expect(\App\Models\LoanMovement::where('loan_asset_id', $asset->id)->count())->toBe(1);   // SELECT
+
+    DB::table('loan_assets')->where('id', $asset->id)->update(['condition_note' => 'อัปเดตได้']);   // loan_assets keeps UPDATE
+    expect($asset->fresh()->condition_note)->toBe('อัปเดตได้');
+});
+
+test('the grants script keeps loan_movements out of the full-DML list and grants it SELECT + INSERT only', function () {
+    $sql = file_get_contents(base_path('docker/mariadb/restrict_app_grants.sql'));
+
+    expect($sql)->toContain("NOT IN ('stock_ledger', 'audit_logs', 'loan_movements')");
+    expect($sql)->toMatch('/GRANT SELECT, INSERT ON `\', db_name, \'`\.`loan_movements`/');
+    expect($sql)->toContain("table_name = 'loan_movements'");   // IF EXISTS guard, like the other two
+});

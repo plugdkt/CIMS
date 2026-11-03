@@ -12,6 +12,7 @@ use App\Models\ImsLot;
 use App\Models\ImsReceipt;
 use App\Models\Item;
 use App\Models\Lab;
+use App\Models\LoanAsset;
 use App\Models\Location;
 use App\Models\Requisition;
 use App\Models\StockLedger;
@@ -44,8 +45,11 @@ final class MenuRegistry
 
     public const ADMIN = 'adm';
 
+    /** ITM-2610-051: the borrow / return card. */
+    public const LOAN = 'loan';
+
     /** Order matters: when a route belongs to several sections the first visible one wins. */
-    private const PRIORITY = [self::OPS, self::ADMIN, self::CHEMICAL, self::CONSUMABLE];
+    private const PRIORITY = [self::OPS, self::ADMIN, self::LOAN, self::CHEMICAL, self::CONSUMABLE];
 
     /** @var array<string, list<Tab>> menus already built during this request */
     private array $tabCache = [];
@@ -84,6 +88,9 @@ final class MenuRegistry
             $cards[] = $this->card($user, self::CHEMICAL, $withBadges);
             $cards[] = $this->card($user, self::CONSUMABLE, $withBadges);
         }
+
+        // ITM-2610-051: shown only when the user has at least one menu in it (card with no tab is dropped below).
+        $cards[] = $this->card($user, self::LOAN, $withBadges);
 
         if ($this->canAccessWarehouse($user)) {
             $cards[] = $this->card($user, self::OPS, $withBadges);
@@ -194,6 +201,7 @@ final class MenuRegistry
             self::CONSUMABLE => $this->requesterTabs($user, ItemType::CONSUMABLE),
             self::OPS => $this->opsTabs($user, $managingRequisition),
             self::ADMIN => $this->adminTabs($user),
+            self::LOAN => $this->loanTabs($user),
             default => [],
         };
     }
@@ -349,6 +357,27 @@ final class MenuRegistry
         // ADMIN reaches the reports from the back-office card instead (every branch).
         if ($user->can('report.view') && ! $this->canAccessBackoffice($user)) {
             $tabs[] = $this->tab((string) __('nav.reports'), route('reports.index'), ['reports.*']);
+        }
+
+        return $tabs;
+    }
+
+    /**
+     * ITM-2610-051 step 1: only the menus that exist so far (the lending register and the availability page);
+     * borrowing, approval, hand-out and returns join in later steps. Each tab is gated by the same
+     * LoanAssetPolicy ability the page enforces.
+     *
+     * @return list<Tab>
+     */
+    private function loanTabs(User $user): array
+    {
+        $tabs = [];
+
+        if ($user->can('browseAvailable', LoanAsset::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_available'), route('loans.available'), ['loans.available']);
+        }
+        if ($user->can('browseRegistry', LoanAsset::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_registry'), route('loans.assets.index'), ['loans.assets.*']);
         }
 
         return $tabs;

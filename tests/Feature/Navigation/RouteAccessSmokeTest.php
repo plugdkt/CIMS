@@ -39,6 +39,9 @@ dataset('direct page access', function () use ($open, $deny) {
         'requisitions.manage' => [$deny, $open, $open, $open, $deny],
         'warehouse.overview' => [$deny, $open, $open, $open, $deny],
         'shop.index' => [$open, $open, $open, $open, $deny],
+        'loans.available' => [$deny, $open, $open, $open, $deny],
+        'loans.assets.index' => [$deny, $deny, $open, $open, $deny],
+        'loans.assets.create' => [$deny, $deny, $open, $open, $deny],
         'notifications.index' => [$open, $open, $open, $open, $open],
         'account.my-data' => [$open, $open, $open, $open, $open],
     ];
@@ -62,7 +65,7 @@ test('every page behind login still sends a guest to the login page', function (
     'items.index', 'locations.index', 'stock-takes.index', 'disposals.index', 'adjustments.index',
     'reports.index', 'labs.members', 'admin.users.index', 'admin.labs.index', 'requisitions.index',
     'requisitions.manage', 'warehouse.overview', 'shop.index', 'stock-in.index', 'ims.lots.index',
-    'notifications.index', 'account.my-data',
+    'loans.available', 'loans.assets.index', 'loans.assets.create', 'notifications.index', 'account.my-data',
 ]);
 
 test('a shop URL with a type is gated like the plain shop: it adds no way in for someone who cannot request', function () {

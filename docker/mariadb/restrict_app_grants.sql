@@ -20,6 +20,8 @@
 --   docker compose exec -T mariadb mariadb -uroot -p"$DB_ROOT_PASSWORD" \
 --     < docker/mariadb/restrict_app_grants.sql
 --
+-- Append-only tables (SELECT + INSERT only): stock_ledger, audit_logs, loan_movements (ITM-2610-051).
+--
 -- Idempotent (safe to re-run — e.g. after a fresh `migrate:fresh`, or after
 -- manually creating cmis_testing per CLAUDE.md's cmis_testing deviation
 -- note). Silently skips stock_ledger/audit_logs for any database where
@@ -40,7 +42,7 @@ BEGIN
     DECLARE cur CURSOR FOR
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = db_name
-          AND table_name NOT IN ('stock_ledger', 'audit_logs');
+          AND table_name NOT IN ('stock_ledger', 'audit_logs', 'loan_movements');
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
     SET @sql = CONCAT('REVOKE ALL PRIVILEGES ON `', db_name, '`.* FROM ''cmis_app''@''%''');
@@ -54,7 +56,7 @@ BEGIN
     );
     PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-    -- full DML on every table that exists except the two append-only ones
+    -- full DML on every table that exists except the append-only ones (stock_ledger, audit_logs, loan_movements)
     OPEN cur;
     read_loop: LOOP
         FETCH cur INTO tbl;
@@ -78,6 +80,12 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = db_name AND table_name = 'audit_logs') THEN
         SET @sql = CONCAT('GRANT SELECT, INSERT ON `', db_name, '`.`audit_logs` TO ''cmis_app''@''%''');
+        PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+    END IF;
+
+    -- ITM-2610-051: the loan ledger is append-only too (trg_loan_movements_no_update / _no_delete are layer #2)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = db_name AND table_name = 'loan_movements') THEN
+        SET @sql = CONCAT('GRANT SELECT, INSERT ON `', db_name, '`.`loan_movements` TO ''cmis_app''@''%''');
         PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
     END IF;
 END$$

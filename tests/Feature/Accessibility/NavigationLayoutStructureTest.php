@@ -186,7 +186,7 @@ test('the home page has one level-1 heading, and every card link has readable te
     expect($xp->query('//main//h1')->length)->toBe(1);
 
     $cards = $xp->query('//main//a[contains(concat(" ", normalize-space(@class), " "), " rounded-xl ")]');
-    expect($cards->length)->toBe(4);
+    expect($cards->length)->toBe(5);
     foreach ($cards as $card) {
         expect(trim((string) $xp->evaluate('string(.//span[contains(@class, "text-base")][1])', $card)))->not->toBe('');
         foreach ($xp->query('.//svg', $card) as $svg) {
