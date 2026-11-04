@@ -64,11 +64,14 @@ final class CompleteProfileRequest extends FormRequest
                 : ['required', 'string', 'max:32'],
             'program' => ['required', 'string', 'max:255'],
             'faculty' => ['required', 'string', 'max:255'],
-            'lab_id' => [
-                'required',
-                'integer',
-                Rule::exists('labs', 'id')->where('is_active', true),
-            ],
+            'lab_id' => $user !== null && $user->labLocked()
+                // Locked once set (ITM-2610-051, BR-L05): the stored branch, or nothing, is the only accepted value.
+                ? ['nullable', Rule::in([(string) $user->lab_id])]
+                : [
+                    'required',
+                    'integer',
+                    Rule::exists('labs', 'id')->where('is_active', true),
+                ],
             'advisor_id' => $lockedAdvisor !== null
                 // Locked once set (CEO 2026-11-02): the stored advisor, or nothing, is the only accepted value.
                 ? ['nullable', Rule::in([$lockedAdvisor])]
@@ -114,6 +117,7 @@ final class CompleteProfileRequest extends FormRequest
             'faculty.required' => __('auth.validation.faculty_required'),
             'lab_id.required' => __('auth.validation.lab_required'),
             'lab_id.exists' => __('auth.validation.lab_invalid'),
+            'lab_id.in' => __('auth.validation.lab_locked'),
             'advisor_id.in' => __('auth.validation.advisor_locked'),
             'advisor_id.required_if' => __('auth.validation.advisor_required_for_student'),
             'advisor_id.required' => __('auth.validation.advisor_required_for_student'),

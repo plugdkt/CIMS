@@ -339,16 +339,19 @@ test('audit: the first fill is recorded with only the keys that changed, old to 
     expect($rows[0]->entity_id)->toEqual($user->id);
 });
 
-test('audit: a later change records only the key that changed (branch), keeping the locked values out', function () use ($post) {
+test('audit: a later change records only the key that changed (the advisor of an older account that never had one), keeping the locked values out', function () use ($post) {
+    // ITM-2610-051 (BR-L05): the branch is locked once set, so it can no longer be the "later change" this test used to
+    // exercise (ProfileLabLockTest now covers that refusal). The advisor of a completed profile that never had one is
+    // the remaining field that can still change on a later save.
     $advisor = profileAdvisor();
-    $otherLab = makeLab();
-    $user = profileUser(['person_type' => 'STUDENT', 'advisor_id' => $advisor->id, 'lab_id' => $this->profileLab->id, 'profile_completed_at' => now()]);
+    $user = profileUser(['person_type' => 'STUDENT', 'lab_id' => $this->profileLab->id, 'profile_completed_at' => now()]);
+    expect($user->advisorLocked())->toBeFalse();
 
-    $post($this, $user, lockProfilePayload(['advisor_id' => $advisor->id, 'lab_id' => $otherLab->id]))->assertSessionHasNoErrors();
+    $post($this, $user, lockProfilePayload(['advisor_id' => $advisor->id]))->assertSessionHasNoErrors();
 
     $row = AuditLog::where('action', PROFILE_AUDIT)->where('user_id', $user->id)->firstOrFail();
-    expect($row->old_value)->toBe(['lab_id' => $this->profileLab->id]);
-    expect($row->new_value)->toBe(['lab_id' => $otherLab->id]);
+    expect($row->old_value)->toBe(['advisor_id' => null]);
+    expect($row->new_value)->toBe(['advisor_id' => $advisor->id]);
 });
 
 test('audit: re-saving with nothing changed writes no row, and a refused choice writes none either', function () use ($post) {

@@ -49,17 +49,25 @@
         </div>
 
         <div>
-            <label for="lab_id" class="block text-sm font-medium mb-1">{{ __('auth.field_lab') }}</label>
-            <select id="lab_id" name="lab_id"
-                    class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
-                <option value="">— {{ __('auth.select_lab_placeholder') }} —</option>
-                @foreach ($labs as $lab)
-                    <option value="{{ $lab->id }}" @selected((int) old('lab_id', $user?->lab_id) === $lab->id)>
-                        {{ $lab->code }} - {{ $lab->name_th }}
-                    </option>
-                @endforeach
-            </select>
-            <p class="mt-1 text-xs text-ink-faint">{{ __('auth.field_lab_help') }}</p>
+            <label for="{{ $user?->labLocked() ? 'lab_display' : 'lab_id' }}" class="block text-sm font-medium mb-1">{{ __('auth.field_lab') }}</label>
+            @if ($user?->labLocked())
+                {{-- Locked once set (ITM-2610-051, BR-L05): read-only; the hidden field keeps the stored branch. --}}
+                <input type="hidden" id="lab_id" name="lab_id" value="{{ $user->lab_id }}">
+                <input type="text" id="lab_display" value="{{ $user->lab?->code }} - {{ $user->lab?->name_th }}" readonly aria-describedby="lab_locked_help"
+                       class="w-full rounded-lg border border-border bg-surface-alt px-3 py-2 text-sm text-ink-muted">
+                <p id="lab_locked_help" class="mt-1 text-xs text-ink-faint">{{ __('auth.lab_locked_help') }}</p>
+            @else
+                <select id="lab_id" name="lab_id"
+                        class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent">
+                    <option value="">— {{ __('auth.select_lab_placeholder') }} —</option>
+                    @foreach ($labs as $lab)
+                        <option value="{{ $lab->id }}" @selected((int) old('lab_id', $user?->lab_id) === $lab->id)>
+                            {{ $lab->code }} - {{ $lab->name_th }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-ink-faint">{{ __('auth.field_lab_help') }}</p>
+            @endif
             @error('lab_id') <p class="mt-1 text-xs text-danger">{{ $message }}</p> @enderror
         </div>
 

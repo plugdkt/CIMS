@@ -54,7 +54,8 @@ final class CompleteProfileController extends Controller
             'person_code_encrypted' => $this->blankToNull($request->string('person_code')->toString()),
             'program' => $request->string('program')->toString(),
             'faculty' => $request->string('faculty')->toString(),
-            'lab_id' => $request->integer('lab_id'),
+            // A branch that is already set is never taken from the form (BR-L05); the request refused any other value.
+            'lab_id' => $user->labLocked() ? $user->lab_id : $request->integer('lab_id'),
             // A locked advisor stays as stored (the request already refused any other value).
             'advisor_id' => $advisorInput === null || $advisorInput === '' ? null : (int) $advisorInput,
             'profile_completed_at' => now(),

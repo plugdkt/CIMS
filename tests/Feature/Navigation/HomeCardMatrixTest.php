@@ -16,9 +16,10 @@ uses(RefreshDatabase::class);
  */
 
 dataset('home card matrix', [
-    'STUDENT' => ['student', ['chem', 'supply']],
-    'STAFF' => ['staff', ['chem', 'supply']],
-    'ADVISOR' => ['advisor', ['chem', 'supply']],
+    // ITM-2610-051 step 2: every role that holds loan.view_own has the loan card ("ยืม-คืนวัสดุ"; first tab = things I borrowed).
+    'STUDENT' => ['student', ['chem', 'supply', 'loan']],
+    'STAFF' => ['staff', ['chem', 'supply', 'loan']],
+    'ADVISOR' => ['advisor', ['chem', 'supply', 'loan']],
     'SCIENTIST (dispenses, so has the warehouse card and the loan counter)' => ['scientist', ['chem', 'supply', 'loan', 'ops']],
     'LAB_MANAGER' => ['lab_manager', ['chem', 'supply', 'loan', 'ops']],
     'AUDITOR (same grants as LAB_MANAGER)' => ['auditor', ['chem', 'supply', 'loan', 'ops']],
@@ -39,7 +40,7 @@ test('the home page shows exactly the cards the role may use, and the others are
     $firstUrl = [
         'chem' => route('shop.index', ['type' => 'chemical']),
         'supply' => route('shop.index', ['type' => 'consumable']),
-        'loan' => route('loans.available'),
+        'loan' => route('loans.mine'),   // step 2: the first tab of the loan card is "things I borrowed"
         'ops' => route('warehouse.overview'),
         'adm' => route('admin.users.index'),
     ];

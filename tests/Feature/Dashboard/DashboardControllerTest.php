@@ -31,7 +31,7 @@ test('user-reported 2026-09-21 (reworked for ITM-2610-052): every page has a way
     }
 });
 
-test('§7.9: a logged-in STUDENT sees the home cards (requesting only) and no report.view analytics anywhere', function () {
+test('§7.9: a logged-in STUDENT sees the home cards (requesting + the loan card, no warehouse) and no report.view analytics anywhere', function () {
     $student = studentUser();
 
     $response = $this->actingAs($student)->get('/');
@@ -39,7 +39,7 @@ test('§7.9: a logged-in STUDENT sees the home cards (requesting only) and no re
     $response->assertOk()->assertViewIs('home');
     $response->assertViewHas('cards');
     expect(array_column(homeCards($response->getContent()), 'title'))
-        ->toBe([__('nav.card_chem'), __('nav.card_supply')]);
+        ->toBe([__('nav.card_chem'), __('nav.card_supply'), __('nav.card_loan')]);   // ITM-2610-051 step 2: a student borrows too
     $response->assertDontSee(__('home.below_reorder'));
     $response->assertDontSee(__('home.monthly_chart_title'));
 

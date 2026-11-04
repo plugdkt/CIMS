@@ -162,6 +162,17 @@ class User extends Authenticatable
         return $this->profile_completed_at !== null && $this->advisor_id !== null;
     }
 
+    /**
+     * ITM-2610-051 (BR-L05): the branch decides who may approve a loan and which assets a person may borrow, so a
+     * user must not be able to move themselves to another branch from the complete-profile page. Once a branch is
+     * set (by the first fill-in, an ADMIN, a branch manager or the import) only an ADMIN changes it, in
+     * `UserRoleManager::setLab()` (audited). A user with no branch can still choose one once.
+     */
+    public function labLocked(): bool
+    {
+        return $this->lab_id !== null;
+    }
+
     public function hasPermission(string $code): bool
     {
         return $this->roles->flatMap(fn ($role) => $role->permissions)->contains('code', $code);

@@ -211,8 +211,10 @@ test('verify from the page is for ADMIN (loan.verify) only, and reports an intac
 
 // --- the menu ------------------------------------------------------------------------------------------------
 
-test('the loan card has exactly the tabs the user may open: dispenser = available; manager and ADMIN = available + register; others = none', function () {
-    $registry = fn ($user) => array_column(app(MenuRegistry::class)->tabsFor($user, MenuRegistry::LOAN), 'label');
+test('the loan card has exactly the step-1 tabs the user may open: dispenser = available; manager and ADMIN = available + register; others = none', function () {
+    // Step 2 added the borrower / approver tabs to the same card (see LoanStep2AccessTest); this test pins the step-1 pair only.
+    $stepOneTabs = [__('nav.tab_loan_available'), __('nav.tab_loan_registry')];
+    $registry = fn ($user) => array_values(array_intersect(array_column(app(MenuRegistry::class)->tabsFor($user, MenuRegistry::LOAN), 'label'), $stepOneTabs));
 
     expect($registry(navUser('scientist')))->toBe([__('nav.tab_loan_available')]);
     foreach (['lab_manager', 'auditor', 'admin'] as $kind) {
@@ -230,8 +232,11 @@ test('the loan card has exactly the tabs the user may open: dispenser = availabl
 test('the loan card shows only for users who have a tab in it, and each loan page opens inside it with its own tab marked', function () {
     $titles = fn ($user) => array_column(homeCards($this->actingAs($user)->get('/')->assertOk()->getContent()), 'title');
 
-    expect($titles(navUser('student')))->not->toContain(__('nav.card_loan'));
-    expect($titles(navUser('scientist', ['lab_id' => null])))->not->toContain(__('nav.card_loan'));
+    // Step 2: everyone who may borrow has a tab ("things I borrowed") and so the card, branch or not. Only a user
+    // with no loan permission at all has none. (Before step 2 a student and a branch-less scientist had no card.)
+    expect($titles(navUser('nocard')))->not->toContain(__('nav.card_loan'));
+    expect($titles(navUser('student')))->toContain(__('nav.card_loan'));
+    expect($titles(navUser('scientist', ['lab_id' => null])))->toContain(__('nav.card_loan'));
     expect($titles(navUser('scientist')))->toContain(__('nav.card_loan'));
 
     [$lab, $manager] = loanManagers();

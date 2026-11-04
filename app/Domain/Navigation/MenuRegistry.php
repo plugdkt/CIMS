@@ -12,6 +12,7 @@ use App\Models\ImsLot;
 use App\Models\ImsReceipt;
 use App\Models\Item;
 use App\Models\Lab;
+use App\Models\Loan;
 use App\Models\LoanAsset;
 use App\Models\Location;
 use App\Models\Requisition;
@@ -373,9 +374,9 @@ final class MenuRegistry
     }
 
     /**
-     * ITM-2610-051 step 1: only the menus that exist so far (the lending register and the availability page);
-     * borrowing, approval, hand-out and returns join in later steps. Each tab is gated by the same
-     * LoanAssetPolicy ability the page enforces.
+     * ITM-2610-051 steps 1-2: the borrower's pages (mine, request), the approval queue and the branch list, then the
+     * lending register and the availability page; hand-out and returns join in later steps. Each tab is gated by the
+     * same LoanPolicy / LoanAssetPolicy ability the page enforces. The "no branch yet" page belongs to the first tab.
      *
      * @return list<Tab>
      */
@@ -383,6 +384,18 @@ final class MenuRegistry
     {
         $tabs = [];
 
+        if ($user->can('browseOwn', Loan::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_mine'), route('loans.mine'), ['loans.mine', 'loans.show', 'loans.edit', 'loans.pending-lab']);
+        }
+        if ($user->can('createLoan', Loan::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_new'), route('loans.create'), ['loans.create']);
+        }
+        if ($user->can('browseQueue', Loan::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_queue'), route('loans.queue'), ['loans.queue']);
+        }
+        if ($user->can('browseBranch', Loan::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_branch'), route('loans.branch'), ['loans.branch']);
+        }
         if ($user->can('browseAvailable', LoanAsset::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_loan_available'), route('loans.available'), ['loans.available']);
         }

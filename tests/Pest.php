@@ -585,3 +585,152 @@ if (! function_exists('loanManagers')) {
         return [$lab, auditorUser(['lab_id' => $lab->id]), labManagerUser(['lab_id' => $lab->id])];
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// ITM-2610-051 (borrow / return module), step 2 helpers (request / approve / cancel).
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('loanBranch')) {
+    /**
+     * A branch with one POOL asset of `$qty` pieces. The manager who registers it is deactivated afterwards, so the
+     * branch roster the test reasons about (who may approve, who is notified) holds only the people the test adds.
+     *
+     * @return array{\App\Models\Lab, \App\Models\LoanAsset}
+     */
+    function loanBranch(int $qty = 10): array
+    {
+        $lab = makeLab();
+        $stocker = auditorUser(['lab_id' => $lab->id]);
+        $asset = registerLoanAsset($stocker, $lab, 'POOL', $qty);
+        $stocker->update(['is_active' => false]);
+
+        return [$lab, $asset];
+    }
+}
+
+if (! function_exists('loanDates')) {
+    /** @return array{loan_date: string, due_date: string} pick-up `$startInDays` from today, due `$days` after that */
+    function loanDates(int $days = 7, int $startInDays = 0): array
+    {
+        $from = now()->startOfDay()->addDays($startInDays);
+
+        return ['loan_date' => $from->format('Y-m-d'), 'due_date' => $from->copy()->addDays($days)->format('Y-m-d')];
+    }
+}
+
+if (! function_exists('loanData')) {
+    /** @return array<string, mixed> the header fields LoanService::createDraft() takes */
+    function loanData(array $overrides = []): array
+    {
+        return array_merge(['purpose_type' => 'TEACHING'], loanDates(), $overrides);
+    }
+}
+
+if (! function_exists('draftLoan')) {
+    /**
+     * A DRAFT loan made through the real LoanService. `$actor` (counter staff) makes it on behalf of `$borrower`.
+     *
+     * @param  \App\Models\LoanAsset|list<\App\Models\LoanAsset>  $assets  every asset gets `$qty` pieces
+     */
+    function draftLoan(\App\Models\User $borrower, \App\Models\LoanAsset|array $assets, int|string $qty = 2, ?\App\Models\User $actor = null, array $data = []): \App\Models\Loan
+    {
+        $assets = $assets instanceof \App\Models\LoanAsset ? [$assets] : $assets;
+        $lines = [];
+        foreach ($assets as $asset) {
+            $lines[$asset->ulid] = (string) $qty;
+        }
+
+        $resolver = app(\App\Domain\Loan\Services\BorrowerResolver::class);
+        $context = $actor === null ? $resolver->forSelf($borrower->fresh()) : $resolver->forOnBehalf($actor->fresh(), $borrower->id);
+
+        return app(\App\Domain\Loan\Services\LoanService::class)->createDraft($actor ?? $borrower, $context, loanData($data), $lines);
+    }
+}
+
+if (! function_exists('submittedLoan')) {
+    function submittedLoan(\App\Models\User $borrower, \App\Models\LoanAsset|array $assets, int|string $qty = 2, ?\App\Models\User $actor = null, array $data = []): \App\Models\Loan
+    {
+        $loan = draftLoan($borrower, $assets, $qty, $actor, $data);
+
+        return app(\App\Domain\Loan\Services\LoanService::class)->submit(($actor ?? $borrower)->fresh(), $loan);
+    }
+}
+
+if (! function_exists('forceLoanStatus')) {
+    /** Puts a loan into a status (and columns) directly, for states step 2 cannot reach yet (hand-out etc.). */
+    function forceLoanStatus(\App\Models\Loan $loan, string $status, array $extra = []): \App\Models\Loan
+    {
+        \Illuminate\Support\Facades\DB::table('loans')->where('id', $loan->id)->update(array_merge(['status' => $status], $extra));
+
+        return $loan->fresh();
+    }
+}
+
+if (! function_exists('loanMailCount')) {
+    /** Generic notification emails (sent or queued) addressed to this user. */
+    function loanMailCount(\App\Models\User $user): int
+    {
+        return \Illuminate\Support\Facades\Mail::sent(\App\Mail\NotificationMail::class, fn ($m) => $m->hasTo($user->email))->count()
+            + \Illuminate\Support\Facades\Mail::queued(\App\Mail\NotificationMail::class, fn ($m) => $m->hasTo($user->email))->count();
+    }
+}
+
+if (! function_exists('loanNotices')) {
+    /** @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\Notification> */
+    function loanNotices(string $type): \Illuminate\Database\Eloquent\Collection
+    {
+        return \App\Models\Notification::where('type', $type)->get();
+    }
+}
+
+if (! function_exists('loanAudit')) {
+    /** @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\AuditLog> */
+    function loanAudit(string $action, \App\Models\Loan $loan): \Illuminate\Database\Eloquent\Collection
+    {
+        return \App\Models\AuditLog::where('action', $action)->where('entity_type', \App\Models\Loan::class)->where('entity_id', $loan->id)->get();
+    }
+}
+
+if (! function_exists('loanExtraAsset')) {
+    /** A second POOL asset in a branch made by loanBranch() (its register clerk is deactivated again). */
+    function loanExtraAsset(\App\Models\Lab $lab, int $qty = 5, ?\App\Models\Item $item = null, string $mode = 'POOL'): \App\Models\LoanAsset
+    {
+        $stocker = auditorUser(['lab_id' => $lab->id]);
+        $asset = registerLoanAsset($stocker, $lab, $mode, $qty, $item);
+        $stocker->update(['is_active' => false]);
+
+        return $asset;
+    }
+}
+
+if (! function_exists('loanManagerPost')) {
+    /** POST the MANAGER step (logged-in approver) of a loan. */
+    function loanManagerPost($test, \App\Models\User $user, \App\Models\Loan $loan, array $payload = ['decision' => 'APPROVE'])
+    {
+        return $test->actingAs($user)->post(route('loans.manager-decide', $loan), $payload);
+    }
+}
+
+if (! function_exists('loanAdvisorPost')) {
+    /** POST the ADVISOR step (logged-in advisor) of a loan. */
+    function loanAdvisorPost($test, \App\Models\User $user, \App\Models\Loan $loan, array $payload = ['decision' => 'APPROVE'])
+    {
+        return $test->actingAs($user)->post(route('loans.advisor-decide', $loan), $payload);
+    }
+}
+
+if (! function_exists('loanPayload')) {
+    /** The request form's fields: header (today + 7 days by default) and `qty` = asset ulid => quantity. */
+    function loanPayload(array $qty, array $extra = []): array
+    {
+        return array_merge(loanData(), ['qty' => $qty], $extra);
+    }
+}
+
+if (! function_exists('loanCancelPost')) {
+    /** POST the cancel form of a loan as the given user. */
+    function loanCancelPost($test, \App\Models\User $user, \App\Models\Loan $loan, array $payload = [])
+    {
+        return $test->actingAs($user)->post(route('loans.cancel', $loan), $payload);
+    }
+}
