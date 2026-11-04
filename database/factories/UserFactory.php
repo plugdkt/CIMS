@@ -18,11 +18,17 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        // Every unique column derives from a fresh ULID (time + 80 random bits), lowercased because the
+        // DB collation compares case-insensitively. Faker's unique() was dropped: it checks in-memory and
+        // case-sensitively, so values differing only by case (or a reset between tests) collided in the DB.
+        $ulid = (string) Str::ulid();
+        $key = strtolower($ulid);
+
         return [
-            'ulid' => (string) Str::ulid(),
-            'sso_subject' => fake()->unique()->userName(),
-            'username' => fake()->unique()->userName(),
-            'email' => fake()->unique()->safeEmail(),
+            'ulid' => $ulid,
+            'sso_subject' => 'sso_'.$key,
+            'username' => 'user_'.$key,
+            'email' => 'user_'.$key.'@example.test',
             'full_name' => fake()->name(),
             'pos_name' => null,
             'div_name' => null,
