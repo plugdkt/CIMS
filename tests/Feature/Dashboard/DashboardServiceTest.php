@@ -33,20 +33,44 @@ test('§7.9 (updated 2026-09-21: requisition review moved from SCIENTIST to ware
     expect(app(DashboardService::class)->pendingRequisitionsCount($auditor))->toBe(2);
 });
 
-test('§7.9 (updated 2026-09-21): pendingRequisitionsCount also counts requisitions awaiting issuance (APPROVED/PARTIALLY_ISSUED) for a requisition.view_all holder who also holds requisition.issue', function () {
-    // No seeded role currently combines requisition.view_all with requisition.issue — this
-    // exercises DashboardService's own branch directly rather than asserting it against
-    // a real-world role combination that doesn't exist post-2026-09-21 restructuring.
+test('§7.9 (approvals.md K, 2026-11-04): a warehouse manager (view_all + requisition.issue, both seeded) counts requisitions awaiting issuance (APPROVED/PARTIALLY_ISSUED) of the kinds they hold', function () {
+    // Since 2026-11-04 the seeded AUDITOR/LAB_MANAGER role itself holds requisition.issue next to view_all.
     $lab = makeLab();
     $auditor = auditorUser(['lab_id' => $lab->id]);
-    Role::where('code', 'AUDITOR')->firstOrFail()->permissions()
-        ->attach(\App\Models\Permission::where('code', 'requisition.issue')->firstOrFail());
 
     submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'APPROVED']);
     submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'PARTIALLY_ISSUED']);
     submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'ISSUED']);
+    submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'APPROVED']);
 
-    expect(app(DashboardService::class)->pendingRequisitionsCount($auditor->fresh()))->toBe(2);
+    expect(app(DashboardService::class)->pendingRequisitionsCount($auditor->fresh()))->toBe(3);
+
+    // A manager who only holds the consumable kind is not asked to dispense the chemical ones (request_type default CHEMICAL).
+    $consumableOnly = auditorUser(['lab_id' => $lab->id, 'itemTypes' => ['consumable']]);
+    expect(app(DashboardService::class)->dispenseQueueCount($consumableOnly->fresh()))->toBe(0);
+});
+
+test('approvals.md K: a scientist counts their own branch\'s approval queue plus the dispense queue, never another branch\'s', function () {
+    $lab = makeLab();
+    $otherLab = makeLab();
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+
+    submittedRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id]);                                  // non-student SUBMITTED: approval
+    submittedRequisition(studentUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id]);                                // student SUBMITTED: waits for the advisor, not counted
+    submittedRequisition(studentUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'ADVISOR_APPROVED']); // legacy row: approval
+    submittedRequisition(studentUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id])->update(['status' => 'APPROVED']);        // dispense
+    submittedRequisition(staffUser(['lab_id' => $otherLab->id]), ['lab_id' => $otherLab->id]);                       // other branch: no
+    submittedRequisition(staffUser(['lab_id' => $otherLab->id]), ['lab_id' => $otherLab->id])->update(['status' => 'APPROVED']); // other branch: no
+
+    $service = app(DashboardService::class);
+    expect($service->approvalQueueCount($scientist))->toBe(2);
+    expect($service->dispenseQueueCount($scientist))->toBe(1);
+    expect($service->pendingRequisitionsCount($scientist))->toBe(3);
+
+    // No branch on the account = nothing (and no zero to show).
+    expect($service->approvalQueueCount(scientistUser(['lab_id' => null])))->toBeNull();
+    // ADMIN approves nothing: no approval queue at all.
+    expect($service->approvalQueueCount(adminUser(['lab_id' => $lab->id])))->toBeNull();
 });
 
 test('§7.9: a plain requester (no action permission) sees only their own in-flight requisitions', function () {
@@ -58,7 +82,7 @@ test('§7.9: a plain requester (no action permission) sees only their own in-fli
     expect(app(DashboardService::class)->pendingRequisitionsCount($staff))->toBe(1);
 });
 
-test('§7.9: a LAB_MANAGER (no requisition action permission) sees 0, not an error', function () {
+test('§7.9: a LAB_MANAGER with no branch assigned sees 0, not an error', function () {
     $labManager = labManagerUser();
 
     expect(app(DashboardService::class)->pendingRequisitionsCount($labManager))->toBe(0);

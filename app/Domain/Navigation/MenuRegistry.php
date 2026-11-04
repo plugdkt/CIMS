@@ -148,7 +148,12 @@ final class MenuRegistry
                 continue;
             }
 
-            $tabs = $this->tabsFor($user, $section, $managing);
+            // An approved / issued requisition belongs under "to issue" for someone who dispenses, not "waiting".
+            $toIssue = $managing
+                && in_array($requisition->status, ['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED'], true)
+                && $user->can('requisition.issue');
+
+            $tabs = $this->tabsFor($user, $section, $managing, $toIssue);
             if (! $this->anyRouteMatches($tabs, $routeName)) {
                 continue;
             }
@@ -176,17 +181,17 @@ final class MenuRegistry
     /**
      * @return list<Tab>
      */
-    public function tabsFor(User $user, string $section, bool $managingRequisition = false): array
+    public function tabsFor(User $user, string $section, bool $managingRequisition = false, bool $managingToIssue = false): array
     {
-        $key = $user->id.'|'.$section.'|'.($managingRequisition ? '1' : '0');
+        $key = $user->id.'|'.$section.'|'.($managingRequisition ? '1' : '0').'|'.($managingToIssue ? '1' : '0');
 
-        return $this->tabCache[$key] ??= $this->buildTabs($user, $section, $managingRequisition);
+        return $this->tabCache[$key] ??= $this->buildTabs($user, $section, $managingRequisition, $managingToIssue);
     }
 
     /**
      * @return list<Tab>
      */
-    private function buildTabs(User $user, string $section, bool $managingRequisition): array
+    private function buildTabs(User $user, string $section, bool $managingRequisition, bool $managingToIssue = false): array
     {
         // A section the user has no card for has no menu, whatever single abilities they hold.
         if ($section === self::OPS && ! $this->canAccessWarehouse($user)) {
@@ -199,7 +204,7 @@ final class MenuRegistry
         return match ($section) {
             self::CHEMICAL => $this->requesterTabs($user, ItemType::CHEMICAL),
             self::CONSUMABLE => $this->requesterTabs($user, ItemType::CONSUMABLE),
-            self::OPS => $this->opsTabs($user, $managingRequisition),
+            self::OPS => $this->opsTabs($user, $managingRequisition, $managingToIssue),
             self::ADMIN => $this->adminTabs($user),
             self::LOAN => $this->loanTabs($user),
             default => [],
@@ -311,15 +316,20 @@ final class MenuRegistry
     /**
      * @return list<Tab>
      */
-    private function opsTabs(User $user, bool $managingRequisition = false): array
+    private function opsTabs(User $user, bool $managingRequisition = false, bool $managingToIssue = false): array
     {
         // A manager opening a requisition from the queue stays inside the warehouse card.
         $requisitionPages = $managingRequisition ? ['requisitions.show', 'requisitions.pdf'] : [];
+        // ...under "waiting", or under "to issue" when it is already approved and the viewer dispenses.
+        $waitingPages = $managingToIssue ? [] : $requisitionPages;
+        $issuePages = $managingToIssue || ! ($user->can('requisition.view_all') || $user->can('requisition.approve_scientist')) ? $requisitionPages : [];
 
         $tabs = [$this->tab((string) __('nav.tab_overview'), route('warehouse.overview'), ['warehouse.overview'])];
 
-        if ($user->can('requisition.view_all')) {
-            $tabs[] = $this->tab((string) __('nav.tab_waiting'), route('requisitions.manage', ['tab' => 'waiting']), ['requisitions.manage'], ['tab' => 'waiting'], $requisitionPages);
+        // approvals.md K (2026-11-04): scientists approve, so they get the "waiting" tab too.
+        $seesWaiting = $user->can('requisition.view_all') || $user->can('requisition.approve_scientist');
+        if ($seesWaiting) {
+            $tabs[] = $this->tab((string) __('nav.tab_waiting'), route('requisitions.manage', ['tab' => 'waiting']), ['requisitions.manage'], ['tab' => 'waiting'], $waitingPages);
         }
         if ($user->can('manage', Requisition::class)) {
             $tabs[] = $this->tab(
@@ -327,7 +337,7 @@ final class MenuRegistry
                 route('requisitions.manage', ['tab' => 'to_issue']),
                 ['requisitions.manage'],
                 ['tab' => 'to_issue'],
-                ['requisitions.issue.*', ...($user->can('requisition.view_all') ? [] : $requisitionPages)],
+                ['requisitions.issue.*', ...$issuePages],
             );
         }
         if ($user->can('viewAny', StockTake::class)) {

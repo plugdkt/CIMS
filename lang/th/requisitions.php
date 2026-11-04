@@ -114,7 +114,8 @@ return [
     'advisor_decision_recorded' => 'บันทึกผลการพิจารณาเรียบร้อยแล้ว',
 
     // FR-RQ-08: warehouse manager / lab manager review
-    'scientist_decision_title' => 'พิจารณาใบขอเบิก (ผู้ดูแลคลัง)',
+    'scientist_decision_title' => 'พิจารณาใบขอเบิก (นักวิทยาศาสตร์/ผู้ดูแลคลัง)',
+    'self_approval_notice' => 'คุณเป็นผู้ขอเบิกใบนี้ ระบบอนุญาตให้อนุมัติเองได้ แต่จะบันทึกไว้ใน audit log และรายงานให้ผู้ตรวจทบทวน',
     'scientist_approve_decision' => 'เห็นควรให้เบิก',
     'scientist_reject_decision' => 'ไม่เห็นควรให้เบิก',
     'scientist_decision_recorded' => 'บันทึกผลการพิจารณาเรียบร้อยแล้ว',

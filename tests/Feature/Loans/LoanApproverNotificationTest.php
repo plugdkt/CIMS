@@ -77,14 +77,29 @@ test('one submission sends one notice; two separate submissions send two', funct
     expect(namedNotices())->toHaveCount(2);
 });
 
-test('an ADMIN named as approver is notified too, and the person acting need not be a manager (ADMIN acting)', function () {
+test('approvals.md K: a SCIENTIST of the branch named as approver is notified (in-app and by email), and ADMIN can no longer be named', function () {
+    $scientist = scientistUser(['lab_id' => $this->lab->id]);
+    $admin = adminUser(['lab_id' => $this->lab->id]);
+
+    $this->actingAs($this->actor)->post(route('loans.assets.adjust', $this->asset), ['direction' => 'IN', 'qty' => 1, 'note' => NOTIFY_NOTE, 'approved_by' => $scientist->id])
+        ->assertRedirect(route('loans.assets.show', $this->asset));
+    expect(namedNotices()->pluck('user_id')->all())->toBe([$scientist->id]);
+    expect(loanMailsTo($scientist))->toBe(1);
+
+    // Naming an ADMIN is refused: no movement, no notice, no mail.
+    $this->actingAs($this->actor)->post(route('loans.assets.adjust', $this->asset), ['direction' => 'IN', 'qty' => 1, 'note' => NOTIFY_NOTE, 'approved_by' => $admin->id])
+        ->assertSessionHasErrors();
+    expect(namedNotices()->pluck('user_id')->all())->toBe([$scientist->id]);
+    expect(loanMailsTo($admin))->toBe(0);
+    expect(LoanMovement::where('loan_asset_id', $this->asset->id)->where('movement_type', 'ADJUST_IN')->count())->toBe(1);
+});
+
+test('an ADMIN may still be the person acting, naming a real branch approver', function () {
     $admin = adminUser();
 
-    $this->actingAs($this->actor)->post(route('loans.assets.adjust', $this->asset), ['direction' => 'IN', 'qty' => 1, 'note' => NOTIFY_NOTE, 'approved_by' => $admin->id]);
-    expect(namedNotices()->pluck('user_id')->all())->toBe([$admin->id]);
-
     $this->actingAs($admin)->post(route('loans.assets.adjust', $this->asset), ['direction' => 'IN', 'qty' => 1, 'note' => NOTIFY_NOTE, 'approved_by' => $this->actor->id]);
-    expect(namedNotices()->pluck('user_id')->sort()->values()->all())->toBe(collect([$admin->id, $this->actor->id])->sort()->values()->all());
+
+    expect(namedNotices()->pluck('user_id')->all())->toBe([$this->actor->id]);
 });
 
 // --- nothing is sent when the movement is not recorded ---------------------------------------------------------------
@@ -186,17 +201,14 @@ test('a long reason is cut, not dumped whole', function () {
     expect(mb_strlen(namedNotices()->firstOrFail()->body))->toBeLessThan(450);
 });
 
-test('the receiver can open the link: a manager of the branch, and an ADMIN, both get 200', function () {
-    $admin = adminUser();
-
+test('the receiver can open the link: a manager of the branch gets 200', function () {
     $this->actingAs($this->actor)->post(route('loans.assets.adjust', $this->asset), ['direction' => 'IN', 'qty' => 1, 'note' => NOTIFY_NOTE, 'approved_by' => $this->approver->id]);
-    $this->actingAs($this->actor)->post(route('loans.assets.adjust', $this->asset), ['direction' => 'IN', 'qty' => 1, 'note' => NOTIFY_NOTE, 'approved_by' => $admin->id]);
 
     foreach (namedNotices() as $notice) {
         $receiver = \App\Models\User::findOrFail($notice->user_id);
         $this->actingAs($receiver)->get($notice->link_url)->assertOk();
     }
-    expect(namedNotices())->toHaveCount(2);
+    expect(namedNotices())->toHaveCount(1);
 });
 
 // --- LoanNotifier directly ---------------------------------------------------------------------------------------------

@@ -32,8 +32,12 @@ final class LoanAssetPolicy extends Policy
     /** One asset's page (movement log, price). */
     public function viewRegistryEntry(User $user, LoanAsset $asset): bool
     {
-        return $this->hasPermission($user, 'loan.asset_manage')
-            && $this->sameBranchOrAdmin($user, (int) $asset->lab_id);
+        // approvals.md K: a holder of loan.asset_approve (a scientist named as the second person of an
+        // ADJUST / RETIRE) must be able to open that asset to confirm what they were named for — read only,
+        // own branch only (never by ADMIN role, which does not hold loan.asset_approve; `sameBranchOrAdmin`
+        // still lets an ADMIN with loan.asset_manage through, as before). Editing stays with asset_manage.
+        return ($this->hasPermission($user, 'loan.asset_manage') && $this->sameBranchOrAdmin($user, (int) $asset->lab_id))
+            || ($this->hasPermission($user, 'loan.asset_approve') && $user->lab_id !== null && (int) $user->lab_id === (int) $asset->lab_id);
     }
 
     public function registerAsset(User $user): bool
@@ -43,7 +47,10 @@ final class LoanAssetPolicy extends Policy
 
     public function editAsset(User $user, LoanAsset $asset): bool
     {
-        return $this->viewRegistryEntry($user, $asset) && $asset->status === 'ACTIVE';
+        // Needs the register-management right itself: viewRegistryEntry() alone now also admits read-only approvers.
+        return $this->hasPermission($user, 'loan.asset_manage')
+            && $this->sameBranchOrAdmin($user, (int) $asset->lab_id)
+            && $asset->status === 'ACTIVE';
     }
 
     public function adjustAsset(User $user, LoanAsset $asset): bool

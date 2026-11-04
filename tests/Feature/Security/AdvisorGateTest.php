@@ -138,13 +138,13 @@ test('a real advisor (active, holds the permission, not the requester) still app
     $viaSystem = submittedRequisition($student);
 
     $this->post(advisorGateSignedUrl($viaLink), ['decision' => 'APPROVE'])->assertOk();
-    expect($viaLink->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($viaLink->fresh()->status)->toBe('APPROVED'); // student: the advisor alone approves (approvals.md K)
     expect($viaLink->fresh()->advisor_signed_at)->not->toBeNull();
     expect(RequisitionApproval::where('requisition_id', $viaLink->id)->where('step', 'ADVISOR')->count())->toBe(1);
 
     $this->actingAs($viaSystem->advisor)->post(route('requisitions.advisor-decide', $viaSystem), ['decision' => 'APPROVE'])
         ->assertRedirect(route('requisitions.show', $viaSystem));
-    expect($viaSystem->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($viaSystem->fresh()->status)->toBe('APPROVED');
 });
 
 test('a real advisor can still reject with a reason, and without one is still asked for it', function () {

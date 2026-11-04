@@ -16,6 +16,7 @@ use App\Domain\Reporting\Exports\ItemReturnHistoryExport;
 use App\Domain\Reporting\Exports\ItemStockSummaryExport;
 use App\Domain\Reporting\Exports\StockTakeVarianceExport;
 use App\Domain\Reporting\Exports\UsageSummaryExport;
+use App\Domain\Reporting\Services\SelfApprovalReport;
 use App\Models\Container;
 use App\Models\Item;
 use App\Models\IssueTransaction;
@@ -49,7 +50,7 @@ final class ReportsDashboard extends Component
     /** @var array<int, string> */
     private const TABS = [
         'item_stock_summary', 'item_issue_history', 'usage_summary', 'expiring_stock', 'below_reorder',
-        'dead_stock', 'controlled_substances', 'stock_take_variance',
+        'dead_stock', 'controlled_substances', 'stock_take_variance', 'self_approval',
     ];
 
     #[Url]
@@ -92,6 +93,12 @@ final class ReportsDashboard extends Component
     public string $controlledTo = '';
 
     #[Url]
+    public string $selfFrom = '';
+
+    #[Url]
+    public string $selfTo = '';
+
+    #[Url]
     public ?string $stockTakeUlid = null;
 
     /** The chemical whose dispensing history the `item_issue_history` tab shows, by ULID. */
@@ -128,7 +135,9 @@ final class ReportsDashboard extends Component
         /** @var User $user */
         $user = auth()->user();
 
-        return $user->isBranchManager() ? $user->lab_id : null;
+        // A warehouse manager with no branch must get nothing, never "every branch": id 0 matches no lab
+        // (null would mean "not restricted" and let the picked filter, or none, show all branches).
+        return $user->isBranchManager() ? ($user->lab_id ?? 0) : null;
     }
 
     public function render(): View
@@ -145,6 +154,7 @@ final class ReportsDashboard extends Component
             'dead_stock' => $this->deadStockData($effectiveLabId),
             'controlled_substances' => $this->controlledSubstancesData($effectiveLabId),
             'stock_take_variance' => $this->stockTakeVarianceData($restrictedLabId),
+            'self_approval' => $this->selfApprovalData($effectiveLabId),
             default => [collect(), 0],
         };
 
@@ -374,6 +384,28 @@ final class ReportsDashboard extends Component
         );
 
         $results = (new ControlledSubstancesExport($filter, $labId))->results();
+
+        return [$results->take(self::ROW_LIMIT), $results->count()];
+    }
+
+    /**
+     * approvals.md K: requisitions where the requester is also the approver and/or the issuer (on screen only, no export;
+     * filtered by the requisition's creation date).
+     *
+     * @return array{0: Collection<int, array{requisition: \App\Models\Requisition, approved_by_requester: bool, issued_by_requester: bool, issued_by_approver: bool}>, 1: int}
+     */
+    private function selfApprovalData(?int $labId): array
+    {
+        /** @var User $user */
+        $user = auth()->user();
+
+        // A warehouse manager sees only the kinds of stock they are responsible for; scientists/ADMIN are not narrowed by kind.
+        $results = (new SelfApprovalReport())->rows(
+            $labId,
+            $this->selfFrom ?: null,
+            $this->selfTo ?: null,
+            $user->isBranchManager() ? $user->managedItemTypes() : null,
+        );
 
         return [$results->take(self::ROW_LIMIT), $results->count()];
     }

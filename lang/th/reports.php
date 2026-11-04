@@ -48,6 +48,13 @@ return [
     'controlled_substances_desc' => 'ความเคลื่อนไหวของสารควบคุมภายในช่วงเวลาที่กำหนด',
     'stock_take_variance_title' => 'ผลตรวจนับและผลต่าง',
     'stock_take_variance_desc' => 'ผลตรวจนับและผลต่างของรอบตรวจนับที่เลือก',
+    'self_approval_title' => 'ใบเบิกที่ผู้ขอเป็นผู้อนุมัติ/ผู้จ่ายเอง',
+    'self_approval_desc' => 'ใบเบิกที่ผู้ขอเป็นผู้อนุมัติเอง หรือผู้ขอ/ผู้อนุมัติเป็นผู้จ่ายของเอง (ระบบอนุญาต แต่ให้ผู้ตรวจทบทวนรายการเหล่านี้)',
+    'col_approver' => 'ผู้อนุมัติ',
+    'col_self_flags' => 'ธง',
+    'flag_approved_by_requester' => 'ผู้ขออนุมัติเอง',
+    'flag_issued_by_requester' => 'ผู้ขอจ่ายของเอง',
+    'flag_issued_by_approver' => 'ผู้อนุมัติเป็นผู้จ่ายของเอง',
 
     'col_date' => 'วันที่',
     'col_doc_no' => 'เลขที่เอกสาร',

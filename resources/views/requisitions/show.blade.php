@@ -338,6 +338,9 @@
         @can('scientistDecide', $requisition)
             <div class="bg-surface border border-border rounded-xl p-6 mt-6">
                 <h2 class="font-display text-base font-bold mb-3">{{ __('requisitions.scientist_decision_title') }}</h2>
+                @if ($requisition->requester_id === auth()->id())
+                    <p class="text-xs text-danger mb-3">{{ __('requisitions.self_approval_notice') }}</p>
+                @endif
                 {{--
                     User-requested 2026-09-23: the per-line "จำนวนที่อนุมัติ" inputs live in
                     the lines table above (so they sit next to what they're adjusting), not

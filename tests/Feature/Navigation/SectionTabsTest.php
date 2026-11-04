@@ -60,8 +60,8 @@ test('the warehouse card gives a manager every old warehouse entry: approvals, d
     ]));
 })->with(['lab_manager', 'auditor']);
 
-test('a SCIENTIST (dispenser) gets the warehouse card with only the overview and the dispensing queue', function () {
-    expect(tabLabels(navUser('scientist'), MenuRegistry::OPS))->toBe(lbl(['tab_overview', 'tab_to_issue']));
+test('approvals.md K: a SCIENTIST (approves and dispenses) gets the warehouse card with the overview, the approval queue and the dispensing queue, and none of the manager-only pages', function () {
+    expect(tabLabels(navUser('scientist'), MenuRegistry::OPS))->toBe(lbl(['tab_overview', 'tab_waiting', 'tab_to_issue']));
 });
 
 test('ADMIN in the warehouse card gets read access to what ADMIN could already open, and none of the manager-only pages', function () {
@@ -210,7 +210,8 @@ test('B3: on the manage queue only ?tab=waiting / ?tab=to_issue mark a tab; no ?
     expect($active(['tab' => 'waiting']))->toBe([__('nav.tab_waiting')]);
     expect($active(['tab' => 'to_issue']))->toBe([__('nav.tab_to_issue')]);
 
-    // A dispenser (no view_all) has no "waiting" tab, and the same rule applies to its queue.
+    // A scientist (approver and dispenser, no view_all) gets the "waiting" tab too (approvals.md K), and the same
+    // rule applies to its queue: no ?tab= marks nothing.
     $dispenser = navUser('scientist');
     $tabs = layoutNav($this->actingAs($dispenser)->get(route('requisitions.manage'))->assertOk()->getContent())['tabs'];
     expect(array_filter($tabs, fn ($t) => $t['active']))->toBe([]);
@@ -234,19 +235,37 @@ test('B1: a manager opening someone else\'s requisition stays in the warehouse c
     expect($mine['title'])->toBe(__('nav.card_supply'));
 });
 
-test('B1: a dispenser opening a requisition of their branch, and the issue page, mark "waiting to be issued"', function () {
+test('B1 (approvals.md K): a requisition opened by someone who dispenses is marked "to issue" once approved/issued, "waiting" while SUBMITTED; people who cannot dispense keep "waiting"', function () {
     $lab = makeLab();
-    $dispenser = scientistUser(['lab_id' => $lab->id, 'profile_completed_at' => now()]);
     $student = studentUser(['lab_id' => $lab->id]);
-    $req = requisitionWithLines($student, ['CHEMICAL'], ['lab_id' => $lab->id, 'status' => 'APPROVED']);
-
-    foreach ([route('requisitions.show', $req), route('requisitions.issue.create', $req)] as $url) {
-        $nav = layoutNav($this->actingAs($dispenser)->get($url)->assertOk()->getContent());
+    $tabOf = function ($user, string $url) {
+        $nav = layoutNav($this->actingAs($user)->get($url)->assertOk()->getContent());
         expect($nav['title'])->toBe(__('nav.card_ops'), $url);
         $marked = array_values(array_filter($nav['tabs'], fn ($t) => $t['active']));
         expect($marked)->toHaveCount(1);
-        expect($marked[0]['label'])->toBe(__('nav.tab_to_issue'));
+
+        return $marked[0]['label'];
+    };
+
+    foreach (['scientistUser', 'auditorUser', 'labManagerUser'] as $factory) {
+        $dispenser = $factory(['lab_id' => $lab->id, 'profile_completed_at' => now()]);
+
+        foreach (['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED'] as $status) {
+            $req = requisitionWithLines($student, ['CHEMICAL'], ['lab_id' => $lab->id, 'status' => $status]);
+            expect($tabOf($dispenser, route('requisitions.show', $req)))->toBe(__('nav.tab_to_issue'), "{$factory} {$status}");
+        }
+
+        $submitted = requisitionWithLines(staffUser(['lab_id' => $lab->id]), ['CHEMICAL'], ['lab_id' => $lab->id, 'status' => 'SUBMITTED']);
+        expect($tabOf($dispenser, route('requisitions.show', $submitted)))->toBe(__('nav.tab_waiting'), "{$factory} SUBMITTED");
     }
+
+    // ADMIN cannot dispense: an approved requisition stays under "waiting" for them.
+    $approved = requisitionWithLines($student, ['CHEMICAL'], ['lab_id' => $lab->id, 'status' => 'APPROVED']);
+    expect($tabOf(adminUser(['lab_id' => $lab->id, 'profile_completed_at' => now()]), route('requisitions.show', $approved)))->toBe(__('nav.tab_waiting'));
+
+    // The issue page itself always marks "to issue".
+    $scientist = scientistUser(['lab_id' => $lab->id, 'profile_completed_at' => now()]);
+    expect($tabOf($scientist, route('requisitions.issue.create', $approved)))->toBe(__('nav.tab_to_issue'));
 });
 
 test('B4: the menu is remembered per user, so a role change needs a fresh MenuRegistry (and gets the right tabs with one)', function () {

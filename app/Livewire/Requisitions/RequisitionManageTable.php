@@ -55,10 +55,19 @@ final class RequisitionManageTable extends Component
         $base = Requisition::query()->where('status', '!=', 'DRAFT');
 
         if (! $user->can('requisition.view_all')) {
-            // A dispenser (requisition.issue) sees only their own branch's requisitions that
-            // are ready to dispense or already dispensed (returns are still possible) —
-            // never ones still awaiting a decision. Mirrors RequisitionPolicy::sharesBranch().
-            $base->where('lab_id', $user->lab_id)->whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED']);
+            if ($user->lab_id === null) {
+                // No branch = nothing (mirrors RequisitionPolicy::sharesBranch()).
+                $base->whereIn('id', []);
+            } elseif ($user->can('requisition.approve_scientist')) {
+                // approvals.md K (2026-11-04): a scientist approves their branch's requisitions as well as
+                // dispensing them, so they see every submitted one of the branch (drafts excluded above).
+                $base->where('lab_id', $user->lab_id);
+            } else {
+                // A dispenser (requisition.issue) sees only their own branch's requisitions that
+                // are ready to dispense or already dispensed (returns are still possible) —
+                // never ones still awaiting a decision. Mirrors RequisitionPolicy::sharesBranch().
+                $base->where('lab_id', $user->lab_id)->whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED', 'ISSUED']);
+            }
         } elseif ($user->isBranchManager()) {
             // Phase 3: own branch, and only the kinds of stock this manager is responsible for
             // (none assigned = nothing, deny by default; a legacy mixed one shows if either kind is held).

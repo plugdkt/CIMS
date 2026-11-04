@@ -18,6 +18,27 @@ test('SUBMITTED goes through the advisor step or is cancelled (BR-01)', function
     expect($state->apply('SUBMITTED', 'cancel'))->toBe('CANCELLED');
 });
 
+test('approvals.md K: a STUDENT requisition is APPROVED by the advisor alone (the scientist step is skipped for students only)', function () {
+    $state = new RequisitionState();
+
+    expect($state->apply('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBe('APPROVED');
+    expect($state->can('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBeTrue();
+    // The advisor's reject still ends it.
+    expect($state->apply('SUBMITTED', 'advisorReject', 'STUDENT'))->toBe('REJECTED');
+    // A non-student that happens to have an advisor keeps the two-step path.
+    expect($state->apply('SUBMITTED', 'advisorApprove', 'STAFF'))->toBe('ADVISOR_APPROVED');
+    expect($state->apply('SUBMITTED', 'advisorApprove', 'LECTURER'))->toBe('ADVISOR_APPROVED');
+});
+
+test('approvals.md K: once a student requisition is APPROVED the scientist decision events no longer apply to it', function () {
+    $state = new RequisitionState();
+
+    expect($state->can('APPROVED', 'scientistApprove', 'STUDENT'))->toBeFalse();
+    expect($state->can('APPROVED', 'scientistReject', 'STUDENT'))->toBeFalse();
+    expect(fn () => $state->apply('APPROVED', 'scientistApprove', 'STUDENT'))
+        ->toThrow(InvalidRequisitionTransitionException::class);
+});
+
 test('a non-student requester can go straight from SUBMITTED to a scientist decision (BR-01 "SUBMITTED(non-student)")', function () {
     $state = new RequisitionState();
 

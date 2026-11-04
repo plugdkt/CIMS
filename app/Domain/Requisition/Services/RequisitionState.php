@@ -12,13 +12,13 @@ use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
  * `apply()` for the next status and persist it themselves; `Requisition::status` is the
  * only place the result is ever stored.
  *
- * `$requesterStatus` disambiguates the one context-dependent edge in the spec's diagram: a
- * SUBMITTED requisition only goes straight to a scientist decision (`scientistApprove` /
- * `scientistReject`) when the requester is NOT a STUDENT — spec's "SUBMITTED(non-student)"
- * branch, grouped with ADVISOR_APPROVED in "ADVISOR_APPROVED | SUBMITTED(non-student) ──
- * scientist APPROVE/REJECT──►". A STUDENT's requisition must pass through ADVISOR_APPROVED
- * first (BR-02, restored by CEO decision 2026-10-30, ITM-2610-046, after the single-step
- * change of commit ecd9131). An unknown (null) requester status is treated like a STUDENT.
+ * `$requesterStatus` disambiguates the context-dependent edges. A SUBMITTED requisition only
+ * goes straight to a scientist decision (`scientistApprove` / `scientistReject`) when the
+ * requester is NOT a STUDENT (a known, non-student status). A STUDENT's requisition needs the
+ * advisor (BR-02, restored 2026-10-30, ITM-2610-046) and, since CEO decision 2026-11-04 (approvals.md
+ * K, option "ก"), the advisor's approval makes it APPROVED at once: the scientist/manager step is
+ * skipped for students only (ADVISOR_APPROVED remains for older rows and for a non-student who has an
+ * advisor). A null `$requesterStatus` argument is treated like a STUDENT by this class.
  * BR-02's stronger check (actually verifying `advisor_signed_at` is set on the real model,
  * not just the requester's type) belongs to `ApprovalService` (T-032) — this class only
  * knows the abstract state diagram.
@@ -69,6 +69,14 @@ final class RequisitionState
      */
     public function apply(string $from, string $event, ?string $requesterStatus = null): string
     {
+        // approvals.md K (CEO, 2026-11-04, option "ก"): the advisor is the approver of a STUDENT's requisition —
+        // once the advisor approves, it is APPROVED and ready to issue; the scientist/warehouse-manager approval
+        // step is skipped for students only. A non-student that happens to have an advisor keeps the old
+        // two-step path (SUBMITTED -> ADVISOR_APPROVED -> scientist decision).
+        if ($from === 'SUBMITTED' && $event === 'advisorApprove' && $requesterStatus === 'STUDENT') {
+            return 'APPROVED';
+        }
+
         if ($from === 'SUBMITTED' && in_array($event, self::SUBMITTED_SCIENTIST_EVENTS, true)) {
             if ($requesterStatus === null || $requesterStatus === 'STUDENT') {
                 throw new InvalidRequisitionTransitionException(

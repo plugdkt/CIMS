@@ -18,7 +18,8 @@ test('the requisition\'s own advisor can approve a SUBMITTED STUDENT requisition
     $service = app(ApprovalService::class);
     $result = $service->advisorDecide($requisition, $advisor, 'APPROVE');
 
-    expect($result->status)->toBe('ADVISOR_APPROVED');
+    // approvals.md K (2026-11-04): a student's requisition is APPROVED by the advisor alone.
+    expect($result->status)->toBe('APPROVED');
     expect($result->advisor_signed_at)->not->toBeNull();
     expect($result->advisor_signature_hash)->not->toBeNull();
     expect(RequisitionApproval::where('requisition_id', $requisition->id)->where('step', 'ADVISOR')->first()->decision)->toBe('APPROVE');
@@ -102,13 +103,27 @@ test('an advisor rejection ends a STUDENT requisition, so the scientist can neve
     expect($requisition->fresh()->status)->toBe('REJECTED');
 });
 
-test('the scientist can approve once the advisor has signed off (BR-02 satisfied)', function () {
+test('approvals.md K: after the advisor approves a STUDENT requisition it is APPROVED, and the scientist step is refused (nothing written)', function () {
     $student = studentUser();
     $requisition = submittedRequisition($student);
-    $advisor = $requisition->advisor;
-    app(ApprovalService::class)->advisorDecide($requisition, $advisor, 'APPROVE');
+    app(ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'APPROVE');
 
-    $scientist = scientistUser();
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    expect(fn () => app(ApprovalService::class)->scientistDecide($requisition->fresh(), $scientist, 'APPROVE'))
+        ->toThrow(InvalidApprovalDecisionException::class);
+
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('APPROVED');
+    expect($fresh->scientist_id)->toBeNull();
+    expect(RequisitionApproval::where('requisition_id', $requisition->id)->where('step', 'SCIENTIST')->count())->toBe(0);
+});
+
+test('a legacy ADVISOR_APPROVED STUDENT row (advisor signed before 2026-11-04) can still be decided by the scientist', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $requisition->update(['status' => 'ADVISOR_APPROVED', 'advisor_signed_at' => now()]);
+
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $result = app(ApprovalService::class)->scientistDecide($requisition->fresh(), $scientist, 'APPROVE');
 
     expect($result->status)->toBe('APPROVED');

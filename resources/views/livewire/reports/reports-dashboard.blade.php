@@ -14,6 +14,7 @@
             'dead_stock' => __('reports.dead_stock_title'),
             'controlled_substances' => __('reports.controlled_substances_title'),
             'stock_take_variance' => __('reports.stock_take_variance_title'),
+            'self_approval' => __('reports.self_approval_title'),
         ];
     @endphp
 
@@ -164,6 +165,26 @@
                     <input type="date" wire:model.live="controlledFrom" aria-label="{{ __('reports.field_from') }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     <input type="date" wire:model.live="controlledTo" aria-label="{{ __('reports.field_to') }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    @if ($restrictedLabId === null)
+                        <select wire:model.live="labId" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                            <option value="">{{ __('reports.all_labs') }}</option>
+                            @foreach ($labs as $lab)
+                                <option value="{{ $lab->id }}">{{ $lab->name_th }}</option>
+                            @endforeach
+                        </select>
+                    @else
+                        <p class="text-xs text-ink-faint self-center">{{ __('reports.restricted_to_own_lab') }}</p>
+                    @endif
+                </div>
+                @break
+
+            @case('self_approval')
+                <p class="text-xs text-ink-muted mb-3">{{ __('reports.self_approval_desc') }}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input type="date" wire:model.live="selfFrom" aria-label="{{ __('reports.field_from') }}"
+                           class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                    <input type="date" wire:model.live="selfTo" aria-label="{{ __('reports.field_to') }}"
                            class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                     @if ($restrictedLabId === null)
                         <select wire:model.live="labId" aria-label="{{ __('reports.field_lab') }}" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm">
@@ -485,6 +506,33 @@
                                             <td class="py-1 pr-3">{{ rtrim(rtrim((string) $row->qty_out_base, '0'), '.') }}</td>
                                             <td class="py-1 pr-3">{{ rtrim(rtrim((string) $row->balance_base, '0'), '.') }}</td>
                                             <td class="py-1 pr-3">{{ $row->creator?->full_name }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                                @break
+
+                            @case('self_approval')
+                                <thead class="text-left text-ink-faint uppercase tracking-wide">
+                                    <tr>
+                                        <th class="py-1 pr-3">{{ __('reports.col_doc_no') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_lab') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_requester') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_approver') }}</th>
+                                        <th class="py-1 pr-3">{{ __('reports.col_self_flags') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-border">
+                                    @foreach ($rows as $row)
+                                        <tr>
+                                            <td class="py-1 pr-3 font-mono">{{ $row['requisition']->doc_no }}</td>
+                                            <td class="py-1 pr-3">{{ $row['requisition']->lab?->name_th }}</td>
+                                            <td class="py-1 pr-3">{{ $row['requisition']->requester?->full_name }}</td>
+                                            <td class="py-1 pr-3">{{ $row['requisition']->scientist?->full_name ?? '—' }}</td>
+                                            <td class="py-1 pr-3">
+                                                @if ($row['approved_by_requester'])<span class="block text-danger">{{ __('reports.flag_approved_by_requester') }}</span>@endif
+                                                @if ($row['issued_by_requester'])<span class="block text-danger">{{ __('reports.flag_issued_by_requester') }}</span>@endif
+                                                @if ($row['issued_by_approver'])<span class="block text-danger">{{ __('reports.flag_issued_by_approver') }}</span>@endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>

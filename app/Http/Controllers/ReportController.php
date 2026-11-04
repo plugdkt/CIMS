@@ -176,7 +176,8 @@ final class ReportController extends Controller
         $user = $request->user();
 
         if ($user->isBranchManager()) {
-            return $user->lab_id;
+            // No branch = no data: 0 matches no lab (null would mean "every branch").
+            return $user->lab_id ?? 0;
         }
 
         return $request->integer('lab_id') ?: null;

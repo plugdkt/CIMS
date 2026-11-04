@@ -76,10 +76,10 @@ test('requisition list shows a SCIENTIST only their own requisitions, even withi
         ->assertDontSee($studentReq->doc_no);
 });
 
-test('SCIENTIST holding requisition.view_own cannot view another user\'s requisition', function () {
+test('SCIENTIST holding requisition.view_own cannot view another user\'s DRAFT requisition (approvers see submitted ones, never drafts)', function () {
     $lab = makeLab();
     $student = studentUser(['lab_id' => $lab->id]);
-    $requisition = makeRequisition($student, ['lab_id' => $lab->id]);
+    $requisition = makeRequisition($student, ['lab_id' => $lab->id]); // DRAFT
 
     $scientist = scientistUser(['lab_id' => $lab->id]);
     $this->actingAs($scientist)->get(route('requisitions.show', $requisition))->assertStatus(403);
@@ -128,14 +128,31 @@ test('the manage page leaves out drafts and shows the next-step button for each 
     $approved = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72003', 'status' => 'APPROVED']);
     makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72004', 'status' => 'REJECTED']);
 
-    // The manager decides submitted ones, waits on the dispenser for approved ones, and only views finished ones.
+    // approvals.md K: the manager decides submitted ones, dispenses approved ones themself (they hold
+    // requisition.issue now, so no "waiting for the dispenser" for them), and only views finished ones.
     $this->actingAs($manager)->get(route('requisitions.manage'))->assertOk()
         ->assertDontSee('REQ-2569-72001')->assertSee('REQ-2569-72002')
-        ->assertSee(__('requisitions.act_decide'))->assertSee(__('requisitions.act_waiting_issue'))->assertSee(__('requisitions.act_view'));
+        ->assertSee(__('requisitions.act_decide'))->assertSee(route('requisitions.issue.create', $approved), false)
+        ->assertSee(__('requisitions.act_view'));
 
-    // The dispenser gets the dispense button straight to the issue page.
+    // The scientist gets the dispense button straight to the issue page, and the decide button on the waiting one.
     $this->actingAs($scientist)->get(route('requisitions.manage'))->assertOk()
+        ->assertDontSee('REQ-2569-72001')
+        ->assertSee(__('requisitions.act_decide'))
         ->assertSee(__('requisitions.act_issue'))->assertSee(route('requisitions.issue.create', $approved), false);
+});
+
+test('approvals.md K: ADMIN sees the same rows but is only offered "waiting" / "view", never a decide or issue button', function () {
+    $lab = makeLab();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $admin = adminUser(['lab_id' => $lab->id]);
+    makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72011', 'status' => 'ADVISOR_APPROVED']);
+    $approvedForAdmin = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-72012', 'status' => 'APPROVED']);
+
+    $this->actingAs($admin)->get(route('requisitions.manage'))->assertOk()
+        ->assertSee('REQ-2569-72011')->assertSee('REQ-2569-72012')
+        ->assertDontSee(__('requisitions.act_decide'))
+        ->assertDontSee(route('requisitions.issue.create', $approvedForAdmin), false);
 });
 
 test('the requester list shows the next step: send a draft, or wait for the warehouse', function () {

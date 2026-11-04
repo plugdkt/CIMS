@@ -8,16 +8,19 @@ use App\Domain\Notification\Services\NotificationService;
 use App\Domain\Requisition\Exceptions\InvalidApprovalDecisionException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Shared\UnitConverter;
+use App\Models\AuditLog;
 use App\Models\Requisition;
 use App\Models\RequisitionApproval;
 use App\Models\RequisitionItem;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 /**
- * FR-RQ-06/07/08: the advisor and scientist (warehouse manager) decisions on a SUBMITTED
- * requisition. BR-02 (restored by CEO decision 2026-10-30, ITM-2610-046): a STUDENT's
- * requisition needs the advisor's sign-off before the scientist may decide; any other
- * requester's SUBMITTED requisition goes straight to the scientist. Every decision — approve or reject — writes one
+ * FR-RQ-06/07/08: the advisor and scientist (any scientist of the branch, or a warehouse manager) decisions
+ * on a SUBMITTED requisition. BR-02 (restored 2026-10-30, ITM-2610-046): a STUDENT's requisition needs the
+ * advisor's sign-off; since CEO decision 2026-11-04 (approvals.md K) that sign-off alone makes it APPROVED
+ * (ready to issue) and the scientist step is skipped for students. Any other requester's SUBMITTED
+ * requisition goes straight to a scientist decision. Every decision — approve or reject — writes one
  * `requisition_approvals` row (the audit trail FR-RQ-07/08 both rely on) and advances
  * `Requisition::status` through `RequisitionState` (BR-01).
  */
@@ -81,7 +84,13 @@ final class ApprovalService
 
         $this->notifyRequesterOfDecision($requisition, 'ADVISOR', $decision);
         if ($decision === 'APPROVE') {
-            $this->notifyScientistsPending($requisition);
+            // A student's requisition is APPROVED by the advisor alone (approvals.md K): tell the dispensers.
+            // Anyone else still goes to the scientist/manager approval step.
+            if ($requisition->status === 'APPROVED') {
+                $this->notifications->notifyReadyToIssue($requisition);
+            } else {
+                $this->notifyScientistsPending($requisition);
+            }
         }
 
         return $requisition;
@@ -107,35 +116,81 @@ final class ApprovalService
         ?string $ipAddress = null,
         array $approvedQuantities = [],
     ): Requisition {
-        if ($requisition->requester_status === 'STUDENT' && $requisition->advisor_signed_at === null) {
-            throw new InvalidApprovalDecisionException(
-                'ไม่สามารถพิจารณาได้ (BR-02): ใบเบิกของนิสิตต้องผ่านการอนุมัติจากอาจารย์ที่ปรึกษาก่อน'
-            );
-        }
+        // approvals.md K (2026-11-04): any scientist of the branch may decide, so two of them can press the
+        // button on the same requisition at once. The row is locked and its status read again inside one
+        // transaction; whoever gets the lock second sees APPROVED/REJECTED, and RequisitionState refuses the
+        // transition (first one wins, no second `requisition_approvals` row, no second set of line quantities).
+        $decided = DB::transaction(function () use ($requisition, $scientist, $decision, $reason, $ipAddress, $approvedQuantities): Requisition {
+            /** @var Requisition $locked */
+            $locked = Requisition::query()->whereKey($requisition->id)->lockForUpdate()->firstOrFail();
 
-        if ($decision === 'REJECT' && trim((string) $reason) === '') {
-            throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลที่ไม่เห็นควรให้เบิก');
-        }
+            if ($locked->requester_status === 'STUDENT' && $locked->advisor_signed_at === null) {
+                throw new InvalidApprovalDecisionException(
+                    'ไม่สามารถพิจารณาได้ (BR-02): ใบเบิกของนิสิตต้องผ่านการอนุมัติจากอาจารย์ที่ปรึกษาก่อน'
+                );
+            }
 
-        if ($decision === 'APPROVE') {
-            $this->applyApprovedQuantities($requisition, $approvedQuantities, $reason);
-        }
+            if ($decision === 'REJECT' && trim((string) $reason) === '') {
+                throw new InvalidApprovalDecisionException('กรุณาระบุเหตุผลที่ไม่เห็นควรให้เบิก');
+            }
 
-        $event = $decision === 'APPROVE' ? 'scientistApprove' : 'scientistReject';
-        $newStatus = $this->applyTransition($requisition, $event);
+            // Status first: a second, late decision must fail on the transition, not on quantity checks.
+            $event = $decision === 'APPROVE' ? 'scientistApprove' : 'scientistReject';
+            $newStatus = $this->applyTransition($locked, $event);
 
-        $this->recordApproval($requisition, 'SCIENTIST', $scientist, $decision, $reason, $ipAddress);
+            if ($decision === 'APPROVE') {
+                $this->applyApprovedQuantities($locked, $approvedQuantities, $reason);
+            }
 
-        $requisition->scientist_id = $scientist->id;
-        $requisition->scientist_decision = $decision;
-        $requisition->reject_reason = $decision === 'REJECT' ? $reason : null;
-        $requisition->scientist_signed_at = now();
-        $requisition->status = $newStatus;
-        $requisition->save();
+            $this->recordApproval($locked, 'SCIENTIST', $scientist, $decision, $reason, $ipAddress);
 
-        $this->notifyRequesterOfDecision($requisition, 'SCIENTIST', $decision);
+            $locked->scientist_id = $scientist->id;
+            $locked->scientist_decision = $decision;
+            $locked->reject_reason = $decision === 'REJECT' ? $reason : null;
+            $locked->scientist_signed_at = now();
+            $locked->status = $newStatus;
+            $locked->save();
 
-        return $requisition;
+            $this->auditScientistDecision($locked, $scientist, $decision);
+
+            return $locked;
+        });
+
+        // Mail/notifications only after the decision is committed: a mail problem must not undo it.
+        $this->notifyRequesterOfDecision($decided, 'SCIENTIST', $decision);
+
+        return $decided;
+    }
+
+    /**
+     * approvals.md K: nobody is forbidden to approve their own requisition (CEO, 2026-11-04), so the control is the
+     * record. Every scientist decision gets an audit row; when the approver is also the requester the row carries the
+     * flag `self_approval` (action REQ_SELF_APPROVE / REQ_SELF_REJECT) so the auditor's report can find it. The
+     * "issuer = requester / approver" flag is written at issue time (IssueService) and the report
+     * (SelfApprovalReport) computes the same facts from the tables, so no new column is needed.
+     *
+     * @param  'APPROVE'|'REJECT'  $decision
+     */
+    private function auditScientistDecision(Requisition $requisition, User $actor, string $decision): void
+    {
+        $self = $requisition->requester_id === $actor->id;
+        $action = ($self ? 'REQ_SELF_' : 'REQ_').($decision === 'APPROVE' ? 'APPROVE' : 'REJECT');
+
+        AuditLog::record(
+            action: $action,
+            userId: $actor->id,
+            username: $actor->username,
+            entityType: 'requisition',
+            entityId: $requisition->id,
+            newValue: [
+                'doc_no' => $requisition->doc_no,
+                'lab_id' => $requisition->lab_id,
+                'requester_id' => $requisition->requester_id,
+                'approver_id' => $actor->id,
+                'self_approval' => $self,
+            ],
+            message: $self ? 'requester = approver' : null,
+        );
     }
 
     /**

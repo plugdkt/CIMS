@@ -25,6 +25,7 @@ final class RequisitionPolicy extends Policy
     public function manage(User $user): bool
     {
         return $this->hasPermission($user, 'requisition.view_all')
+            || $this->hasPermission($user, 'requisition.approve_scientist')
             || $this->hasPermission($user, 'requisition.issue');
     }
 
@@ -49,6 +50,20 @@ final class RequisitionPolicy extends Policy
         // act on a requisition must be able to see it; this stays narrow on purpose —
         // it never exposes a DRAFT/SUBMITTED requisition still awaiting a decision.
         if ($this->canAct($user, $requisition)) {
+            return true;
+        }
+
+        // approvals.md K (2026-11-04): an approver (every scientist of the branch, not only the
+        // dispensing stage) must open the requisitions waiting for them, and see how their own
+        // decisions ended. Own branch only (a user with no branch sees nothing) and never a DRAFT,
+        // which is still the requester's private work in progress.
+        // A warehouse manager is still narrowed by kind here (phase 3: see with either kind of a mixed one;
+        // none held = nothing); scientists are not (managesKinds() only narrows branch managers).
+        if (
+            $this->approvesInBranch($user, $requisition)
+            && $requisition->status !== 'DRAFT'
+            && $this->managesKinds($user, $requisition, false)
+        ) {
             return true;
         }
 
@@ -107,15 +122,16 @@ final class RequisitionPolicy extends Policy
      */
     public function scientistDecide(User $user, Requisition $requisition): bool
     {
-        if ($user->isBranchManager() && $requisition->lab_id !== $user->lab_id) {
+        // approvals.md K (CEO, 2026-11-04): every scientist of the requisition's branch may decide it, and a
+        // warehouse manager too. The branch is checked for EVERY holder of the permission, not just for
+        // branch managers (a scientist used to skip that check). No branch on the account = no decision;
+        // ADMIN holds no `requisition.approve_scientist`, so it never gets here.
+        if (! $this->approvesInBranch($user, $requisition)) {
             return false;
         }
 
-        if (! $this->hasPermission($user, 'requisition.approve_scientist')) {
-            return false;
-        }
-
-        // Phase 3: only for the kinds this manager is responsible for (a mixed legacy one needs both).
+        // Phase 3: a warehouse manager decides only the kinds they are responsible for (a mixed legacy one
+        // needs both); a scientist is not narrowed by kind (managesKinds() only narrows branch managers).
         if (! $this->managesKinds($user, $requisition, true)) {
             return false;
         }
@@ -132,6 +148,7 @@ final class RequisitionPolicy extends Policy
     {
         return $this->hasPermission($user, 'requisition.issue')
             && $this->sharesBranch($user, $requisition)
+            && $this->managesKinds($user, $requisition, true)
             && in_array($requisition->status, ['APPROVED', 'PARTIALLY_ISSUED'], true);
     }
 
@@ -140,7 +157,17 @@ final class RequisitionPolicy extends Policy
     {
         return $this->hasPermission($user, 'requisition.issue')
             && $this->sharesBranch($user, $requisition)
+            && $this->managesKinds($user, $requisition, true)
             && in_array($requisition->status, ['PARTIALLY_ISSUED', 'ISSUED'], true);
+    }
+
+    /**
+     * Holds `requisition.approve_scientist` and belongs to this requisition's branch. `lab_id` is compared
+     * with a null guard on both sides, so a missing branch can never "match" by NULL === NULL.
+     */
+    private function approvesInBranch(User $user, Requisition $requisition): bool
+    {
+        return $this->hasPermission($user, 'requisition.approve_scientist') && $this->sharesBranch($user, $requisition);
     }
 
     /**

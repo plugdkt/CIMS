@@ -73,20 +73,40 @@ test('FR-NT-03 phase 3: with no responsible manager in the branch, the pending n
     expect(Notification::where('user_id', $elsewhere->id)->exists())->toBeFalse();
 });
 
-test('FR-NT-04 + FR-NT-03 (updated 2026-09-21): an advisor approving notifies the requester of the result and the warehouse managers of its branch that it is now pending', function () {
+test('FR-NT-04 + approvals.md K: an advisor approving a STUDENT requisition notifies the requester and tells the dispensers of its branch it is ready to issue (not "pending approval": there is no second step)', function () {
     Mail::fake();
     $lab = makeLab();
     $student = studentUser(['lab_id' => $lab->id]);
     $auditor = auditorUser(['lab_id' => $lab->id]);
+    $scientist = scientistUser(['lab_id' => $lab->id]);
     $otherBranch = auditorUser(['lab_id' => makeLab()->id]);
     $requisition = withOneLine(makeRequisition($student, ['status' => 'SUBMITTED', 'submitted_at' => now()]));
     $advisor = $requisition->advisor;
 
     app(ApprovalService::class)->advisorDecide($requisition, $advisor, 'APPROVE');
 
+    expect($requisition->fresh()->status)->toBe('APPROVED');
     expect(Notification::where('user_id', $student->id)->where('type', 'requisition.decision')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.ready_to_issue')->exists())->toBeTrue();
+    expect(Notification::where('user_id', $scientist->id)->where('type', 'requisition.ready_to_issue')->exists())->toBeTrue();
+    expect(Notification::where('type', 'requisition.pending_scientist')->exists())->toBeFalse();
+    expect(Notification::where('user_id', $otherBranch->id)->where('type', 'requisition.ready_to_issue')->exists())->toBeFalse();
+});
+
+test('FR-NT-03 + approvals.md K: a legacy-path requisition (non-student with an advisor) is still "pending approval" after the advisor approves', function () {
+    Mail::fake();
+    $lab = makeLab();
+    $advisor = \App\Models\User::factory()->create(['person_type' => 'LECTURER']);
+    $advisor->roles()->attach(\App\Models\Role::where('code', 'ADVISOR')->firstOrFail());
+    $staff = staffUser(['lab_id' => $lab->id, 'advisor_id' => $advisor->id]);
+    $auditor = auditorUser(['lab_id' => $lab->id]);
+    $requisition = withOneLine(makeRequisition($staff, ['status' => 'SUBMITTED', 'submitted_at' => now()]));
+
+    app(ApprovalService::class)->advisorDecide($requisition, $advisor, 'APPROVE');
+
+    expect($requisition->fresh()->status)->toBe('ADVISOR_APPROVED');
     expect(Notification::where('user_id', $auditor->id)->where('type', 'requisition.pending_scientist')->exists())->toBeTrue();
-    expect(Notification::where('user_id', $otherBranch->id)->where('type', 'requisition.pending_scientist')->exists())->toBeFalse();
+    expect(Notification::where('type', 'requisition.ready_to_issue')->exists())->toBeFalse();
 });
 
 test('FR-NT-04: an advisor rejecting notifies the requester but not the scientist pool', function () {

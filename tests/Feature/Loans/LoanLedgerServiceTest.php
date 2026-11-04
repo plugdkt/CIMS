@@ -13,7 +13,8 @@ uses(RefreshDatabase::class);
 /*
  * ITM-2610-051 step 1: LoanLedgerService is the ONLY writer of loan_assets quantities and loan_movements.
  * Whole numbers only; only COUNT-unit items (BR-L01); one POOL per branch+item; adjust/retire need a note
- * and a DIFFERENT approver who manages that branch (ADMIN counts everywhere); the module never touches
+ * and a DIFFERENT approver of that branch who holds loan.asset_approve (a scientist or manager; ADMIN never
+ * counts as the approver, approvals.md K 2026-11-04); the module never touches
  * stock_ledger.
  */
 
@@ -175,16 +176,21 @@ test('ADJUST_IN / ADJUST_OUT move the total, record the approver, and need a not
     }
 });
 
-test('adjust and retire need a DIFFERENT, active, authorised approver of that branch (ADMIN counts, and the rule binds ADMIN too)', function () {
+test('adjust and retire need a DIFFERENT, active approver of that branch who holds loan.asset_approve (approvals.md K: scientists and managers; ADMIN can never stand in)', function () {
     [$lab, $manager, $colleague] = loanManagers();
     $asset = registerLoanAsset($manager, $lab, 'POOL', 10);
 
     $bad = [
         'the actor themself' => $manager->id,
         'a manager of another branch' => auditorUser(['lab_id' => makeLab()->id])->id,
+        'a scientist of another branch' => scientistUser(['lab_id' => makeLab()->id])->id,
         'an inactive manager' => auditorUser(['lab_id' => $lab->id, 'is_active' => false])->id,
-        'a user without loan.asset_manage' => scientistUser(['lab_id' => $lab->id])->id,
+        'an inactive scientist' => scientistUser(['lab_id' => $lab->id, 'is_active' => false])->id,
+        'a user without loan.asset_approve' => staffUser(['lab_id' => $lab->id])->id,
         'a manager with no branch' => auditorUser(['lab_id' => null])->id,
+        'a scientist with no branch' => scientistUser(['lab_id' => null])->id,
+        'an ADMIN of the same branch' => adminUser(['lab_id' => $lab->id])->id,
+        'an ADMIN with no branch' => adminUser()->id,
         'an unknown user' => 999999,
     ];
     foreach ($bad as $label => $approverId) {
@@ -194,16 +200,35 @@ test('adjust and retire need a DIFFERENT, active, authorised approver of that br
             ->toThrow(LoanDomainException::class, __('loans.error.approver_invalid'));
     }
     expect($asset->fresh()->qty_total)->toBe('10.000000')->and($asset->fresh()->status)->toBe('ACTIVE');
+    // Nothing was written by any refused attempt: still only the REGISTER movement.
+    expect(LoanMovement::where('loan_asset_id', $asset->id)->count())->toBe(1);
 
     loanService()->adjust($manager, $asset->fresh(), 'IN', 1, LOAN_NOTE, null, $colleague->id);
-    loanService()->adjust($manager, $asset->fresh(), 'IN', 1, LOAN_NOTE, null, adminUser()->id);
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    loanService()->adjust($manager, $asset->fresh(), 'IN', 1, LOAN_NOTE, null, $scientist->id);
     expect($asset->fresh()->qty_total)->toBe('12.000000');
+    expect(LoanMovement::where('loan_asset_id', $asset->id)->where('approved_by', $scientist->id)->count())->toBe(1);
 
+    // A scientist can approve but cannot be the one who does an ADJUST/RETIRE (that stays loan.asset_manage).
+    expect(fn () => loanService()->adjust($scientist, $asset->fresh(), 'IN', 1, LOAN_NOTE, null, $manager->id))
+        ->toThrow(LoanDomainException::class, __('loans.error.not_allowed'));
+    expect($asset->fresh()->qty_total)->toBe('12.000000');
+});
+
+test('approvals.md K: ADMIN (who may still do an ADJUST/RETIRE as the actor) needs a branch approver and is never accepted as one', function () {
+    [$lab, $manager] = loanManagers();
+    $asset = registerLoanAsset($manager, $lab, 'POOL', 10);
     $admin = adminUser();
+
     expect(fn () => loanService()->adjust($admin, $asset->fresh(), 'IN', 1, LOAN_NOTE, null, $admin->id))
         ->toThrow(LoanDomainException::class, __('loans.error.approver_invalid'));
     loanService()->adjust($admin, $asset->fresh(), 'IN', 1, LOAN_NOTE, null, $manager->id);
-    expect($asset->fresh()->qty_total)->toBe('13.000000');
+    expect($asset->fresh()->qty_total)->toBe('11.000000');
+
+    // And the other direction: a manager cannot name ADMIN, even an ADMIN who holds a branch.
+    expect(fn () => loanService()->retire($manager, $asset->fresh(), LOAN_NOTE, adminUser(['lab_id' => $lab->id])->id))
+        ->toThrow(LoanDomainException::class, __('loans.error.approver_invalid'));
+    expect($asset->fresh()->status)->toBe('ACTIVE');
 });
 
 test('adjusting is limited to the actor\'s own branch (ADMIN: any) and to POOL assets', function () {
@@ -219,6 +244,7 @@ test('adjusting is limited to the actor\'s own branch (ADMIN: any) and to POOL a
     expect(fn () => loanService()->adjust($manager, $unit, 'IN', 1, LOAN_NOTE, null, $approver->id))
         ->toThrow(LoanDomainException::class, __('loans.error.adjust_pool_only'));
 
+    // ADMIN acting is fine in any branch as long as a real branch approver (manager of that branch) is named.
     loanService()->adjust(adminUser(), $pool, 'IN', 1, LOAN_NOTE, null, $manager->id);
     expect($pool->fresh()->qty_total)->toBe('6.000000');
 });

@@ -107,11 +107,13 @@ test('submitting a STAFF requisition triggers the per-kind notification (not the
     expect(($this->notified)('requisition.pending_scientist'))->toBe(($this->ids)([$this->chemA, $this->bothA]));
 });
 
-test('the pending notice tells the manager it awaits "ผู้ดูแลคลัง" consideration, naming the document', function () {
+test('the pending notice tells the approver it awaits "นักวิทยาศาสตร์หรือผู้ดูแลคลัง" consideration, naming the document', function () {
     $requisition = ($this->requisition)(['CHEMICAL']);
 
     app(NotificationService::class)->notifyApprovalPending($requisition);
 
     $notification = Notification::where('type', 'requisition.pending_scientist')->where('user_id', $this->chemA->id)->firstOrFail();
-    expect($notification->body)->toContain($requisition->doc_no)->toEndWith('รอการพิจารณาจากผู้ดูแลคลัง');
+    expect($notification->body)->toContain($requisition->doc_no)
+        ->toBe((string) __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]))
+        ->toEndWith('รอการพิจารณาจากนักวิทยาศาสตร์หรือผู้ดูแลคลังของสาขา');
 });

@@ -270,7 +270,9 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   `trg_loan_movements_no_update/_no_delete` triggers are layer #2. Re-run the script on every database after the two
   `2026_11_04_*` loan migrations (otherwise `cmis_app` is denied on the new tables, and `cmis_testing` tests fail with
   "command denied"). Deploy order for step 1: migrate -> re-run the grants script on every DB -> `db:seed --class=PermissionSeeder`
-  -> every manager has a `lab_id` and each branch has >= 2 managers (adjust/retire need a different approver) -> `loans:verify`
+  -> every manager and scientist has a `lab_id` and each branch has at least ONE other approver than whoever does an
+  adjust/retire — a scientist of the branch (`loan.asset_approve`) is enough, so the old ">= 2 managers per branch"
+  rule is gone (approvals.md K, 2026-11-04; ADMIN can no longer stand in as approver) -> `loans:verify`
   runs hourly from the scheduler.
 - **T-027 only restricts `cmis_app`'s own grants (SEC-DB-02's literal ask); it does NOT split the app
   into three separate DB users** (`cmis_app`/`cmis_ledger`/`cmis_report`) the way SEC-DB-01's broader
@@ -618,10 +620,10 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   responsible for, rather than picking one branch per role.** A SCIENTIST holds both
   `requisition.approve_scientist` and `requisition.issue`, so their card is genuinely "decisions I owe
   plus issuances I owe" added together — showing only one of the two would silently hide real pending
-  work. A role holding none of `approve_advisor`/`approve_scientist`/`issue` (LAB_MANAGER, ADMIN,
-  AUDITOR) falls back to "my own requisitions still in flight," which is correctly `0` for those roles
-  since they never file requisitions themselves — not a bug, just an honest answer to a question that
-  doesn't apply to them.
+  work. **Since 2026-11-04 (approvals.md K) LAB_MANAGER/AUDITOR hold both too** (approval queue narrowed to the
+  kinds they manage, dispense queue likewise), so only ADMIN and the requester roles fall back to "my own
+  requisitions still in flight" (or, for ADMIN, the all-branch overview) — not a bug, just an honest answer to a
+  question that doesn't apply to them.
 - **Top-10-issued-items and the 12-month chart both rank by issue-transaction *frequency*, not summed
   quantity** — same reasoning as T-045's dashboard-adjacent reports: items are measured in incompatible
   units (mg vs mL vs pcs), so summing raw base quantities across different items would produce a
@@ -1356,3 +1358,43 @@ only to `ims.view` holders (not requesters).
   refused on every ledger-writing path except the legacy GRN (decision E7).
 
 - **BR-02 reinstated (CEO decision 2026-10-30, ITM-2610-046).** A STUDENT requisition must be approved by the advisor before a scientist/warehouse manager may decide on it; the advisor step is a real gate again (the system emails the advisor a 72-hour signed link on submit; advisor approves or rejects; a rejection ends the requisition as rejected). Non-STUDENT requesters stay single-step. This overrides the 2026-09-14 "BR-02 removed / single-step" note above and the doc wording written earlier on 2026-10-30. Code change is by dev-fullstack; docs (user/admin manual, UAT #1/A1) updated accordingly.
+
+## Post-launch — Approver model reversed (approvals.md K, CEO 2026-11-04)
+
+This section **supersedes** the 2026-09-21/22 notes that moved requisition approval to the warehouse managers and left
+SCIENTIST as a dispense-only role, the "BR-02 reinstated" note just above (for STUDENT requisitions only), the
+loan-approver rule of ITM-2610-051 ("every manager of the branch", U6 / way A) and the ">= 2 managers per branch" deploy
+check. Code by dev-fullstack; tests/docs by dev-quality-ops. Spec of record: `board/approvals.md` section K and
+`output/web-systems/ITM-2610-051/impact-approver-model.md`.
+
+- **Who approves a requisition (`requisition.approve_scientist`)**: every SCIENTIST of the requisition's own branch (any kind
+  of stock), plus LAB_MANAGER/AUDITOR narrowed to the kinds in `user_item_types`. `RequisitionPolicy::scientistDecide()` checks
+  the branch for **every** holder (`users.lab_id` must equal `requisitions.lab_id`; NULL on either side matches nothing, so a
+  user with no branch decides nothing). **ADMIN approves nothing** (holds neither `approve_scientist` nor `issue`); a
+  "Super Admin" (ADMIN + AUDITOR) is now branch-scoped like any approver — a behaviour change from before 2026-11-04.
+- **Who issues (`requisition.issue`)**: SCIENTIST (own branch, all kinds) and LAB_MANAGER/AUDITOR (own branch, kinds they
+  hold, `issue_override` for >10% stays managers-only). The old seeder detach blocks for `approve_scientist` / `issue` are
+  removed, otherwise every `db:seed --class=PermissionSeeder` would take them back.
+- **Self approval/issue is allowed but recorded** (CEO: no ban): `ApprovalService::scientistDecide()` writes an audit row on
+  every decision, action `REQ_APPROVE` / `REQ_REJECT`, or `REQ_SELF_APPROVE` / `REQ_SELF_REJECT` when requester = approver
+  (`new_value.self_approval`); `IssueService` writes `REQ_SELF_ISSUE` when the issuer is the requester, the approver
+  (`scientist_id`) or the named >10% override approver. `SelfApprovalReport` (reports page, tab `self_approval`) lists the
+  same facts from the tables (no flag column). **Do not turn these into bans** without asking the CEO.
+- **Concurrency**: `scientistDecide()` runs in one transaction, re-reads the row with `lockForUpdate()` and validates the
+  transition on the locked row, so the second of two simultaneous approvers is refused (first one wins, one
+  `requisition_approvals` row). The unit-level proof is a stale-copy test; a true two-process race is not tested.
+- **STUDENT requisitions (CEO option "ก")**: the advisor's approval makes the requisition `APPROVED` at once
+  (`RequisitionState::apply('SUBMITTED','advisorApprove','STUDENT')`); the scientist step is skipped **for students only**.
+  Old rows already in `ADVISOR_APPROVED` can still be decided by a scientist/manager. A non-student with an advisor keeps the
+  two-step path. BR-02 itself (no scientist decision without the advisor's sign-off) is unchanged.
+- **Notifications**: approval pending -> in-system to every active scientist of the branch plus managers of the kind, **email
+  to the managers only**; if nobody qualifies, ADMINs get `requisition.no_approver`. A student requisition the advisor
+  approved -> `notifyReadyToIssue()` (same channel rule, to the dispensers `dispensersFor()`).
+- **Loans**: new permission `loan.asset_approve` (SCIENTIST, LAB_MANAGER, AUDITOR); `loan.approve` now SCIENTIST + managers,
+  **never ADMIN** (an already-seeded ADMIN is detached by the seeder). `LoanLedgerService::assertApprover()` = active, not the
+  actor, holds `loan.asset_approve`, same branch as the asset, branch required for everyone. ADMIN may still be the *actor* of an
+  ADJUST/RETIRE (`loan.asset_manage`) but can never be named as approver; a scientist can approve but cannot be the actor.
+- **Tests**: `ApproverModelTest`, `SelfApprovalReportTest`, `RoleScopingTest` (permission pins), and the updated
+  `ScientistDecisionTest`, `ApprovalServiceTest`, `RequisitionStateTest`, `HomeCardBadgesTest`, `SectionTabsTest`,
+  `Loan*Test`. They were written/updated against the code by reading it and **had not been run** when written (agents were
+  not allowed to run tests) — run the affected files, then the full suite, before relying on them.

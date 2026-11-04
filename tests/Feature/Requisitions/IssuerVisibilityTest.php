@@ -48,16 +48,31 @@ test('a fully ISSUED requisition stays visible to the SCIENTIST, since returns a
     $this->actingAs($scientist)->get(route('requisitions.show', $requisition))->assertOk();
 });
 
-test('the dispensing exception does not leak requisitions still awaiting a decision', function () {
+test('approvals.md K: the scientist (an approver now) sees their own branch\'s submitted requisitions, but never a DRAFT', function () {
     [$student, $lab] = studentUserWithLab();
     $submitted = submittedRequisition($student, ['doc_no' => 'REQ-2569-90001']);
+    $draft = makeRequisition($student, ['lab_id' => $lab->id, 'doc_no' => 'REQ-2569-90003', 'status' => 'DRAFT']);
     $scientist = dispenserFor($lab);
 
-    $this->actingAs($scientist)->get(route('requisitions.show', $submitted))->assertStatus(403);
+    $this->actingAs($scientist)->get(route('requisitions.show', $submitted))->assertOk();
+    $this->actingAs($scientist)->get(route('requisitions.show', $draft))->assertStatus(403);
 
     $this->actingAs($scientist)->get(route('requisitions.manage'))
         ->assertOk()
-        ->assertDontSee('REQ-2569-90001');
+        ->assertSee('REQ-2569-90001')
+        ->assertDontSee('REQ-2569-90003');
+});
+
+test('a user who can only dispense (no approve permission) still never sees a requisition awaiting a decision', function () {
+    [$student, $lab] = studentUserWithLab();
+    $submitted = submittedRequisition($student, ['doc_no' => 'REQ-2569-90004']);
+    $dispenserOnly = userWithPermissions(['requisition.issue', 'requisition.view_own'], ['lab_id' => $lab->id]);
+
+    $this->actingAs($dispenserOnly)->get(route('requisitions.show', $submitted))->assertStatus(403);
+
+    $this->actingAs($dispenserOnly)->get(route('requisitions.manage'))
+        ->assertOk()
+        ->assertDontSee('REQ-2569-90004');
 });
 
 test('branch scoping: a SCIENTIST cannot see or open another branch\'s APPROVED requisition', function () {

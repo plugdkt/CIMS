@@ -303,7 +303,11 @@ final class LoanLedgerService
         }
     }
 
-    /** BR-L17: a different, active person who may manage this asset's branch. */
+    /**
+     * BR-L17 (changed by approvals.md K, CEO 2026-11-04): a different, active person of THIS asset's branch who holds
+     * `loan.asset_approve` — the scientists of the branch and its warehouse managers. ADMIN cannot stand in (it holds
+     * no `loan.asset_approve`, and a branch is required of everyone). Actor != approver is kept.
+     */
     private function assertApprover(User $actor, LoanAsset $asset, int $approvedBy): User
     {
         $approver = User::find($approvedBy);
@@ -311,8 +315,9 @@ final class LoanLedgerService
             $approver === null
             || ! $approver->is_active
             || $approver->id === $actor->id
-            || ! $approver->hasPermission('loan.asset_manage')
-            || (! $approver->hasRole('ADMIN') && ($approver->lab_id === null || (int) $approver->lab_id !== (int) $asset->lab_id))
+            || ! $approver->hasPermission('loan.asset_approve')
+            || $approver->lab_id === null
+            || (int) $approver->lab_id !== (int) $asset->lab_id
         ) {
             throw new LoanDomainException((string) __('loans.error.approver_invalid'));
         }

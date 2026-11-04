@@ -25,17 +25,17 @@ if (! function_exists('loanCodesOf')) {
 }
 
 const LOAN_CODES = [
-    'loan.approve', 'loan.approve_advisor', 'loan.asset_manage', 'loan.cancel', 'loan.create', 'loan.handout',
+    'loan.approve', 'loan.approve_advisor', 'loan.asset_approve', 'loan.asset_manage', 'loan.cancel', 'loan.create', 'loan.handout',
     'loan.incident_resolve', 'loan.renew', 'loan.report', 'loan.verify', 'loan.view_all', 'loan.view_own', 'loan.view_queue',
 ];
 
-test('all thirteen loan.* codes exist', function () {
+test('all fourteen loan.* codes exist', function () {
     expect(Permission::where('code', 'like', 'loan.%')->pluck('code')->sort()->values()->all())->toBe(LOAN_CODES);
 });
 
 test('LAB_MANAGER and AUDITOR hold exactly the same loan.* codes, and exactly these', function () {
     $expected = [
-        'loan.approve', 'loan.asset_manage', 'loan.cancel', 'loan.create', 'loan.handout', 'loan.incident_resolve',
+        'loan.approve', 'loan.asset_approve', 'loan.asset_manage', 'loan.cancel', 'loan.create', 'loan.handout', 'loan.incident_resolve',
         'loan.renew', 'loan.report', 'loan.view_all', 'loan.view_own', 'loan.view_queue',
     ];
 
@@ -43,11 +43,21 @@ test('LAB_MANAGER and AUDITOR hold exactly the same loan.* codes, and exactly th
     expect(loanCodesOf('AUDITOR'))->toBe(loanCodesOf('LAB_MANAGER'));
 });
 
-test('ADMIN holds every loan.* code except loan.approve_advisor', function () {
-    $expected = array_values(array_diff(LOAN_CODES, ['loan.approve_advisor']));
+test('approvals.md K: ADMIN holds every loan.* code except the three approval ones (loan.approve_advisor, loan.approve, loan.asset_approve)', function () {
+    $expected = array_values(array_diff(LOAN_CODES, ['loan.approve_advisor', 'loan.approve', 'loan.asset_approve']));
 
     expect(loanCodesOf('ADMIN'))->toBe($expected);
-    expect(loanCodesOf('ADMIN'))->not->toContain('loan.approve_advisor');
+    expect(loanCodesOf('ADMIN'))->not->toContain('loan.approve_advisor')->not->toContain('loan.approve')->not->toContain('loan.asset_approve');
+});
+
+test('approvals.md K: an already-seeded ADMIN that still holds loan.approve / loan.asset_approve loses them on the next seed', function () {
+    $admin = Role::where('code', 'ADMIN')->firstOrFail();
+    $admin->permissions()->syncWithoutDetaching(Permission::whereIn('code', ['loan.approve', 'loan.asset_approve'])->pluck('id'));
+    expect(loanCodesOf('ADMIN'))->toContain('loan.approve')->toContain('loan.asset_approve');
+
+    $this->seed(\Database\Seeders\PermissionSeeder::class);
+
+    expect(loanCodesOf('ADMIN'))->not->toContain('loan.approve')->not->toContain('loan.asset_approve');
 });
 
 test('requesters borrow for themselves; ADVISOR also approves their students; SCIENTIST is the counter role', function () {
@@ -56,7 +66,11 @@ test('requesters borrow for themselves; ADVISOR also approves their students; SC
     expect(loanCodesOf('STUDENT'))->toBe($borrower);
     expect(loanCodesOf('STAFF'))->toBe($borrower);
     expect(loanCodesOf('ADVISOR'))->toBe(['loan.approve_advisor', 'loan.cancel', 'loan.create', 'loan.renew', 'loan.view_own']);
-    expect(loanCodesOf('SCIENTIST'))->toBe(['loan.cancel', 'loan.create', 'loan.handout', 'loan.renew', 'loan.view_own', 'loan.view_queue']);
+    // approvals.md K: the scientists of a branch approve loans and name-able as the second person of an ADJUST/RETIRE,
+    // but do not manage the register (no loan.asset_manage) and do not see loan.view_all / loan.report.
+    expect(loanCodesOf('SCIENTIST'))->toBe([
+        'loan.approve', 'loan.asset_approve', 'loan.cancel', 'loan.create', 'loan.handout', 'loan.renew', 'loan.view_own', 'loan.view_queue',
+    ]);
 });
 
 test('only ADMIN holds loan.verify; only the advisor role holds loan.approve_advisor; managing the register is the managers and ADMIN', function () {
@@ -65,7 +79,9 @@ test('only ADMIN holds loan.verify; only the advisor role holds loan.approve_adv
     expect($holders('loan.verify'))->toBe(['ADMIN']);
     expect($holders('loan.approve_advisor'))->toBe(['ADVISOR']);
     expect($holders('loan.asset_manage'))->toBe(['ADMIN', 'AUDITOR', 'LAB_MANAGER']);
-    expect($holders('loan.approve'))->toBe(['ADMIN', 'AUDITOR', 'LAB_MANAGER']);
+    // approvals.md K: approvers = every scientist + the warehouse managers; never ADMIN.
+    expect($holders('loan.approve'))->toBe(['AUDITOR', 'LAB_MANAGER', 'SCIENTIST']);
+    expect($holders('loan.asset_approve'))->toBe(['AUDITOR', 'LAB_MANAGER', 'SCIENTIST']);
 });
 
 test('seeding twice changes nothing (the loan grants are idempotent)', function () {
@@ -81,8 +97,9 @@ test('seeding twice changes nothing (the loan grants are idempotent)', function 
 test('the older permission sets are untouched by the loan block (a manager still has no ledger.verify, ADMIN still no ledger.adjust)', function () {
     $codes = fn (string $role) => Role::where('code', $role)->firstOrFail()->permissions->pluck('code')->all();
 
-    expect($codes('AUDITOR'))->not->toContain('ledger.verify')->not->toContain('requisition.issue');
-    expect($codes('ADMIN'))->not->toContain('ledger.adjust')->not->toContain('disposal.approve')->not->toContain('requisition.issue');
+    expect($codes('AUDITOR'))->not->toContain('ledger.verify');
+    expect($codes('ADMIN'))->not->toContain('ledger.adjust')->not->toContain('disposal.approve')
+        ->not->toContain('requisition.issue')->not->toContain('requisition.approve_scientist');
 });
 
 test('ADMIN may write loan_movements but still cannot write stock_ledger by any route (CEO exception is for loans only)', function () {

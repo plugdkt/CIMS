@@ -5,12 +5,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('a user without requisition.issue gets 403 on the issue page', function () {
+test('a user without requisition.issue gets 403 on the issue page, even in the requisition\'s own branch', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '50.000000');
-    $labManager = labManagerUser();
+    $approverOnly = userWithPermissions(['requisition.approve_scientist', 'requisition.view_own'], ['lab_id' => $requisition->lab_id]);
 
-    $this->actingAs($labManager)->get(route('requisitions.issue.create', $requisition))->assertStatus(403);
+    $this->actingAs($approverOnly)->get(route('requisitions.issue.create', $requisition))->assertStatus(403);
+});
+
+test('approvals.md K: a warehouse manager of the own branch (and kind) can open the issue page; ADMIN and a manager with no branch cannot', function () {
+    $staff = staffUser();
+    $requisition = approvedRequisition($staff, '50.000000');
+
+    $this->actingAs(labManagerUser(['lab_id' => $requisition->lab_id]))->get(route('requisitions.issue.create', $requisition))->assertOk();
+    $this->actingAs(auditorUser(['lab_id' => $requisition->lab_id]))->get(route('requisitions.issue.create', $requisition))->assertOk();
+    $this->actingAs(labManagerUser(['lab_id' => null]))->get(route('requisitions.issue.create', $requisition))->assertForbidden();
+    $this->actingAs(adminUser(['lab_id' => $requisition->lab_id]))->get(route('requisitions.issue.create', $requisition))->assertForbidden();
 });
 
 test('the issue page is not reachable for a DRAFT requisition', function () {
@@ -204,8 +214,7 @@ test('the issue page warns about IMS lots with no storage place and links to set
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '100.000000');
     $line = $requisition->items->first();
-    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
-    $scientist->roles()->attach(\App\Models\Role::where('code', 'LAB_MANAGER')->firstOrFail());
+    $scientist = labManagerUser(['lab_id' => $requisition->lab_id]); // manager with both kinds (SCIENTIST+LAB_MANAGER with no kinds is denied by design)
     $lot = \App\Models\ImsLot::create([
         'item_id' => $line->item_id, 'lab_id' => $requisition->lab_id, 'lot_no' => 'L1',
         'qty_received_base' => '500.000000', 'qty_remaining_base' => '500.000000', 'location_id' => null, 'received_at' => now(),

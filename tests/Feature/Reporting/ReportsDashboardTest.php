@@ -14,7 +14,7 @@ uses(RefreshDatabase::class);
 // docs/qa_finding_2026-09-17_test_suite_fatal_redeclare.md).
 
 test('the reports index defaults to the item stock summary tab', function () {
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
 
     $this->actingAs($manager)->get(route('reports.index'))
         ->assertOk()
@@ -44,7 +44,7 @@ test('the item stock summary tab shows used/remaining per item, lowest balance f
         'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('h', 64),
     ]);
 
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
     $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'item_stock_summary']));
 
     $response->assertOk()
@@ -59,7 +59,7 @@ test('the item stock summary tab shows used/remaining per item, lowest balance f
 test('the usage summary tab live-filters by requester name', function () {
     $staff = staffUser(['full_name' => 'สมชาย ใจดี']);
     issueOneLine(approvedRequisition($staff)->fresh(['items']));
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
 
     $this->actingAs($manager)->get(route('reports.index', ['tab' => 'usage_summary']))
         ->assertOk()
@@ -78,7 +78,7 @@ test('the expiring stock tab live-filters by date range', function () {
         'remaining_qty_base' => '10.000000',
         'expiry_date' => now()->addDays(10)->toDateString(),
     ]);
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
 
     $this->actingAs($manager)->get(route('reports.index', ['tab' => 'expiring_stock']))
         ->assertOk()
@@ -114,7 +114,8 @@ test('the below-reorder tab live-filters by lab, and a LAB_MANAGER never sees th
         'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('b', 64),
     ]);
 
-    $manager = auditorUser();
+    // ADMIN sees every branch (a manager with no lab_id now sees nothing, see ReportScopeTest); the branch managers below keep the scoping checks.
+    $manager = adminUser();
     $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'below_reorder']));
     $response->assertOk()->assertSee('สารสาขา A')->assertSee('สารสาขา B');
 
@@ -140,7 +141,7 @@ test('the dead stock tab lists a container with no recent movement', function ()
         'display_unit_id' => Unit::where('code', 'g')->value('id'), 'created_by' => User::factory()->create()->id,
         'created_at' => now()->subMonths(13), 'prev_row_hash' => null, 'row_hash' => str_repeat('c', 64),
     ]);
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
 
     $this->actingAs($manager)->get(route('reports.index', ['tab' => 'dead_stock']))
         ->assertOk()
@@ -159,7 +160,7 @@ test('the controlled substances tab only lists movements for controlled items', 
             'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat((string) $i, 64),
         ]);
     }
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
 
     $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'controlled_substances']));
     $response->assertOk()->assertSee('สารควบคุมทดสอบ')->assertDontSee('สารทั่วไปทดสอบ');
@@ -172,7 +173,7 @@ test('the stock take variance tab shows nothing until a round is selected, then 
     makeContainer(['item_id' => $item->id, 'location_id' => $location->id, 'status' => 'IN_USE', 'remaining_qty_base' => '10.000000']);
     $user = User::factory()->create();
     $stockTake = app(StockTakeService::class)->create($lab, now()->toDateString(), $user);
-    $manager = auditorUser();
+    $manager = auditorUser(['lab_id' => $lab->id]);
 
     $this->actingAs($manager)->get(route('reports.index', ['tab' => 'stock_take_variance']))
         ->assertOk()
@@ -211,7 +212,7 @@ test('user-requested 2026-09-22: the item stock summary tab has its own PDF/Exce
         'created_at' => now(), 'prev_row_hash' => null, 'row_hash' => str_repeat('k', 64),
     ]);
 
-    $manager = auditorUser();
+    $manager = adminUser(); // sees every branch; a manager without lab_id sees nothing (ReportScopeTest)
     $response = $this->actingAs($manager)->get(route('reports.index', ['tab' => 'item_stock_summary']));
 
     $response->assertOk()

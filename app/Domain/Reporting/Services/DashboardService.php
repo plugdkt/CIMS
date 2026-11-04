@@ -39,22 +39,19 @@ final class DashboardService
         // also hold requisition.view_all, which SCIENTIST lost on 2026-09-21. Dispensing
         // is always own-branch work (RequisitionPolicy::sharesBranch()), so a dispenser
         // with no branch assigned has nothing to dispense and counts nothing.
-        if ($user->can('requisition.issue') && $user->lab_id !== null) {
-            $count += Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
-                ->where('lab_id', $user->lab_id)
-                ->count();
+        $dispense = $this->dispenseQueueCount($user);
+        if ($dispense !== null) {
+            $count += $dispense;
+        }
+
+        // approvals.md K (2026-11-04): scientists approve too, and they do not hold requisition.view_all,
+        // so their approval queue is counted here, before the view_all branch.
+        $approvals = $this->approvalQueueCount($user);
+        if ($approvals !== null) {
+            $count += $approvals;
         }
 
         if ($user->can('requisition.view_all')) {
-            if ($user->can('requisition.approve_scientist')) {
-                $count += Requisition::where(function ($q) {
-                    $q->where('status', 'ADVISOR_APPROVED')
-                        ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
-                })
-                ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id)->ofAnyItemType($user->managedItemTypes()))
-                ->count();
-            }
-
             if ($count > 0) {
                 return $count;
             }
@@ -110,11 +107,19 @@ final class DashboardService
             return null;
         }
 
+        // Own branch only for every approver (a user with no branch counts nothing); warehouse managers are
+        // additionally narrowed to the kinds they are responsible for, scientists are not.
+        // No branch: nothing to approve and no misleading "0" badge either (null hides it).
+        if ($user->lab_id === null) {
+            return null;
+        }
+
         return Requisition::where(function ($q) {
             $q->where('status', 'ADVISOR_APPROVED')
                 ->orWhere(fn ($q2) => $q2->where('status', 'SUBMITTED')->where('requester_status', '!=', 'STUDENT'));
         })
-            ->when($user->isBranchManager(), fn ($q) => $q->where('lab_id', $user->lab_id)->ofAnyItemType($user->managedItemTypes()))
+            ->where('lab_id', $user->lab_id)
+            ->when($user->isBranchManager(), fn ($q) => $q->ofAnyItemType($user->managedItemTypes()))
             ->count();
     }
 
@@ -125,8 +130,10 @@ final class DashboardService
             return null;
         }
 
+        // A warehouse manager now dispenses too, but only the kinds they are responsible for (as the Policy).
         return Requisition::whereIn('status', ['APPROVED', 'PARTIALLY_ISSUED'])
             ->where('lab_id', $user->lab_id)
+            ->when($user->isBranchManager(), fn ($q) => $q->ofAnyItemType($user->managedItemTypes()))
             ->count();
     }
 

@@ -64,11 +64,11 @@ test('BR-02: a warehouse manager cannot approve or reject a STUDENT requisition 
     expect($fresh->scientist_id)->toBeNull();
 });
 
-test('BR-02: once the advisor has approved, a warehouse manager can approve the STUDENT requisition via the HTTP layer', function () {
+test('approvals.md K: a legacy ADVISOR_APPROVED STUDENT requisition can still be approved by a warehouse manager via the HTTP layer', function () {
     $student = studentUser();
     $requisition = submittedRequisition($student);
+    $requisition->update(['status' => 'ADVISOR_APPROVED', 'advisor_signed_at' => now()]);
     $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
-    app(\App\Domain\Requisition\Services\ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'APPROVE');
 
     $this->actingAs($auditor)->post(route('requisitions.scientist-decide', $requisition), [
         'decision' => 'APPROVE',
@@ -77,6 +77,22 @@ test('BR-02: once the advisor has approved, a warehouse manager can approve the 
     $fresh = $requisition->fresh();
     expect($fresh->status)->toBe('APPROVED');
     expect($fresh->scientist_id)->toBe($auditor->id);
+});
+
+test('approvals.md K: after the advisor approves, a STUDENT requisition is already APPROVED, so the manager/scientist decision is refused (403)', function () {
+    $student = studentUser();
+    $requisition = submittedRequisition($student);
+    $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
+    $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    app(\App\Domain\Requisition\Services\ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'APPROVE');
+
+    foreach ([$auditor, $scientist] as $actor) {
+        $this->actingAs($actor)->post(route('requisitions.scientist-decide', $requisition), ['decision' => 'APPROVE'])->assertForbidden();
+    }
+
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('APPROVED');
+    expect($fresh->scientist_id)->toBeNull();
 });
 
 test('BR-02: an ADVISOR_APPROVED STUDENT requisition with no advisor_signed_at gets a friendly decision error from the service', function () {
@@ -102,7 +118,9 @@ test('BR-02: the decision form is hidden on a STUDENT requisition until the advi
         ->assertDontSee(__('requisitions.scientist_approve_decision'))
         ->assertSee(__('requisitions.status_submitted_student'));
 
-    app(\App\Domain\Requisition\Services\ApprovalService::class)->advisorDecide($requisition, $requisition->advisor, 'APPROVE');
+    // Legacy row (advisor signed before 2026-11-04): the decision form appears. A student requisition the
+    // advisor approves today is APPROVED at once and never shows this form (covered above).
+    $requisition->update(['status' => 'ADVISOR_APPROVED', 'advisor_signed_at' => now()]);
 
     $this->actingAs($auditor)->get(route('requisitions.show', $requisition))
         ->assertSee(__('requisitions.scientist_approve_decision'));
@@ -119,14 +137,30 @@ test('BR-02: the manage list tells the warehouse manager a STUDENT requisition i
         ->assertDontSee(__('requisitions.act_decide'));
 });
 
-test('a SCIENTIST without requisition.approve_scientist gets 403 on the decision action', function () {
+test('a user without requisition.approve_scientist gets 403 on the decision action, even in the requisition\'s own branch', function () {
+    $staff = staffUser();
+    $requisition = submittedRequisition($staff);
+    $dispenserOnly = userWithPermissions(['requisition.issue'], ['lab_id' => $requisition->lab_id]);
+
+    $this->actingAs($dispenserOnly)->post(route('requisitions.scientist-decide', $requisition), [
+        'decision' => 'APPROVE',
+    ])->assertStatus(403);
+
+    expect($requisition->fresh()->status)->toBe('SUBMITTED');
+});
+
+test('approvals.md K: a SCIENTIST of the requisition\'s own branch can approve it (every scientist of the branch may)', function () {
     $staff = staffUser();
     $requisition = submittedRequisition($staff);
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
 
     $this->actingAs($scientist)->post(route('requisitions.scientist-decide', $requisition), [
         'decision' => 'APPROVE',
-    ])->assertStatus(403);
+    ])->assertRedirect(route('requisitions.show', $requisition));
+
+    $fresh = $requisition->fresh();
+    expect($fresh->status)->toBe('APPROVED');
+    expect($fresh->scientist_id)->toBe($scientist->id);
 });
 
 test('an AUDITOR from a different branch gets 403 on the decision action', function () {
@@ -140,18 +174,24 @@ test('an AUDITOR from a different branch gets 403 on the decision action', funct
     ])->assertStatus(403);
 });
 
-test('the warehouse manager decision form is visible on the show page only to own branch manager when eligible', function () {
+test('the decision form is visible on the show page to own-branch approvers (manager and scientist) only, when eligible', function () {
     $staff = staffUser();
     $requisition = submittedRequisition($staff);
     $auditor = auditorUser(['lab_id' => $requisition->lab_id]);
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
+    $otherBranchScientist = scientistUser(['lab_id' => makeLab()->id]);
+    $adminSameBranch = adminUser(['lab_id' => $requisition->lab_id]);
 
-    // Own branch AUDITOR sees the decision form
+    // Own branch AUDITOR and own branch SCIENTIST (approvals.md K) see the decision form
     $this->actingAs($auditor)->get(route('requisitions.show', $requisition))
         ->assertSee(__('requisitions.scientist_approve_decision'));
-
-    // SCIENTIST does NOT see the decision form
     $this->actingAs($scientist)->get(route('requisitions.show', $requisition))
+        ->assertSee(__('requisitions.scientist_approve_decision'));
+
+    // A scientist of another branch cannot even open it; ADMIN opens it but is never offered the form
+    $this->actingAs($otherBranchScientist)->get(route('requisitions.show', $requisition))->assertForbidden();
+    $this->actingAs($adminSameBranch)->get(route('requisitions.show', $requisition))
+        ->assertOk()
         ->assertDontSee(__('requisitions.scientist_approve_decision'));
 
     $student = studentUser();

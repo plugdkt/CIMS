@@ -73,14 +73,14 @@ test('an expired signed link (past 72 hours) is rejected', function () {
     $this->get($url)->assertStatus(403);
 });
 
-test('approving via the signed link moves the requisition to ADVISOR_APPROVED', function () {
+test('approving via the signed link moves a student requisition to APPROVED (approvals.md K)', function () {
     $student = studentUser();
     $requisition = submittedRequisition($student);
     $url = signedApprovalUrlFor($requisition);
 
     $this->post($url, ['decision' => 'APPROVE'])->assertOk();
 
-    expect($requisition->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($requisition->fresh()->status)->toBe('APPROVED');
 });
 
 test('rejecting via the signed link without a reason is rejected', function () {
@@ -101,7 +101,7 @@ test('the requisition\'s own advisor can decide in-system while logged in', func
         'decision' => 'APPROVE',
     ])->assertRedirect(route('requisitions.show', $requisition));
 
-    expect($requisition->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($requisition->fresh()->status)->toBe('APPROVED');
 });
 
 test('a different advisor cannot decide someone else\'s advisee requisition in-system', function () {

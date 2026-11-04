@@ -98,13 +98,14 @@ test('a SCIENTIST (no report.view) sees only the queue numbers on the warehouse 
     $response->assertViewMissing('topItems');
     $response->assertDontSee(__('home.below_reorder'));
     $response->assertDontSee(__('home.monthly_chart_title'));
-    expect($response->viewData('approvalCount'))->toBeNull()   // a dispenser decides nothing
+    // approvals.md K: a scientist decides requisitions of their own branch too (none waiting here)
+    expect($response->viewData('approvalCount'))->toBe(0)
         ->and($response->viewData('dispenseCount'))->toBe(0);
 });
 
 test('dashboard (updated 2026-09-22, split by ITM-2610-052): a SCIENTIST\'s own requisitions and their branch\'s dispensing queue are now two separate numbers', function () {
     $lab = makeLab();
-    $scientist = scientistUser(['lab_id' => $lab->id]);
+    $scientist = scientistUser(['lab_id' => $lab->id, 'person_type' => 'STAFF']);
     $student = studentUser(['lab_id' => $lab->id]);
 
     // Awaiting issuance in their own branch — genuinely this scientist's dispensing work.
@@ -116,7 +117,7 @@ test('dashboard (updated 2026-09-22, split by ITM-2610-052): a SCIENTIST\'s own 
     // Another branch's, awaiting issuance — not theirs to dispense.
     makeRequisition(studentUser(), ['lab_id' => makeLab()->id, 'status' => 'APPROVED']);
 
-    // Someone else's, still awaiting a warehouse-manager decision — not the scientist's queue.
+    // A student's, still waiting for the advisor — not in anyone's approval queue yet.
     makeRequisition(studentUser(), ['lab_id' => $lab->id, 'status' => 'SUBMITTED']);
 
     // Already finished — nothing left to do.
@@ -126,12 +127,15 @@ test('dashboard (updated 2026-09-22, split by ITM-2610-052): a SCIENTIST\'s own 
     expect($overview->assertOk()->viewData('dispenseCount'))->toBe(1);
 
     $cards = collect(homeCards($this->actingAs($scientist)->get('/')->assertOk()->getContent()))->keyBy('title');
-    expect($cards[__('nav.card_ops')]['badges'])->toBe([__('nav.badge_dispense', ['count' => 1])])
+    // approvals.md K: the scientist's own non-student SUBMITTED requisition is in their branch's approval queue
+    // (approving one's own is allowed, and audited) next to the one APPROVED requisition waiting to be dispensed.
+    expect($cards[__('nav.card_ops')]['badges'])->toBe([__('nav.badge_approval', ['count' => 1]), __('nav.badge_dispense', ['count' => 1])])
         ->and($cards[__('nav.card_chem')]['badges'])->toBe([__('nav.badge_my_open', ['count' => 1])])
         ->and($cards[__('nav.card_supply')]['badges'])->toBe([__('nav.badge_my_open', ['count' => 0])]);
 });
 
 test('dashboard: a warehouse manager (AUDITOR) only sees pending requisitions in their own branch', function () {
+    // approvals.md K: the manager also dispenses, so the card carries a (zero here) dispense badge as well.
     $labA = makeLab();
     $labB = makeLab();
     $auditor = auditorUser(['lab_id' => $labA->id]);
@@ -145,7 +149,7 @@ test('dashboard: a warehouse manager (AUDITOR) only sees pending requisitions in
     expect($overview->assertOk()->viewData('approvalCount'))->toBe(1);
 
     $cards = collect(homeCards($this->actingAs($auditor)->get('/')->assertOk()->getContent()))->keyBy('title');
-    expect($cards[__('nav.card_ops')]['badges'])->toBe([managedBadge(['chemical', 'consumable']), __('nav.badge_approval', ['count' => 1])]);
+    expect($cards[__('nav.card_ops')]['badges'])->toBe([managedBadge(['chemical', 'consumable']), __('nav.badge_approval', ['count' => 1]), __('nav.badge_dispense', ['count' => 0])]);
 });
 
 test('dashboard: a warehouse manager (AUDITOR) only sees expiring containers from their own branch', function () {

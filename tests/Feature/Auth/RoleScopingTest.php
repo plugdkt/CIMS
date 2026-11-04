@@ -113,6 +113,46 @@ test('an AUDITOR is scoped to their own branch in items.show and cannot see othe
         ->assertDontSee($contB->barcode);
 });
 
+test('approvals.md K: who holds requisition.approve_scientist and requisition.issue is pinned: scientists and both warehouse manager roles, never ADMIN, never a requester role', function () {
+    $holders = fn (string $code) => Role::whereHas('permissions', fn ($q) => $q->where('code', $code))->pluck('code')->sort()->values()->all();
+
+    expect($holders('requisition.approve_scientist'))->toBe(['AUDITOR', 'LAB_MANAGER', 'SCIENTIST']);
+    expect($holders('requisition.issue'))->toBe(['AUDITOR', 'LAB_MANAGER', 'SCIENTIST']);
+    // The 10% override stays with the managers only.
+    expect($holders('requisition.issue_override'))->toBe(['AUDITOR', 'LAB_MANAGER']);
+    // view_all is still not a scientist's: they see the submitted requisitions of their branch through the approver rule, not through view_all.
+    expect($holders('requisition.view_all'))->toBe(['ADMIN', 'AUDITOR', 'LAB_MANAGER']);
+
+    foreach (['ADMIN', 'STUDENT', 'STAFF', 'ADVISOR'] as $roleCode) {
+        $codes = Role::where('code', $roleCode)->firstOrFail()->permissions->pluck('code')->all();
+        expect($codes)->not->toContain('requisition.approve_scientist')->not->toContain('requisition.issue');
+    }
+});
+
+test('approvals.md K: seeding again does not take approve_scientist / issue away from the roles that now hold them (the old detach blocks are gone)', function () {
+    $this->seed(\Database\Seeders\PermissionSeeder::class);
+    $this->seed(\Database\Seeders\PermissionSeeder::class);
+
+    $codes = fn (string $role) => Role::where('code', $role)->firstOrFail()->permissions->pluck('code')->all();
+    expect($codes('SCIENTIST'))->toContain('requisition.approve_scientist')->toContain('requisition.issue');
+    expect($codes('LAB_MANAGER'))->toContain('requisition.approve_scientist')->toContain('requisition.issue');
+    expect($codes('AUDITOR'))->toContain('requisition.approve_scientist')->toContain('requisition.issue');
+    // What SCIENTIST lost on 2026-09-21/22 stays lost.
+    expect($codes('SCIENTIST'))->not->toContain('requisition.view_all')->not->toContain('stocktake.manage')->not->toContain('disposal.request')->not->toContain('report.view');
+    // And AUDITOR's old read-only grants stay detached.
+    expect($codes('AUDITOR'))->not->toContain('ledger.verify')->not->toContain('audit.view');
+});
+
+test('approvals.md K: a SCIENTIST is branch-scoped by lab_id like everyone else even though isBranchManager() is false for them', function () {
+    $lab = makeLab();
+    $requisition = makeRequisition(staffUser(['lab_id' => $lab->id]), ['lab_id' => $lab->id, 'status' => 'SUBMITTED']);
+
+    expect(scientistUser(['lab_id' => $lab->id])->isBranchManager())->toBeFalse();
+    expect(scientistUser(['lab_id' => $lab->id])->can('scientistDecide', $requisition))->toBeTrue();
+    expect(scientistUser(['lab_id' => makeLab()->id])->can('scientistDecide', $requisition))->toBeFalse();
+    expect(scientistUser(['lab_id' => null])->can('scientistDecide', $requisition))->toBeFalse();
+});
+
 test('ITM-2610-051: LAB_MANAGER and AUDITOR hold the identical loan.* permission set, so a manager flavour never changes lending rights', function () {
     $loanCodes = fn (string $role) => Role::where('code', $role)->firstOrFail()->permissions
         ->pluck('code')->filter(fn ($c) => str_starts_with($c, 'loan.'))->sort()->values()->all();

@@ -9,6 +9,7 @@ use App\Domain\Inventory\Services\LedgerService;
 use App\Domain\Requisition\Exceptions\ExcessiveIssueQuantityException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Shared\UnitConverter;
+use App\Models\AuditLog;
 use App\Models\Container;
 use App\Models\IssueTransaction;
 use App\Models\Requisition;
@@ -98,9 +99,43 @@ final class IssueService
         }
         $line->save();
 
+        $this->auditSelfIssue($requisition, $issuer, $issueTransaction, $overageApprovedBy);
+
         $this->advanceRequisitionStatus($requisition);
 
         return $issueTransaction;
+    }
+
+    /**
+     * approvals.md K (CEO, 2026-11-04): issuing against one's own requisition is allowed, so the control is the
+     * record. When the issuer is the requester, or the person who approved it (scientist_id), or named the >10%
+     * override approver, an audit row REQ_SELF_ISSUE says which of these held; SelfApprovalReport lists them.
+     */
+    private function auditSelfIssue(Requisition $requisition, User $issuer, IssueTransaction $transaction, ?int $overageApprovedBy): void
+    {
+        $asRequester = $requisition->requester_id === $issuer->id;
+        $asApprover = $requisition->scientist_id !== null && $requisition->scientist_id === $issuer->id;
+        $asOverrideApprover = $overageApprovedBy !== null && $overageApprovedBy === $issuer->id;
+
+        if (! $asRequester && ! $asApprover && ! $asOverrideApprover) {
+            return;
+        }
+
+        AuditLog::record(
+            action: 'REQ_SELF_ISSUE',
+            userId: $issuer->id,
+            username: $issuer->username,
+            entityType: 'requisition',
+            entityId: $requisition->id,
+            newValue: [
+                'doc_no' => $requisition->doc_no,
+                'issue_transaction_id' => $transaction->id,
+                'issuer_is_requester' => $asRequester,
+                'issuer_is_approver' => $asApprover,
+                'issuer_is_overage_approver' => $asOverrideApprover,
+            ],
+            message: 'issuer = requester/approver',
+        );
     }
 
     /**

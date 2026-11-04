@@ -1,7 +1,9 @@
 <x-layout>
     @php $fmt = fn ($v) => rtrim(rtrim((string) $v, '0'), '.') ?: '0'; @endphp
 
-    <a href="{{ route('loans.assets.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('loans.registry_title') }}</a>
+    @can('browseRegistry', \App\Models\LoanAsset::class)
+        <a href="{{ route('loans.assets.index') }}" class="text-xs font-semibold text-ink-muted hover:text-ink">&larr; {{ __('loans.registry_title') }}</a>
+    @endcan
     <h1 class="font-display text-lg font-bold mt-1">{{ $asset->item?->name_th }}</h1>
     <p class="text-xs font-mono text-ink-faint mb-5">{{ $asset->item?->item_code }}@if ($asset->asset_tag) · {{ $asset->asset_tag }}@endif · {{ $asset->lab?->name_th }}</p>
 

@@ -35,7 +35,7 @@ final class PermissionSeeder extends Seeder
             'requisition.view_own' => 'ดูใบขอเบิกของตนเอง',
             'requisition.view_all' => 'ดูใบขอเบิกทั้งหมด',
             'requisition.approve_advisor' => 'อนุมัติใบขอเบิก (อาจารย์ที่ปรึกษา)',
-            'requisition.approve_scientist' => 'พิจารณาใบขอเบิก (ผู้ดูแลคลัง)',
+            'requisition.approve_scientist' => 'อนุมัติ/พิจารณาใบขอเบิก (นักวิทยาศาสตร์และผู้ดูแลคลัง ในสาขาของตน)',
             'requisition.issue' => 'จ่ายของตามใบขอเบิก',
             'requisition.issue_override' => 'อนุมัติจ่ายเกิน 10% จากที่ขอ (BR-04)',
             'receiving.manage' => 'รับของเข้าคลัง',
@@ -71,12 +71,16 @@ final class PermissionSeeder extends Seeder
             // page all belong to the warehouse managers (LAB_MANAGER/AUDITOR) and ADMIN.
             // SCIENTIST is now purely the dispensing role — create/view their own
             // requisitions, issue against approved ones, and read the item ledger.
+            // ITM-2610-051 / approvals.md K (CEO, 2026-11-04): the 2026-09-21 move of requisition
+            // approval to the warehouse managers is reversed. Every scientist of a branch may approve that
+            // branch's requisitions (RequisitionPolicy::scientistDecide checks lab_id), and the warehouse
+            // managers below may issue as well as approve. ADMIN still approves nothing.
             'SCIENTIST' => [
-                'requisition.create', 'requisition.view_own', 'requisition.issue',
+                'requisition.create', 'requisition.view_own', 'requisition.issue', 'requisition.approve_scientist',
                 'ledger.view', 'item.view', 'ims.browse',
             ],
             'LAB_MANAGER' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
                 'disposal.request', 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members', 'ims.view', 'ims.manage',
             ],
@@ -96,7 +100,7 @@ final class PermissionSeeder extends Seeder
             // (name_th "ผู้ดูแลคลัง"), so its grants mirror LAB_MANAGER's exactly.
             // See User::isBranchManager() for the scoping side of this change.
             'AUDITOR' => [
-                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
+                'requisition.create', 'requisition.view_own', 'requisition.view_all', 'requisition.approve_scientist', 'requisition.issue', 'requisition.issue_override', 'receiving.manage', 'stocktake.manage', 'ledger.view', 'ledger.adjust',
                 'disposal.request', 'disposal.approve', 'item.view', 'item.manage', 'location.manage', 'report.view',
                 'lab.manage_members', 'ims.view', 'ims.manage',
             ],
@@ -109,14 +113,14 @@ final class PermissionSeeder extends Seeder
         }
 
         // syncWithoutDetaching() above is additive-only, so every grant SCIENTIST has lost
-        // has to be detached explicitly from an already-seeded database. Requisition
-        // approval, viewing all requisitions and stock-in/receiving moved to the warehouse
-        // managers on 2026-09-21; stock takes, disposals and the reports page followed on
-        // 2026-09-22.
+        // has to be detached explicitly from an already-seeded database. Viewing all
+        // requisitions and stock-in/receiving moved to the warehouse managers on 2026-09-21;
+        // stock takes, disposals and the reports page followed on 2026-09-22. (Requisition
+        // approval moved there too, but came back to SCIENTIST on 2026-11-04 — deliberately NOT
+        // detached any more, or every seed would take it away again.)
         $scientistRole = Role::where('code', 'SCIENTIST')->first();
         if ($scientistRole !== null) {
             $staleScientistPermissionIds = Permission::whereIn('code', [
-                'requisition.approve_scientist',
                 'requisition.view_all',
                 'receiving.manage',
                 'stocktake.manage',
@@ -126,17 +130,12 @@ final class PermissionSeeder extends Seeder
             $scientistRole->permissions()->detach($staleScientistPermissionIds);
         }
 
-        // Also detach AUDITOR's old read-only grants from an already-seeded database,
-        // and ensure requisition.issue is not attached to LAB_MANAGER/AUDITOR.
-        $issueId = Permission::where('code', 'requisition.issue')->value('id');
-        $labManagerRole = Role::where('code', 'LAB_MANAGER')->first();
-        if ($labManagerRole !== null && $issueId !== null) {
-            $labManagerRole->permissions()->detach($issueId);
-        }
-
+        // Also detach AUDITOR's old read-only grants from an already-seeded database.
+        // requisition.issue is no longer detached from LAB_MANAGER/AUDITOR: since 2026-11-04 the
+        // warehouse managers dispense as well (approvals.md K), so it is part of their grants above.
         $auditorRole = Role::where('code', 'AUDITOR')->first();
         if ($auditorRole !== null) {
-            $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view', 'requisition.issue'])->pluck('id');
+            $staleAuditorPermissionIds = Permission::whereIn('code', ['ledger.verify', 'audit.view'])->pluck('id');
             $auditorRole->permissions()->detach($staleAuditorPermissionIds);
         }
 
@@ -150,6 +149,10 @@ final class PermissionSeeder extends Seeder
      * BR-L03), and that exception to the "ADMIN never writes a ledger" rule covers loan_movements only, never
      * stock_ledger. `loan.verify` is ADMIN only. SCIENTIST is the counter role: it borrows like anyone and
      * hands out / receives back for its own branch.
+     *
+     * Updated 2026-11-04 (approvals.md K): loan approvers follow the requisition rule (every scientist plus the
+     * warehouse managers of the branch, never ADMIN); `loan.asset_approve` marks who may be named as the second
+     * person of an ADJUST / RETIRE.
      */
     private function seedLoanPermissions(): void
     {
@@ -158,13 +161,14 @@ final class PermissionSeeder extends Seeder
             'loan.view_own' => 'ดูรายการยืมของตนเอง',
             'loan.view_all' => 'ดูรายการยืมทั้งหมด (จำกัดสาขาตามบทบาท)',
             'loan.approve_advisor' => 'อนุมัติคำขอยืมของนิสิตในความดูแล',
-            'loan.approve' => 'อนุมัติ/ปฏิเสธคำขอยืม',
+            'loan.approve' => 'อนุมัติ/ปฏิเสธคำขอยืม (นักวิทยาศาสตร์และผู้ดูแลคลัง ในสาขาของตน)',
             'loan.handout' => 'ส่งมอบของ รับคืน บันทึกสภาพ และบันทึกเหตุเสียหาย/สูญหาย',
             'loan.view_queue' => 'ดูคิวส่งมอบ/รับคืนของสาขา',
             'loan.renew' => 'ขอต่อกำหนดคืน',
             'loan.cancel' => 'ยกเลิกเอกสารยืมก่อนส่งมอบ',
             'loan.incident_resolve' => 'บันทึกผลเรื่องเสียหาย/สูญหาย',
             'loan.asset_manage' => 'ขึ้นทะเบียน/ปรับ/ปลดระวางของให้ยืม',
+            'loan.asset_approve' => 'เป็นผู้อนุมัติแทนการปรับยอด/ปลดระวางของให้ยืม (คนละคนกับผู้ทำรายการ)',
             'loan.verify' => 'ตรวจ hash chain ของบัญชีของให้ยืม',
             'loan.report' => 'รายงานและ Dashboard ยืม-คืน',
         ];
@@ -176,22 +180,29 @@ final class PermissionSeeder extends Seeder
         $borrower = ['loan.create', 'loan.view_own', 'loan.renew', 'loan.cancel'];
         $branchManager = [
             'loan.create', 'loan.view_own', 'loan.view_all', 'loan.approve', 'loan.handout', 'loan.view_queue',
-            'loan.renew', 'loan.cancel', 'loan.incident_resolve', 'loan.asset_manage', 'loan.report',
+            'loan.renew', 'loan.cancel', 'loan.incident_resolve', 'loan.asset_manage', 'loan.asset_approve', 'loan.report',
         ];
 
         $loanGrants = [
             'STUDENT' => $borrower,
             'STAFF' => $borrower,
             'ADVISOR' => array_merge($borrower, ['loan.approve_advisor']),
-            'SCIENTIST' => array_merge($borrower, ['loan.handout', 'loan.view_queue']),
+            'SCIENTIST' => array_merge($borrower, ['loan.handout', 'loan.view_queue', 'loan.approve', 'loan.asset_approve']),
             'LAB_MANAGER' => $branchManager,
             'AUDITOR' => $branchManager,
-            'ADMIN' => array_values(array_diff(array_keys($loanCatalog), ['loan.approve_advisor'])),
+            // ADMIN approves neither loans nor an ADJUST / RETIRE (approvals.md K; ADMIN stand-in is off by default).
+            'ADMIN' => array_values(array_diff(array_keys($loanCatalog), ['loan.approve_advisor', 'loan.approve', 'loan.asset_approve'])),
         ];
 
         foreach ($loanGrants as $roleCode => $permissionCodes) {
             $role = Role::where('code', $roleCode)->firstOrFail();
             $role->permissions()->syncWithoutDetaching(Permission::whereIn('code', $permissionCodes)->pluck('id'));
+        }
+
+        // Already-seeded databases: ADMIN used to hold loan.approve, which the additive sync above cannot remove.
+        $adminRole = Role::where('code', 'ADMIN')->first();
+        if ($adminRole !== null) {
+            $adminRole->permissions()->detach(Permission::whereIn('code', ['loan.approve', 'loan.asset_approve'])->pluck('id'));
         }
     }
 }

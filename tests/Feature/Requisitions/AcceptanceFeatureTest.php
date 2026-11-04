@@ -29,7 +29,7 @@ uses(RefreshDatabase::class);
  * not exercise what FT-05/07/08 actually describe, so — same as T-017's ST-04 — these are
  * deferred to the tasks that build the real target, not guessed at now.
  */
-test('FT-02: submit → advisor approves → scientist approves → issue 12.5 g from a 500 g bottle', function () {
+test('FT-02: submit → advisor approves → issue 12.5 g from a 500 g bottle', function () {
     $student = studentUser();
     $requisition = makeRequisition($student);
     $item = makeItem();
@@ -40,7 +40,8 @@ test('FT-02: submit → advisor approves → scientist approves → issue 12.5 g
 
     $approvalService = app(ApprovalService::class);
     $approvalService->advisorDecide($requisition->fresh(), $requisition->advisor, 'APPROVE');
-    $approvalService->scientistDecide($requisition->fresh(), scientistUser(), 'APPROVE');
+    // approvals.md K: the advisor alone approves a student requisition (no scientist step)
+    expect($requisition->fresh()->status)->toBe('APPROVED');
 
     $container = stockedContainer($item->id, '500.000000', $student);
     $line = $requisition->fresh(['items'])->items->first();

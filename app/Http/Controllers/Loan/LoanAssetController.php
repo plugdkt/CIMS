@@ -130,15 +130,14 @@ final class LoanAssetController extends Controller
 
         $loanAsset->load(['item.baseUnit', 'lab', 'location']);
 
-        // Possible approvers: another active holder of loan.asset_manage who may manage this branch.
+        // Possible approvers (approvals.md K): another active holder of loan.asset_approve in this asset's branch
+        // (scientists and warehouse managers; never ADMIN). Same rule LoanLedgerService::assertApprover enforces.
         $approvers = User::query()
             ->where('is_active', true)
             ->where('id', '!=', $user->id)
-            ->whereHas('roles.permissions', fn ($q) => $q->where('code', 'loan.asset_manage'))
-            ->where(function ($q) use ($loanAsset) {
-                $q->whereHas('roles', fn ($r) => $r->where('code', 'ADMIN'))
-                    ->orWhere('lab_id', $loanAsset->lab_id);
-            })
+            ->whereHas('roles.permissions', fn ($q) => $q->where('code', 'loan.asset_approve'))
+            ->whereNotNull('lab_id')
+            ->where('lab_id', $loanAsset->lab_id)
             ->orderBy('full_name')
             ->get(['id', 'full_name']);
 

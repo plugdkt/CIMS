@@ -229,20 +229,29 @@ test('the backfill is not a routine job: a manager an ADMIN narrowed to nothing 
 
 // --- Super Admin (ADMIN + LAB_MANAGER/AUDITOR) ----------------------------------------------------------
 
-test('a Super Admin (ADMIN with a manager role) is not narrowed by kind or branch: approves any requisition, with no user_item_types rows', function () {
-    $super = adminUser(['lab_id' => makeLab()->id]);
+test('a Super Admin (ADMIN with a manager role) is not narrowed by kind, but since approvals.md K (2026-11-04) is narrowed to their own branch like every approver', function () {
+    $ownLab = makeLab();
+    $super = adminUser(['lab_id' => $ownLab->id]);
     $super->roles()->attach(Role::where('code', 'AUDITOR')->firstOrFail());   // deliberately no rows
     expect(storedKinds($super))->toBe([]);
     expect($super->fresh()->isBranchManager())->toBeFalse();
 
     foreach ([['CHEMICAL'], ['MATERIAL'], ['CHEMICAL', 'GLASSWARE']] as $categories) {
-        $lab = makeLab();   // a branch that is not the Super Admin's own
-        $requisition = requisitionWithLines(staffUser(['lab_id' => $lab->id]), $categories, ['lab_id' => $lab->id, 'status' => 'SUBMITTED']);
+        // Own branch: any kind, with no user_item_types rows.
+        $requisition = requisitionWithLines(staffUser(['lab_id' => $ownLab->id]), $categories, ['lab_id' => $ownLab->id, 'status' => 'SUBMITTED']);
 
         $this->actingAs($super->fresh())->post(route('requisitions.scientist-decide', $requisition), ['decision' => 'APPROVE'])
             ->assertRedirect(route('requisitions.show', $requisition));
 
         expect($requisition->fresh()->status)->toBe('APPROVED', implode('+', $categories));
+
+        // Another branch: refused. (Before 2026-11-04 a Super Admin skipped the branch check; the policy now checks
+        // the branch for every holder of requisition.approve_scientist. Reported to the secretary as a behaviour change.)
+        $otherLab = makeLab();
+        $elsewhere = requisitionWithLines(staffUser(['lab_id' => $otherLab->id]), $categories, ['lab_id' => $otherLab->id, 'status' => 'SUBMITTED']);
+
+        $this->actingAs($super->fresh())->post(route('requisitions.scientist-decide', $elsewhere), ['decision' => 'APPROVE'])->assertForbidden();
+        expect($elsewhere->fresh()->status)->toBe('SUBMITTED', implode('+', $categories));
     }
 });
 

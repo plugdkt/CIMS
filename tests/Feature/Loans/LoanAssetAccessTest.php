@@ -82,7 +82,8 @@ test('the "available" page is per branch too: own branch only for staff and mana
     $this->actingAs(adminUser())->get(route('loans.available'))->assertOk()->assertSee('ZAVAILA')->assertSee('ZAVAILB')->assertDontSee('12345');
 
     // Retired assets are not "available".
-    loanService()->retire($managerA, $a, 'ปลดระวางเพราะเสื่อมสภาพทั้งหมด', adminUser()->id);
+    // (approvals.md K: a scientist of the branch approves the retirement; ADMIN can no longer stand in.)
+    loanService()->retire($managerA, $a, 'ปลดระวางเพราะเสื่อมสภาพทั้งหมด', $counter->id);
     $this->actingAs($counter)->get(route('loans.available'))->assertOk()->assertDontSee('ZAVAILA');
 });
 
@@ -92,8 +93,9 @@ test('the replacement value is shown only where an asset manager looks at an ass
 
     $this->actingAs($manager)->get(route('loans.assets.show', $asset))->assertOk()->assertSee('12345.50');
 
-    // Those without loan.asset_manage cannot open the asset page at all.
-    foreach ([scientistUser(['lab_id' => $lab->id]), staffUser(['lab_id' => $lab->id]), studentUser(['lab_id' => $lab->id])] as $user) {
+    // Those without loan.asset_manage or loan.asset_approve cannot open the asset page at all
+    // (a same-branch scientist holds loan.asset_approve and may read it, see LoanAssetApproverViewTest).
+    foreach ([staffUser(['lab_id' => $lab->id]), studentUser(['lab_id' => $lab->id])] as $user) {
         $this->actingAs($user)->get(route('loans.assets.show', $asset))->assertForbidden();
     }
 });

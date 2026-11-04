@@ -72,10 +72,10 @@ final class NotificationService
     }
 
     /**
-     * ITM-2610-052 phase 3: who is told that a requisition is waiting for a warehouse decision — the
-     * active managers of the requisition's own branch who hold approval rights and are responsible
-     * for the kind(s) of stock in it (every kind, for a legacy mixed one). Before phase 3 this went to
-     * every approver of every branch.
+     * Who may decide a requisition that is waiting (approvals.md K, 2026-11-04): every active holder of
+     * `requisition.approve_scientist` in the requisition's own branch — each scientist of the branch (all kinds
+     * of stock), plus the warehouse managers (LAB_MANAGER/AUDITOR) who are responsible for the kind(s) of stock in
+     * it (every kind, for a legacy mixed one; ITM-2610-052 phase 3). Mirrors RequisitionPolicy::scientistDecide().
      *
      * @return Collection<int, User>
      */
@@ -85,17 +85,20 @@ final class NotificationService
 
         return User::whereHas('roles.permissions', fn ($q) => $q->where('code', 'requisition.approve_scientist'))
             ->where('is_active', true)
+            ->whereNotNull('lab_id')
             ->where('lab_id', $requisition->lab_id)
             ->with(['roles', 'itemTypes'])
             ->get()
-            ->filter(fn (User $user) => $kinds !== [] && array_diff($kinds, $user->managedItemTypes()) === [])
+            ->filter(fn (User $user) => ! $user->isBranchManager() || ($kinds !== [] && array_diff($kinds, $user->managedItemTypes()) === []))
             ->values();
     }
 
     /**
-     * FR-NT-03: a requisition just became actionable by the warehouse. Tell its approvers (see
-     * approversFor()); if nobody in that branch is responsible for its kind, tell every ADMIN to go and
-     * assign a manager (ADMIN cannot approve requisitions themselves), so it never waits unseen.
+     * FR-NT-03: a requisition just became actionable. Scientists rotate duty by day and the system does not know
+     * who is on duty, so everyone in the branch who may decide it gets the IN-SYSTEM notice, but only the warehouse
+     * managers responsible for it ALSO get an email — never an email to every scientist for every requisition. If
+     * nobody in that branch may decide it, tell every ADMIN to go and fix the roster (ADMIN cannot approve
+     * requisitions themselves), so it never waits unseen.
      */
     public function notifyApprovalPending(Requisition $requisition): void
     {
@@ -104,13 +107,19 @@ final class NotificationService
 
         if ($approvers->isNotEmpty()) {
             foreach ($approvers as $approver) {
-                $this->notifyInAppAndEmail(
-                    $approver,
-                    'requisition.pending_scientist',
-                    (string) __('notifications.pending_scientist_title'),
-                    (string) __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]),
-                    $link,
-                );
+                // The requester just filed it and needs no reminder (they may still approve it themselves).
+                if ($approver->id === $requisition->requester_id) {
+                    continue;
+                }
+
+                $title = (string) __('notifications.pending_scientist_title');
+                $body = (string) __('notifications.pending_scientist_body', ['doc_no' => $requisition->doc_no]);
+
+                if ($approver->isBranchManager()) {
+                    $this->notifyInAppAndEmail($approver, 'requisition.pending_scientist', $title, $body, $link);
+                } else {
+                    $this->notifyInApp($approver, 'requisition.pending_scientist', $title, $body, $link);
+                }
             }
 
             return;
@@ -129,6 +138,46 @@ final class NotificationService
                 ]),
                 $link,
             );
+        }
+    }
+
+    /**
+     * Who may dispense an approved requisition: active holders of `requisition.issue` in its own branch — scientists
+     * (all kinds) and warehouse managers responsible for its kind(s). Mirrors RequisitionPolicy::issue().
+     *
+     * @return Collection<int, User>
+     */
+    public function dispensersFor(Requisition $requisition): Collection
+    {
+        $kinds = $requisition->itemKinds();
+
+        return User::whereHas('roles.permissions', fn ($q) => $q->where('code', 'requisition.issue'))
+            ->where('is_active', true)
+            ->whereNotNull('lab_id')
+            ->where('lab_id', $requisition->lab_id)
+            ->with(['roles', 'itemTypes'])
+            ->get()
+            ->filter(fn (User $user) => ! $user->isBranchManager() || ($kinds !== [] && array_diff($kinds, $user->managedItemTypes()) === []))
+            ->values();
+    }
+
+    /**
+     * approvals.md K: a student's requisition became APPROVED (advisor's decision) and is ready to dispense. Same
+     * channel rule as notifyApprovalPending(): in-system to every dispenser of the branch, email only to the
+     * warehouse managers, so the scientists' inboxes are never flooded.
+     */
+    public function notifyReadyToIssue(Requisition $requisition): void
+    {
+        $link = route('requisitions.show', $requisition);
+        $title = (string) __('notifications.ready_to_issue_title');
+        $body = (string) __('notifications.ready_to_issue_body', ['doc_no' => $requisition->doc_no]);
+
+        foreach ($this->dispensersFor($requisition) as $dispenser) {
+            if ($dispenser->isBranchManager()) {
+                $this->notifyInAppAndEmail($dispenser, 'requisition.ready_to_issue', $title, $body, $link);
+            } else {
+                $this->notifyInApp($dispenser, 'requisition.ready_to_issue', $title, $body, $link);
+            }
         }
     }
 
