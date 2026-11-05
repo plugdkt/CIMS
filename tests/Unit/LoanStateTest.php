@@ -7,7 +7,8 @@ use App\Domain\Loan\Services\LoanState;
  * ITM-2610-051 step 2, spec 8.1: the loan document's state machine. Pure (no database).
  *
  * The allowed transitions are listed explicitly below; EVERY other combination of status x event x borrower
- * status must be refused. A STUDENT's loan never reaches a manager straight from SUBMITTED (BR-L03 / BR-02).
+ * status must be refused. A STUDENT's loan never reaches a manager straight from SUBMITTED (BR-L03 / BR-02); after the
+ * advisor it is APPROVED at once (CEO 2026-11-05, default config), ADVISOR_APPROVED remains only for legacy rows.
  * Combinations that cannot occur in real data are left out of the "must refuse" sweep on purpose (marked below):
  * a non-student in ADVISOR_APPROVED, and a null borrower status other than for submit / cancel (the snapshot
  * column is NOT NULL; BR-L14 maps NULL to STUDENT before it is stored).
@@ -26,10 +27,12 @@ function loanAllowedTransitions(): array
 {
     return [
         ['DRAFT', 'submit', LOAN_BORROWERS, 'SUBMITTED'],
-        ['SUBMITTED', 'advisorApprove', ['STUDENT'], 'ADVISOR_APPROVED'],
+        // CEO 2026-11-05: default student_needs_manager_step = false, so the advisor's approval is the last one.
+        ['SUBMITTED', 'advisorApprove', ['STUDENT'], 'APPROVED'],
         ['SUBMITTED', 'advisorReject', ['STUDENT'], 'REJECTED'],
         ['SUBMITTED', 'managerApprove', ['STAFF', 'LECTURER'], 'APPROVED'],
         ['SUBMITTED', 'managerReject', ['STAFF', 'LECTURER'], 'REJECTED'],
+        // Legacy rows (advisor signed before 2026-11-05) stay decidable by the branch approver.
         ['ADVISOR_APPROVED', 'managerApprove', ['STUDENT'], 'APPROVED'],
         ['ADVISOR_APPROVED', 'managerReject', ['STUDENT'], 'REJECTED'],
         ['DRAFT', 'cancel', LOAN_BORROWERS, 'CANCELLED'],
@@ -110,23 +113,34 @@ test('submit and cancel do not depend on the borrower status, including an unkno
     expect($state->apply('SUBMITTED', 'cancel', null))->toBe('CANCELLED');
 });
 
-test('student second step switch: true (default, BR-L03) goes to ADVISOR_APPROVED, false goes straight to APPROVED', function () {
+test('student second step switch: false (default, CEO 2026-11-05) goes straight to APPROVED, true restores ADVISOR_APPROVED', function () {
     $state = new LoanState();
 
-    // The CEO answer is still pending (approvals.md K). This pins the shipped default; flipping
-    // config/loans.php `student_needs_manager_step` must flip this test together with it.
-    expect(config('loans.student_needs_manager_step'))->toBeTrue();
-    expect($state->studentNeedsManagerStep())->toBeTrue();
-    expect($state->apply('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBe('ADVISOR_APPROVED');
-
-    config(['loans.student_needs_manager_step' => false]);
+    // CEO decided 2026-11-05 (approvals.md): no branch step for a student's loan. This pins the shipped default;
+    // flipping config/loans.php `student_needs_manager_step` must flip this test together with it.
+    expect(config('loans.student_needs_manager_step'))->toBeFalse();
     expect($state->studentNeedsManagerStep())->toBeFalse();
     expect($state->apply('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBe('APPROVED');
+
+    config(['loans.student_needs_manager_step' => true]);
+    expect($state->studentNeedsManagerStep())->toBeTrue();
+    expect($state->apply('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBe('ADVISOR_APPROVED');
     // A rejection and every non-student path are untouched by the switch.
     expect($state->apply('SUBMITTED', 'advisorReject', 'STUDENT'))->toBe('REJECTED');
     expect($state->apply('SUBMITTED', 'managerApprove', 'STAFF'))->toBe('APPROVED');
     expect(fn () => $state->apply('SUBMITTED', 'managerApprove', 'STUDENT'))->toThrow(LoanDomainException::class);
 
-    config(['loans.student_needs_manager_step' => true]);
-    expect($state->apply('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBe('ADVISOR_APPROVED');
+    config(['loans.student_needs_manager_step' => false]);
+    expect($state->apply('SUBMITTED', 'advisorApprove', 'STUDENT'))->toBe('APPROVED');
+});
+
+test('a legacy ADVISOR_APPROVED student row is still decidable by the manager whatever the switch says', function () {
+    $state = new LoanState();
+
+    foreach ([false, true] as $switch) {
+        config(['loans.student_needs_manager_step' => $switch]);
+        expect($state->apply('ADVISOR_APPROVED', 'managerApprove', 'STUDENT'))->toBe('APPROVED');
+        expect($state->apply('ADVISOR_APPROVED', 'managerReject', 'STUDENT'))->toBe('REJECTED');
+        expect($state->apply('ADVISOR_APPROVED', 'cancel', 'STUDENT'))->toBe('CANCELLED');
+    }
 });

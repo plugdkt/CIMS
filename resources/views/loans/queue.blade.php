@@ -18,6 +18,9 @@
     @foreach ($sections as $section)
         @if ($section['show'])
             <h2 class="text-sm font-semibold mb-2 mt-6">{{ $section['title'] }} <span class="text-ink-faint font-normal">({{ $section['rows']->count() }})</span></h2>
+            @if ($section['key'] === 'manager')
+                <p class="text-xs text-ink-muted mb-2">{{ __('loans.queue_manager_note') }}</p>
+            @endif
             <div class="bg-surface border border-border rounded-xl overflow-hidden">
                 <div class="overflow-x-auto" tabindex="0">
                     <table class="w-full text-sm">

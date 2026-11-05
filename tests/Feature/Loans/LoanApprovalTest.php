@@ -250,6 +250,8 @@ test('the person who typed the request in for the borrower cannot approve it (BR
 });
 
 test('BR-L03 (changed): the advisor may also be the manager approver; nothing forbids it and the audit row records advisor_also_approver', function () {
+    // Needs the two-step path (switch back to true; the default since 2026-11-05 is false), same as a legacy row.
+    config(['loans.student_needs_manager_step' => true]);
     [$lab, $asset] = loanBranch();
     $student = studentUser(['lab_id' => $lab->id]);
     $advisor = User::findOrFail($student->advisor_id);
@@ -337,7 +339,7 @@ test('two advisor decisions at once: the second stale copy is refused, one ADVIS
     $service->advisorDecide($firstView, $advisor, 'APPROVE');
     expect(fn () => $service->advisorDecide($secondView, $advisor, 'REJECT', 'ซ้ำ'))->toThrow(LoanDomainException::class, __('loans.error.invalid_transition'));
 
-    expect($loan->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($loan->fresh()->status)->toBe('APPROVED');   // default switch false: the advisor's approval is the last one
     expect(LoanApproval::where('loan_id', $loan->id)->where('step', 'ADVISOR')->count())->toBe(1);
     expect(loanAudit('LOAN_ADVISOR_APPROVE', $loan))->toHaveCount(1);
     expect(loanAudit('LOAN_ADVISOR_REJECT', $loan))->toHaveCount(0);
@@ -503,7 +505,8 @@ test('a refused decision rolls back completely (no approval row, no audit row)',
 
 // --- the ADVISOR step (in the system) ---------------------------------------------------------------------------
 
-test('the named advisor approves in the system: ADVISOR_APPROVED, signature time set, nothing approved yet; then a branch approver finishes it', function () {
+test('with the two-step switch ON (config true, the pre-2026-11-05 path): the advisor gives ADVISOR_APPROVED, nothing approved yet; then a branch approver finishes it', function () {
+    config(['loans.student_needs_manager_step' => true]);
     [$lab, $asset] = loanBranch();
     $student = studentUser(['lab_id' => $lab->id]);
     $advisor = User::findOrFail($student->advisor_id);
@@ -638,21 +641,158 @@ test('BR-L14: a borrower whose person_type is NULL is treated as a STUDENT — n
     loanManagerPost($this, scientistUser(['lab_id' => $lab->id]), $loan)->assertForbidden();   // waits for the advisor
 });
 
-test('switch student_needs_manager_step = false: the advisor\'s approval makes a student loan APPROVED at once, with the quantities set', function () {
-    config(['loans.student_needs_manager_step' => false]);
+// --- CEO 2026-11-05 (approvals.md): the advisor's approval of a student's loan is the last one (default switch = false) ---
+
+test('CEO 2026-11-05: the advisor\'s approval makes a student loan APPROVED at once, with approved quantity = requested, approved_at and advisor_signed_at set', function () {
+    expect(config('loans.student_needs_manager_step'))->toBeFalse();   // the shipped default, not set by this test
     [$lab, $asset] = loanBranch();
     $student = studentUser(['lab_id' => $lab->id]);
     $advisor = User::findOrFail($student->advisor_id);
     $loan = submittedLoan($student, $asset, 2);
 
-    loanAdvisorPost($this, $advisor, $loan)->assertRedirect();
+    loanAdvisorPost($this, $advisor, $loan)->assertRedirect(route('loans.show', $loan));
 
     $fresh = $loan->fresh();
     expect($fresh->status)->toBe('APPROVED')->and($fresh->advisor_signed_at)->not->toBeNull()->and($fresh->approved_at)->not->toBeNull();
     expect($fresh->approved_by)->toBeNull();   // nobody of the branch decided; the record shows the advisor's step only
-    expect($fresh->lines()->firstOrFail()->qty_approved)->toBe('2.000000');
+    $line = $fresh->lines()->firstOrFail();
+    expect($line->qty_approved)->toBe('2.000000')->and($line->qty_approved)->toBe($line->qty);
     expect(LoanApproval::where('loan_id', $loan->id)->pluck('step')->all())->toBe(['ADVISOR']);
+    expect(loanAudit('LOAN_ADVISOR_APPROVE', $loan))->toHaveCount(1);
+    expect(loanAudit('LOAN_ADVISOR_APPROVE', $loan)[0]->new_value['status'])->toBe('APPROVED');
+    expect(loanAudit('LOAN_APPROVE', $loan))->toHaveCount(0);   // no manager decision was made
 
     // Done: a branch approver has nothing left to decide.
     loanManagerPost($this, scientistUser(['lab_id' => $lab->id]), $loan)->assertForbidden();
+    expect(fn () => app(LoanApprovalService::class)->managerDecide($loan->fresh(), scientistUser(['lab_id' => $lab->id]), 'APPROVE'))
+        ->toThrow(LoanDomainException::class);
+});
+
+test('the advisor\'s direct approval goes through the same service in the signed-link path too (same state, same quantities)', function () {
+    [$lab, $asset] = loanBranch();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $advisor = User::findOrFail($student->advisor_id);
+    $loan = submittedLoan($student, $asset, 3);
+
+    $result = app(LoanApprovalService::class)->advisorDecide($loan, $advisor, 'APPROVE', null, '127.0.0.1');
+
+    expect($result->status)->toBe('APPROVED');
+    expect($loan->fresh()->lines()->firstOrFail()->qty_approved)->toBe('3.000000');
+});
+
+test('advisor approval that fails the availability checks is refused with the advisor wording and rolls back completely', function (string $cause) {
+    [$lab, $asset] = loanBranch(10);
+    $student = studentUser(['lab_id' => $lab->id]);
+    $advisor = User::findOrFail($student->advisor_id);
+    $dates = $cause === 'due date passed' ? loanDates(2) : [];
+    $loan = submittedLoan($student, $asset, 3, null, $dates);
+    $name = (string) $asset->load('item')->item?->name_th;
+
+    $expected = match ($cause) {
+        'asset not ACTIVE' => (function () use ($asset) {
+            DB::table('loan_assets')->where('id', $asset->id)->update(['status' => 'RETIRED']);
+
+            return __('loans.error.asset_not_lendable_advisor');
+        })(),
+        'more than available' => (function () use ($asset, $name) {
+            DB::table('loan_assets')->where('id', $asset->id)->update(['qty_on_loan' => 9]);   // 1 of 10 left, 3 asked
+
+            return __('loans.error.not_enough_available_advisor', ['item' => $name]);
+        })(),
+        'due date passed' => (function () {
+            test()->travel(3)->days();
+
+            return __('loans.error.due_passed_advisor');
+        })(),
+    };
+
+    expect(fn () => app(LoanApprovalService::class)->advisorDecide($loan, $advisor, 'APPROVE'))
+        ->toThrow(LoanDomainException::class, $expected);
+
+    // Nothing was written: still SUBMITTED, no signature, no approved quantity, no approval row, no audit row.
+    assertAdvisorUntouched($loan);
+    $fresh = $loan->fresh();
+    expect($fresh->approved_at)->toBeNull()->and($fresh->approved_by)->toBeNull()->and($fresh->reject_reason)->toBeNull();
+    expect($fresh->lines()->firstOrFail()->qty_approved)->toBeNull();
+    // (the LOAN_CREATE / LOAN_SUBMIT rows from the set-up stay; the refused decision adds nothing)
+    expect(AuditLog::where('entity_type', Loan::class)->where('entity_id', $loan->id)->whereNotIn('action', ['LOAN_CREATE', 'LOAN_SUBMIT'])->count())->toBe(0);
+})->with(['asset not ACTIVE', 'more than available', 'due date passed']);
+
+test('the advisor-wording messages differ from the manager ones (they tell the advisor to ask the student, not to cut a quantity)', function () {
+    foreach (['due_passed', 'asset_not_lendable', 'not_enough_available'] as $key) {
+        expect(__('loans.error.'.$key.'_advisor', ['item' => 'X']))->not->toBe(__('loans.error.'.$key, ['item' => 'X']));
+        expect(__('loans.error.'.$key.'_advisor', ['item' => 'X']))->not->toBe('loans.error.'.$key.'_advisor');   // the key exists
+    }
+});
+
+test('the advisor rejecting a student loan: REJECTED, advisor_signed_at stays NULL (a rejection is not a signature), the reason is kept, nothing approved', function () {
+    [$lab, $asset] = loanBranch();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $advisor = User::findOrFail($student->advisor_id);
+    $loan = submittedLoan($student, $asset, 2);
+
+    loanAdvisorPost($this, $advisor, $loan, ['decision' => 'REJECT', 'reason' => 'ยังไม่ถึงขั้นตอนการทดลอง'])->assertRedirect();
+
+    $fresh = $loan->fresh();
+    expect($fresh->status)->toBe('REJECTED')->and($fresh->advisor_signed_at)->toBeNull();
+    expect($fresh->reject_reason)->toBe('ยังไม่ถึงขั้นตอนการทดลอง');
+    expect($fresh->approved_at)->toBeNull()->and($fresh->approved_by)->toBeNull();
+    expect($fresh->lines()->firstOrFail()->qty_approved)->toBeNull();
+    $row = LoanApproval::where('loan_id', $loan->id)->firstOrFail();
+    expect($row->step)->toBe('ADVISOR')->and($row->decision)->toBe('REJECT')->and($row->reason)->toBe('ยังไม่ถึงขั้นตอนการทดลอง');
+    expect(loanAudit('LOAN_ADVISOR_REJECT', $loan))->toHaveCount(1);
+});
+
+test('a rejection does not run the availability checks: it still goes through when the asset is retired or the due date has passed', function () {
+    [$lab, $asset] = loanBranch();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $advisor = User::findOrFail($student->advisor_id);
+    $loan = submittedLoan($student, $asset, 1, null, loanDates(2));
+    DB::table('loan_assets')->where('id', $asset->id)->update(['status' => 'RETIRED']);
+    $this->travel(3)->days();
+
+    app(LoanApprovalService::class)->advisorDecide($loan, $advisor, 'REJECT', 'ไม่เหมาะสม');
+
+    expect($loan->fresh()->status)->toBe('REJECTED');
+});
+
+test('an old ADVISOR_APPROVED student loan (advisor signed before the decision) can still be decided by the branch approver, whatever the switch says', function (bool $switch) {
+    config(['loans.student_needs_manager_step' => $switch]);
+    [$lab, $asset] = loanBranch();
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    $loan = submittedLoan(studentUser(['lab_id' => $lab->id]), $asset, 2);
+    $loan = forceLoanStatus($loan, 'ADVISOR_APPROVED', ['advisor_signed_at' => now()]);
+
+    loanManagerPost($this, $scientist, $loan)->assertRedirect(route('loans.show', $loan));
+
+    $fresh = $loan->fresh();
+    expect($fresh->status)->toBe('APPROVED')->and($fresh->approved_by)->toBe($scientist->id)->and($fresh->approved_at)->not->toBeNull();
+    expect($fresh->lines()->firstOrFail()->qty_approved)->toBe('2.000000');
+    expect(loanAudit('LOAN_APPROVE', $loan))->toHaveCount(1);
+})->with([false, true]);
+
+test('an old ADVISOR_APPROVED student loan can also be rejected by the branch approver (with a reason)', function () {
+    [$lab, $asset] = loanBranch();
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    $loan = submittedLoan(studentUser(['lab_id' => $lab->id]), $asset, 2);
+    $loan = forceLoanStatus($loan, 'ADVISOR_APPROVED', ['advisor_signed_at' => now()]);
+
+    loanManagerPost($this, $scientist, $loan, ['decision' => 'REJECT', 'reason' => 'ของไม่พอ'])->assertRedirect();
+
+    expect($loan->fresh()->status)->toBe('REJECTED')->and($loan->fresh()->reject_reason)->toBe('ของไม่พอ');
+});
+
+test('switch back to true (restoring the old BR-L03 path) leaves the advisor step as ADVISOR_APPROVED with nothing approved yet and no availability check', function () {
+    config(['loans.student_needs_manager_step' => true]);
+    [$lab, $asset] = loanBranch();
+    $student = studentUser(['lab_id' => $lab->id]);
+    $advisor = User::findOrFail($student->advisor_id);
+    $loan = submittedLoan($student, $asset, 2);
+    DB::table('loan_assets')->where('id', $asset->id)->update(['status' => 'RETIRED']);   // would fail the direct path
+
+    app(LoanApprovalService::class)->advisorDecide($loan, $advisor, 'APPROVE');
+
+    $fresh = $loan->fresh();
+    expect($fresh->status)->toBe('ADVISOR_APPROVED')->and($fresh->approved_at)->toBeNull();
+    expect($fresh->lines()->firstOrFail()->qty_approved)->toBeNull();
 });

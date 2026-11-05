@@ -29,6 +29,9 @@ use Illuminate\Support\Facades\DB;
  * FR-LN-14) still cannot approve it (spec BR-L04). The old "advisor must not also be the manager approver" default
  * was cancelled by the CEO for requisitions and is not enforced here; the audit row says when it happened.
  *
+ * CEO decision (2026-11-05, `loans.student_needs_manager_step` = false): the advisor's approval of a STUDENT's loan
+ * makes it APPROVED (ready for hand-out) at once, after the same availability checks as the manager's approval.
+ *
  * Both decisions run in one transaction on a locked row with the status checked again, so two people pressing
  * the button together produce exactly one decision (the first wins). Availability is checked again at approval
  * (BR-L02, second of three points) with the asset rows locked.
@@ -61,16 +64,20 @@ final class LoanApprovalService
 
             $next = $this->state->apply($locked->status, $decision === 'APPROVE' ? 'advisorApprove' : 'advisorReject', $locked->borrower_status);
 
-            $locked->forceFill(['advisor_signed_at' => now(), 'status' => $next]);
             if ($next === 'APPROVED') {
-                // Switch `loans.student_needs_manager_step` = false: the advisor's approval is the last one. Keep the
-                // invariant "an APPROVED loan has qty_approved on every line" for hand-out (step 3).
+                // CEO decision (2026-11-05): the advisor's approval of a student's loan is the last one. Same checks as
+                // the manager's approval (asset ACTIVE, quantity <= available under asset row locks, due date not past),
+                // all lines as requested; any failure throws here, before anything is written, so nothing is recorded.
+                // Keeps the invariant "an APPROVED loan has qty_approved on every line" for hand-out (step 3).
+                $this->approveLines($locked, [], null, true);
                 $locked->forceFill(['approved_at' => now()]);
-                foreach ($locked->lines()->get() as $line) {
-                    $line->forceFill(['qty_approved' => $line->qty])->save();
-                }
             }
-            $locked->save();
+            $locked->forceFill([
+                'status' => $next,
+                // Signed only by an approval; a rejection is not a signature.
+                'advisor_signed_at' => $decision === 'APPROVE' ? now() : null,
+                'reject_reason' => $decision === 'REJECT' ? trim((string) $reason) : null,
+            ])->save();
 
             $this->record($locked, 'ADVISOR', $advisor, $decision, $reason, $ipAddress);
 
@@ -147,10 +154,13 @@ final class LoanApprovalService
      *
      * @param  array<int|string, string|int|null>  $approvedQuantities
      */
-    private function approveLines(Loan $loan, array $approvedQuantities, ?string $reason): void
+    private function approveLines(Loan $loan, array $approvedQuantities, ?string $reason, bool $byAdvisor = false): void
     {
+        // The advisor's wording differs ("tell the borrower"), the checks are the same.
+        $sfx = $byAdvisor ? '_advisor' : '';
+
         if ($loan->due_date->lt(CarbonImmutable::today())) {
-            throw new LoanDomainException((string) __('loans.error.due_passed'));
+            throw new LoanDomainException((string) __('loans.error.due_passed'.$sfx));
         }
 
         $lines = $loan->lines()->get();
@@ -168,7 +178,7 @@ final class LoanApprovalService
         foreach ($lines as $line) {
             $asset = $assets->get($line->loan_asset_id);
             if ($asset === null || $asset->status !== 'ACTIVE' || (int) $asset->lab_id !== (int) $loan->lab_id) {
-                throw new LoanDomainException((string) __('loans.error.asset_not_lendable'));
+                throw new LoanDomainException((string) __('loans.error.asset_not_lendable'.$sfx));
             }
 
             $raw = $approvedQuantities[$line->line_no] ?? null;
@@ -189,7 +199,7 @@ final class LoanApprovalService
                 $reduced = true;
             }
             if (bccomp($approved, $asset->available(), 6) > 0) {
-                throw new LoanDomainException((string) __('loans.error.not_enough_available', ['item' => (string) $asset->item?->name_th]));
+                throw new LoanDomainException((string) __('loans.error.not_enough_available'.$sfx, ['item' => (string) $asset->item?->name_th]));
             }
 
             $resolved[] = [$line, $approved];

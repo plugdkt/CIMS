@@ -91,7 +91,7 @@ test('an expired link (past 72 hours) is refused for both the page and the decis
     expect($loan->fresh()->status)->toBe('SUBMITTED');
 });
 
-test('approving through the link moves the student loan to ADVISOR_APPROVED (the manager step still follows) and records the advisor', function () {
+test('approving through the link makes the student loan APPROVED at once (CEO 2026-11-05, no branch step) and records the advisor', function () {
     [$loan, , $advisor] = studentLoanWaitingForAdvisor();
 
     $response = $this->post(loanSignedUrl($loan), ['decision' => 'APPROVE'])->assertOk();
@@ -99,7 +99,8 @@ test('approving through the link moves the student loan to ADVISOR_APPROVED (the
     expect($response->viewData('failed'))->toBeFalse();
     expect($response->viewData('status'))->toBe(__('loans.advisor_decision_recorded'));
     $fresh = $loan->fresh();
-    expect($fresh->status)->toBe('ADVISOR_APPROVED')->and($fresh->advisor_signed_at)->not->toBeNull();
+    expect($fresh->status)->toBe('APPROVED')->and($fresh->advisor_signed_at)->not->toBeNull()->and($fresh->approved_at)->not->toBeNull();
+    expect($fresh->lines()->firstOrFail()->qty_approved)->toBe('2.000000');
     $row = LoanApproval::where('loan_id', $loan->id)->firstOrFail();
     expect($row->step)->toBe('ADVISOR')->and($row->actor_id)->toBe($advisor->id)->and($row->decision)->toBe('APPROVE');
     expect(loanAudit('LOAN_ADVISOR_APPROVE', $loan))->toHaveCount(1);
@@ -128,7 +129,7 @@ test('a link cannot be used twice: after one decision the same URL changes nothi
     expect($replay->viewData('status'))->toBe(__('loans.error.invalid_transition'));
     expect($this->post($url, ['decision' => 'APPROVE'])->assertOk()->viewData('failed'))->toBeTrue();
 
-    expect($loan->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($loan->fresh()->status)->toBe('APPROVED');
     expect(LoanApproval::where('loan_id', $loan->id)->count())->toBe(1);
     expect(loanAudit('LOAN_ADVISOR_APPROVE', $loan))->toHaveCount(1);
     expect(loanAudit('LOAN_ADVISOR_REJECT', $loan))->toHaveCount(0);

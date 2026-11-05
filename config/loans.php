@@ -20,12 +20,11 @@ return [
     'advisor_link_hours' => 72,
 
     /*
-     | CEO decision PENDING (approvals.md K, 2026-11-04): after the advisor approves a STUDENT's loan, does a
-     | scientist / warehouse manager still have to approve it?
-     |   true  (default, spec BR-L03): SUBMITTED -> ADVISOR_APPROVED -> (manager) -> APPROVED
-     |   false (like the student requisition, option "ก."): the advisor's approval makes it APPROVED at once.
-     | This is the ONLY place the choice is read (LoanState::studentNeedsManagerStep()); flip it here and the
-     | single test that pins it (LoanStateTest, "student second step switch").
+     | CEO DECIDED (2026-11-05): after the advisor approves a STUDENT's loan, no scientist / warehouse manager step.
+     |   false (current, like the student requisition, option "ก."): the advisor's approval makes it APPROVED at once.
+     |   true  (old spec BR-L03): SUBMITTED -> ADVISOR_APPROVED -> (manager) -> APPROVED
+     | This is the ONLY place the choice is read (LoanState::studentNeedsManagerStep()); the single test that pins
+     | it is LoanStateTest, "student second step switch". Old rows already ADVISOR_APPROVED can still be decided.
      */
-    'student_needs_manager_step' => true,
+    'student_needs_manager_step' => false,
 ];

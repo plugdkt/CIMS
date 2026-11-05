@@ -66,8 +66,9 @@ final class LoanNotifier
     }
 
     /**
-     * After the advisor decided: a rejection (or, with the student-step switch off, the final approval) goes to the
-     * borrower; an approval that still needs a manager goes to the branch's approvers (N2).
+     * After the advisor decided: a rejection or the final approval (APPROVED, the CEO's 2026-11-05 rule) goes to the
+     * borrower; no "waiting for the branch" notice (N2) and no notice to the scientist yet (hand-out is step 3).
+     * Only when the old switch is on (ADVISOR_APPROVED) does the branch's approvers get N2.
      *
      * @param  'APPROVE'|'REJECT'  $decision
      */

@@ -11,7 +11,7 @@ use App\Domain\Loan\Exceptions\LoanDomainException;
  * Hand-out and return transitions arrive with step 3.
  *
  *   DRAFT --submit--> SUBMITTED
- *   SUBMITTED (STUDENT)  --advisorApprove--> ADVISOR_APPROVED   (or APPROVED, see studentNeedsManagerStep())
+ *   SUBMITTED (STUDENT)  --advisorApprove--> APPROVED           (ADVISOR_APPROVED only if studentNeedsManagerStep())
  *   SUBMITTED (STUDENT)  --advisorReject---> REJECTED
  *   SUBMITTED (other) | ADVISOR_APPROVED --managerApprove--> APPROVED
  *                                        --managerReject---> REJECTED
@@ -21,12 +21,12 @@ final class LoanState
 {
     /**
      * THE ONE place the "does a student's loan still need a scientist after the advisor?" decision is read
-     * (CEO answer pending, approvals.md K). Default true = spec BR-L03. Set `loans.student_needs_manager_step`
-     * to false in config/loans.php and the advisor's approval alone makes the loan APPROVED.
+     * (CEO decided 2026-11-05: no). Config default false: the advisor's approval alone makes the loan APPROVED;
+     * true restores the old spec BR-L03 two-step path (ADVISOR_APPROVED rows are decidable either way).
      */
     public function studentNeedsManagerStep(): bool
     {
-        return (bool) config('loans.student_needs_manager_step', true);
+        return (bool) config('loans.student_needs_manager_step', false);
     }
 
     /**

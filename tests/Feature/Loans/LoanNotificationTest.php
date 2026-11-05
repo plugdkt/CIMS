@@ -144,7 +144,8 @@ test('N1: nothing goes out to an advisor whose account is inactive', function ()
     expect(Notification::count())->toBe(0);
 });
 
-test('N2 after the advisor: the branch\'s approvers are told, the borrower is not (nothing decided yet)', function () {
+test('N2 after the advisor, ONLY with the old two-step switch on (config true): the branch\'s approvers are told, the borrower is not (nothing decided yet)', function () {
+    config(['loans.student_needs_manager_step' => true]);
     [$lab, $asset] = loanBranch();
     $people = loanRoster($lab);
     $student = studentUser(['lab_id' => $lab->id]);
@@ -175,8 +176,8 @@ test('an advisor rejection goes to the borrower only (in the system and by email
     assertNoNoticeFor(Arr::only($people, ['scientist', 'scientist2', 'manager', 'other_scientist', 'admin']));
 });
 
-test('with student_needs_manager_step = false the advisor\'s approval is the final one and the borrower is told it is approved; the branch is not asked', function () {
-    config(['loans.student_needs_manager_step' => false]);
+test('CEO 2026-11-05 (default switch false): the advisor\'s approval is the final one, the borrower is told it is approved (system + email), N2 is NOT sent to the branch', function () {
+    expect(config('loans.student_needs_manager_step'))->toBeFalse();
     [$lab, $asset] = loanBranch();
     $people = loanRoster($lab);
     $student = studentUser(['lab_id' => $lab->id]);
@@ -189,7 +190,8 @@ test('with student_needs_manager_step = false the advisor\'s approval is the fin
     expect($notices->pluck('user_id')->all())->toBe([$student->id]);
     expect($notices[0]->title)->toBe(__('loans.notify.approved_title', ['doc_no' => $loan->doc_no]));
     expect(loanNotices(LoanNotifier::TYPE_PENDING_MANAGER))->toHaveCount(0);
-    assertNoNoticeFor(Arr::only($people, ['scientist', 'manager', 'other_scientist']));
+    expect(loanMailCount($student))->toBe(1);
+    assertNoNoticeFor(Arr::only($people, ['scientist', 'scientist2', 'manager', 'other_scientist', 'other_manager', 'admin']));
 });
 
 // --- N3: the decision -----------------------------------------------------------------------------------------------
@@ -292,8 +294,11 @@ test('no notice or email of the loan flow carries the borrower\'s name, username
     $advisor = User::findOrFail($student->advisor_id);
     $loan = submittedLoan($student, $asset, 1);
     app(LoanNotifier::class)->submitted($loan);
-    loanAdvisorPost($this, $advisor, $loan)->assertRedirect();
-    loanManagerPost($this, $people['scientist'], $loan)->assertRedirect();
+    loanAdvisorPost($this, $advisor, $loan)->assertRedirect();   // default: APPROVED here (CEO 2026-11-05), no manager step
+    expect($loan->fresh()->status)->toBe('APPROVED');
+    // A non-student request still goes through the manager's decision, so that notice is covered as well.
+    $staffLoan = submittedLoan($people['staff'], $asset, 1);
+    loanManagerPost($this, $people['scientist'], $staffLoan)->assertRedirect();
 
     $text = Notification::all()->map(fn ($n) => $n->title.' '.$n->body.' '.$n->link_url)->implode(' ');
     expect($text)->not->toBe('');

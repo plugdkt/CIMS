@@ -320,7 +320,7 @@ test('BR-L14: after SUBMIT the status snapshot and the advisor are fixed — a l
     loanAdvisorPost($this, $newAdvisor, $loan)->assertForbidden();     // the NEW advisor has no say on the old document
     loanManagerPost($this, scientistUser(['lab_id' => $lab->id]), $loan)->assertForbidden();   // and it still has to pass the old advisor
     loanAdvisorPost($this, $advisor, $loan)->assertRedirect();
-    expect($loan->fresh()->status)->toBe('ADVISOR_APPROVED');
+    expect($loan->fresh()->status)->toBe('APPROVED');   // CEO 2026-11-05: the advisor's approval is the last one
 
     // No editing a submitted document, by the form or by the service.
     $student = $student->fresh();
@@ -651,6 +651,19 @@ test('the approval queue (managers): own branch, waiting for a manager only, not
 
     // The colleague sees what S typed in (S may not approve it, the colleague may).
     $this->actingAs($s2)->get(route('loans.queue'))->assertOk()->assertSee($typedInByS->doc_no)->assertSee($staffSubmitted->doc_no)->assertDontSee($otherBranch->doc_no);
+});
+
+test('the manager queue tells approvers that a student\'s loan does not pass this step (queue_manager_note); an advisor-only user does not get the manager section or the note', function () {
+    [$lab, $asset] = loanBranch();
+    $scientist = scientistUser(['lab_id' => $lab->id]);
+    $loan = submittedLoan(staffUser(['lab_id' => $lab->id]), $asset, 1);
+
+    $this->actingAs($scientist)->get(route('loans.queue'))->assertOk()
+        ->assertSee($loan->doc_no)
+        ->assertSee(__('loans.queue_manager_note'));
+
+    $this->actingAs(navUser('advisor'))->get(route('loans.queue'))->assertOk()
+        ->assertDontSee(__('loans.queue_manager_note'));
 });
 
 test('the approval queue (advisors): only their own advisees\' requests that wait for them; the manager section is not theirs', function () {
