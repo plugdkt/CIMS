@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Policies;
 
 use App\Domain\Requisition\Services\ShopAvailability;
+use App\Domain\Shared\ItemType;
 use App\Models\Item;
 use App\Models\User;
 
@@ -38,6 +39,11 @@ final class ItemPolicy extends Policy
     public function requestRefill(User $user, Item $item): bool
     {
         if (! $this->hasPermission($user, 'requisition.create') || $user->lab_id === null || ! $item->is_active) {
+            return false;
+        }
+
+        // Science (loan) materials are never requisitioned, so there is nothing to ask a refill for.
+        if (! ItemType::isRequisitionKind(ItemType::forItem($item))) {
             return false;
         }
 

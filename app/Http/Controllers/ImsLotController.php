@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Exceptions\ImsException;
+use App\Domain\Inventory\Exceptions\ItemKindChangeBlockedException;
 use App\Domain\Inventory\Services\ImsService;
+use App\Domain\Inventory\Services\ItemUpdater;
 use App\Domain\Attachments\Exceptions\InfectedFileException;
 use App\Domain\Attachments\Services\AttachmentUploadService;
 use App\Http\Requests\ImsLotDetailsRequest;
 use App\Http\Requests\ImsLotGroupRequest;
+use App\Http\Requests\ImsLotItemRequest;
 use App\Http\Requests\ImsLotLocateRequest;
 use App\Http\Requests\ImsLotPhotoRequest;
 use App\Http\Requests\ImsTransferRequest;
@@ -114,6 +117,35 @@ final class ImsLotController extends Controller
         return ($place !== null
             ? redirect()->route('ims.places.show', $place)
             : redirect()->route('ims.lots.locate'))->with('status', $status);
+    }
+
+    /** Edit the material's own details from the lot page (same data, rules and service as the items register). */
+    public function editItem(ImsLot $imsLot): View
+    {
+        $this->authorize('editItem', $imsLot);
+
+        $imsLot->load(['item.category', 'item.baseUnit', 'item.packageUnit']);
+
+        return view('ims.lots.item-edit', [
+            'lot' => $imsLot,
+            'item' => $imsLot->item,
+            'categories' => ItemCategory::orderBy('name_th')->get(),
+        ]);
+    }
+
+    public function updateItem(ImsLotItemRequest $request, ImsLot $imsLot, ItemUpdater $updater): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $item = $imsLot->item()->firstOrFail();
+
+        try {
+            $updater->update($item, $request->validated(), $user, ItemUpdater::SOURCE_IMS_LOT, ['ims_lot' => $imsLot->ulid]);
+        } catch (ItemKindChangeBlockedException $e) {
+            return back()->withInput()->withErrors(['category_id' => $e->getMessage()]);
+        }
+
+        return redirect()->route('ims.lots.index', ['search' => (string) $item->item_code])->with('status', __('ims.item_edit.saved'));
     }
 
     public function transferForm(ImsLot $imsLot): View

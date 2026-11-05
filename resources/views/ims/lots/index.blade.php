@@ -76,7 +76,10 @@
                                 @endif
                             </td>
                             <td class="px-4 py-3 font-mono text-xs">{{ $lot->item?->item_code }}</td>
-                            <td class="px-4 py-3">{{ $lot->item?->name_th }}</td>
+                            <td class="px-4 py-3">
+                                {{ $lot->item?->name_th }}
+                                <span class="block mt-0.5"><x-item-kind-badge :kind="$lot->item !== null ? App\Domain\Shared\ItemType::forItem($lot->item) : App\Domain\Shared\ItemType::CHEMICAL" /></span>
+                            </td>
                             <td class="px-4 py-3">{{ $lot->lot_no ?: '—' }}</td>
                             <td class="px-4 py-3">@if ($lot->location) {{ $lot->location->name }} @elseif ($lot->qty_remaining_base > 0) <span class="text-xs font-semibold text-warning-ink">{{ __('ims.no_location') }}</span> @else — @endif</td>
                             <td class="px-4 py-3 text-right font-mono">
@@ -95,6 +98,11 @@
                                 @can('view', $lot)
                                     <a href="{{ route('ims.lots.edit', $lot) }}" class="text-xs font-semibold text-accent hover:text-accent-strong mr-3">
                                         {{ __('ims.btn_details') }}
+                                    </a>
+                                @endcan
+                                @can('editItem', $lot)
+                                    <a href="{{ route('ims.lots.item.edit', $lot) }}" class="text-xs font-semibold text-accent hover:text-accent-strong mr-3 whitespace-nowrap">
+                                        {{ __('ims.btn_edit_item') }}
                                     </a>
                                 @endcan
                                 @can('transfer', $lot)

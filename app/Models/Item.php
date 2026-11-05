@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Domain\Shared\ItemType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -62,6 +64,34 @@ class Item extends Model
             'h_statements' => 'array',
             'p_statements' => 'array',
         ];
+    }
+
+    /**
+     * Items of one kind (an {@see ItemType} slug), by their category. The one place that turns a kind into a query.
+     *
+     * @param  Builder<Item>  $query
+     * @return Builder<Item>
+     */
+    public function scopeOfKind(Builder $query, string $slug): Builder
+    {
+        return $query->whereHas('category', fn (Builder $c) => \App\Models\ItemCategory::constrainKind($c, $slug));
+    }
+
+    /**
+     * Items that may be requisitioned / put in a shop basket: everything except science (loan-and-return) materials.
+     *
+     * @param  Builder<Item>  $query
+     * @return Builder<Item>
+     */
+    public function scopeRequisitionable(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('category', fn (Builder $c) => \App\Models\ItemCategory::constrainKind($c, ItemType::SCIENCE));
+    }
+
+    /** The {@see ItemType} slug of this item (from its category). */
+    public function kind(): string
+    {
+        return ItemType::forItem($this);
     }
 
     /** @return BelongsTo<ItemCategory, $this> */

@@ -20,6 +20,12 @@
         <p class="text-sm text-ink-muted mt-1">
             <span class="font-mono">{{ $item?->item_code }}</span> · {{ $item?->category?->name_th ?: '—' }}
             · {{ __('ims.col_lot') }} {{ $lot->lot_no ?: '—' }}
+            @if ($item !== null)
+                <x-item-kind-badge :kind="App\Domain\Shared\ItemType::forItem($item)" class="ml-1" />
+            @endif
+            @can('editItem', $lot)
+                <a href="{{ route('ims.lots.item.edit', $lot) }}" class="ml-2 text-xs font-semibold text-accent hover:text-accent-strong">{{ __('ims.btn_edit_item') }}</a>
+            @endcan
         </p>
     </div>
 

@@ -67,7 +67,8 @@ final class BackfillManagerItemTypesCommand extends Command
         foreach ($managerIds->chunk(200) as $chunk) {
             $rows = [];
             foreach ($chunk as $userId) {
-                foreach (ItemType::all() as $type) {
+                // Only the requisition kinds: science (loan) is never granted automatically (CEO 2026-11-05) — an ADMIN assigns it by hand.
+                foreach (ItemType::requisitionKinds() as $type) {
                     $rows[] = ['user_id' => $userId, 'item_type' => $type];
                 }
             }

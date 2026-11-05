@@ -53,12 +53,7 @@
                             <label class="block text-sm font-semibold mb-1" for="category_id">
                                 {{ __('items.field_category') }} <span class="text-danger">*</span>
                             </label>
-                            <select name="category_id" id="category_id" class="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" required>
-                                <option value="">{{ __('items.select_placeholder') }}</option>
-                                @foreach ($categories as $category)
-                                    <option value="{{ $category->id }}" @selected((int) old('category_id', $item->category_id) === $category->id)>{{ $category->name_th }}</option>
-                                @endforeach
-                            </select>
+                            @include('items._category-select', ['categories' => $categories, 'selected' => old('category_id', $item->category_id)])
                         </div>
                     </div>
 

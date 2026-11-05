@@ -774,3 +774,32 @@ if (! function_exists('consumableItem')) {
         return makeItem(array_merge(['category_id' => categoryId('MATERIAL')], $overrides));
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// ITM-2610-063 (third kind of stock: science / loan-and-return) helpers.
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('scienceItem')) {
+    /** A catalog item of the SCIENCE kind (category LOAN_SCIENCE, not chemical), base unit g. */
+    function scienceItem(array $overrides = []): \App\Models\Item
+    {
+        return makeItem(array_merge(['category_id' => categoryId(\App\Models\ItemCategory::LOAN_CODE)], $overrides));
+    }
+}
+
+if (! function_exists('requisitionWithItem')) {
+    /** A requisition (given status) holding one line for exactly this item. */
+    function requisitionWithItem(\App\Models\Item $item, string $status = 'SUBMITTED', ?\App\Models\User $requester = null): \App\Models\Requisition
+    {
+        $requisition = makeRequisition($requester ?? staffUser(), ['status' => $status]);
+        $requisition->items()->create([
+            'line_no' => 1,
+            'item_id' => $item->id,
+            'qty_requested' => '5.000000',
+            'unit_id' => \App\Models\Unit::where('code', 'g')->firstOrFail()->id,
+            'qty_requested_base' => '5.000000',
+        ]);
+
+        return $requisition->fresh();
+    }
+}

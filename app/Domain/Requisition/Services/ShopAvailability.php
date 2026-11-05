@@ -26,7 +26,9 @@ final class ShopAvailability
      */
     public function shelf(int $labId): Builder
     {
+        // Science (loan-and-return) materials never appear on the shelf: they are lent, not requisitioned.
         return Item::query()
+            ->requisitionable()
             ->where('is_active', true)
             ->whereNotNull('base_unit_id')
             ->where(function (Builder $q) use ($labId) {

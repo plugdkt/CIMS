@@ -282,7 +282,7 @@ test('requestRefill tells ONLY the active keepers of that kind in the requester\
     $note = Notification::where('user_id', $chemKeeper->id)->firstOrFail();
     expect($note->title)->toBe(__('working_stock.refill_notify_title'))
         ->and($note->body)->toContain('สารขอเติม')->toContain($this->shopper->full_name)->toContain('1000')
-        ->and($note->link_url)->toBe(route('ims.transfers.create'));
+        ->and($note->link_url)->toBe(route('ims.lots.index', ['search' => $item->item_code]));
 
     Mail::assertNothingSent();
     Mail::assertNothingQueued();

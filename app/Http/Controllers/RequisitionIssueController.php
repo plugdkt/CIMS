@@ -63,7 +63,7 @@ final class RequisitionIssueController extends Controller
                 'issued_containers' => $returns->issuedContainersFor($line),
                 'stock_balance' => $balance,
                 // ITM-2610-062: only `working` (= `orderable`) can be dispensed; `ims` is shown for information. Nothing is
-                // cut from IMS automatically any more: a stock keeper moves it by hand first (ims.transfers).
+                // cut from IMS automatically any more: a stock keeper moves it by hand first (ims.lots.transfer, lot by lot).
                 'availability' => $availability->forItem($item, $requisition->lab_id),
                 'low_stock' => $stockBalance->isBelowReorderPoint($item, $balance),
                 // May this user go and move this item's kind of stock from IMS (deny by default)?
@@ -212,7 +212,12 @@ final class RequisitionIssueController extends Controller
         UnitConverter $converter,
         ShopAvailability $availability,
     ): array {
-        $item = $requisitionItem->item()->firstOrFail();
+        $item = $requisitionItem->item()->with('category')->firstOrFail();
+
+        // Science (loan-and-return) materials are lent, never dispensed against a requisition.
+        if (! ItemType::isRequisitionKind(ItemType::forItem($item))) {
+            return ['error' => __('requisitions.validation.item_not_requisitionable'), 'message' => null];
+        }
 
         /** @var numeric-string $neededBase */
         $neededBase = $converter->toItemBase($item, $unit, $qty);

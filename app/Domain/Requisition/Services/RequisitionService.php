@@ -75,14 +75,28 @@ final class RequisitionService
         }
 
         // ITM-2610-052 phase 2: one requisition = one kind of stock (chemical or consumable).
-        $isChemical = ItemType::isChemical(ItemType::forItem($item));
+        // Serialise with ItemUpdater (which locks the item row before it may re-categorise it). Under REPEATABLE READ
+        // a plain SELECT after the lock could still read the transaction's older snapshot, so both the item and its
+        // category are read with locking reads (these always see the latest committed row) and copied onto $item:
+        // a line for an item that just became science is refused.
+        $locked = Item::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+        $category = $locked->category()->sharedLock()->first();
+        $item->setRawAttributes($locked->getAttributes(), true);
+        $item->setRelation('category', $category);
+
+        $kind = ItemType::forItem($item);
+        // Science (loan-and-return) materials are lent, never requisitioned (CEO 2026-11-05) — refused server-side.
+        if (! ItemType::isRequisitionKind($kind)) {
+            throw new InvalidRequisitionTransitionException((string) __('requisitions.validation.item_not_requisitionable'));
+        }
         $declared = $requisition->request_type;
-        if ($declared !== [] && ! in_array(ItemType::requestTypeValue(ItemType::forItem($item)), $declared, true)) {
+        if ($declared !== [] && ! in_array(ItemType::requestTypeValue($kind), $declared, true)) {
             throw new InvalidRequisitionTransitionException((string) __('requisitions.validation.item_wrong_type'));
         }
         // A legacy draft that was ticked as both kinds must still not receive a second kind once it has lines.
+        $otherKind = $kind === ItemType::CHEMICAL ? ItemType::CONSUMABLE : ItemType::CHEMICAL;
         $hasOtherKind = $requisition->items()
-            ->whereHas('item.category', fn ($c) => $c->where('is_chemical', ! $isChemical))
+            ->whereHas('item.category', fn ($c) => \App\Models\ItemCategory::constrainKind($c, $otherKind))
             ->exists();
         if ($hasOtherKind) {
             throw new InvalidRequisitionTransitionException((string) __('requisitions.validation.mixed_item_types'));
@@ -165,8 +179,13 @@ final class RequisitionService
      */
     private function assertSingleKind(Requisition $requisition): void
     {
-        $hasChemical = $requisition->items()->whereHas('item.category', fn ($c) => $c->where('is_chemical', true))->exists();
-        $hasOther = $requisition->items()->whereHas('item.category', fn ($c) => $c->where('is_chemical', false))->exists();
+        $hasChemical = $requisition->items()->whereHas('item.category', fn ($c) => \App\Models\ItemCategory::constrainKind($c, ItemType::CHEMICAL))->exists();
+        $hasOther = $requisition->items()->whereHas('item.category', fn ($c) => \App\Models\ItemCategory::constrainKind($c, ItemType::CONSUMABLE))->exists();
+
+        // A line that has become science (loan) since it was added can no longer be requisitioned.
+        if ($requisition->items()->whereHas('item.category', fn ($c) => \App\Models\ItemCategory::constrainKind($c, ItemType::SCIENCE))->exists()) {
+            throw new InvalidRequisitionTransitionException((string) __('requisitions.validation.item_not_requisitionable'));
+        }
 
         if ($hasChemical && $hasOther) {
             throw new InvalidRequisitionTransitionException((string) __('requisitions.validation.mixed_item_types'));

@@ -56,7 +56,7 @@
             @csrf
 
             {{-- One requisition = one kind of stock. Chosen by the card the user came from; otherwise pick exactly one. --}}
-            @php $selectedType = App\Domain\Shared\ItemType::isValid(old('type')) ? old('type') : $type; @endphp
+            @php $selectedType = App\Domain\Shared\ItemType::isRequisitionKind(old('type')) ? old('type') : $type; @endphp
             @if ($selectedType !== null)
                 <input type="hidden" name="type" value="{{ $selectedType }}">
                 <p class="text-sm"><span class="text-ink-faint">{{ __('requisitions.field_request_type') }}:</span>

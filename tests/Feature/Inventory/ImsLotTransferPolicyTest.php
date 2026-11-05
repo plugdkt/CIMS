@@ -12,8 +12,9 @@ uses(RefreshDatabase::class);
 
 /*
  * ITM-2610-062: moving a lot from IMS into working stock needs `ims.manage` AND being the keeper of that kind of stock
- * (user_item_types, deny by default). The rule sits in ImsLotPolicy::transfer, so the OLD single-lot route
- * (ims.lots.transfer / ims.lots.transfer.form) is closed by it too, not only the new paper-requisition pages.
+ * (user_item_types, deny by default). The rule sits in ImsLotPolicy::transfer, so the single-lot route
+ * (ims.lots.transfer / ims.lots.transfer.form) is closed by it. Since 2026-11-05 this is the ONLY way to move stock
+ * (the paper-requisition page was removed). Science (loan) lots are never moved into working stock.
  */
 
 beforeEach(function () {
@@ -65,21 +66,7 @@ test('ImsLotPolicy::transfer: only a manager of the own branch who keeps THAT ki
     expect($can($chemKeeper, $this->chemLot->fresh()))->toBeFalse();
 });
 
-test('ImsLotPolicy::transferAny opens the paper-requisition pages for an ims.manage holder with a branch, not for others', function () {
-    $allowed = labManagerUser(['lab_id' => $this->lab->id, 'itemTypes' => []]);   // pages open, rows are checked one by one
-    $noBranch = labManagerUser(['lab_id' => null]);
-    $admin = adminUser(['lab_id' => $this->lab->id]);
-    $scientist = scientistUser(['lab_id' => $this->lab->id]);
-    $student = studentUser(['lab_id' => $this->lab->id]);
-
-    expect(Gate::forUser($allowed)->allows('transferAny', ImsLot::class))->toBeTrue()
-        ->and(Gate::forUser($noBranch)->allows('transferAny', ImsLot::class))->toBeFalse()
-        ->and(Gate::forUser($admin)->allows('transferAny', ImsLot::class))->toBeFalse()
-        ->and(Gate::forUser($scientist)->allows('transferAny', ImsLot::class))->toBeFalse()
-        ->and(Gate::forUser($student)->allows('transferAny', ImsLot::class))->toBeFalse();
-});
-
-test('POST straight to the old ims.lots.transfer route: a manager who does not keep that kind gets 403 and nothing is written', function () {
+test('POST straight to the ims.lots.transfer route: a manager who does not keep that kind gets 403 and nothing is written', function () {
     $chemKeeper = labManagerUser(['lab_id' => $this->lab->id, 'itemTypes' => ['chemical']]);
 
     // A consumable lot, posted by the chemical keeper.
@@ -97,7 +84,7 @@ test('POST straight to the old ims.lots.transfer route: a manager who does not k
         ->and(ImsMovement::where('type', 'ISSUE')->count())->toBe(0);
 });
 
-test('the keeper of the kind can still move the lot through the old route', function () {
+test('the keeper of the kind can still move the lot through the lot route', function () {
     $chemKeeper = labManagerUser(['lab_id' => $this->lab->id, 'itemTypes' => ['chemical']]);
 
     $this->actingAs($chemKeeper)->get(route('ims.lots.transfer.form', $this->chemLot))->assertOk();
@@ -109,7 +96,7 @@ test('the keeper of the kind can still move the lot through the old route', func
         ->and(ImsMovement::where('ims_lot_id', $this->chemLot->id)->where('type', 'ISSUE')->count())->toBe(1);
 });
 
-test('ADMIN (no ims.manage) is refused on the old transfer route even though ADMIN keeps every kind', function () {
+test('ADMIN (no ims.manage) is refused on the transfer route even though ADMIN keeps every kind', function () {
     $admin = adminUser(['lab_id' => $this->lab->id]);
     grantItemTypes($admin);   // rows do not matter: ims.manage is missing
 
@@ -119,10 +106,30 @@ test('ADMIN (no ims.manage) is refused on the old transfer route even though ADM
     expect((float) $this->chemLot->fresh()->qty_remaining_base)->toEqual(2000.0)->and(Container::count())->toBe(0);
 });
 
-test('a keeper of the other branch gets 403 on the old route even for the right kind', function () {
+test('a keeper of the other branch gets 403 on the lot route even for the right kind', function () {
     $outsider = labManagerUser(['lab_id' => $this->otherLab->id]);
 
     $this->actingAs($outsider)->post(route('ims.lots.transfer', $this->chemLot), ($this->payload)())->assertForbidden();
 
     expect((float) $this->chemLot->fresh()->qty_remaining_base)->toEqual(2000.0);
+});
+
+test('ImsLotPolicy::transfer refuses a science (loan) lot for every user, even a keeper who holds the science kind; the routes answer 403 and write nothing', function () {
+    $science = makeItem(['name_th' => 'วัสดุวิทยาศาสตร์ยืม', 'category_id' => categoryId(\App\Models\ItemCategory::LOAN_CODE)]);
+    $scienceLot = makeImsLot($this->lab->id, $science);
+    $keeper = labManagerUser(['lab_id' => $this->lab->id, 'itemTypes' => ['chemical', 'consumable', 'science']]);
+    $admin = adminUser(['lab_id' => $this->lab->id]);
+
+    expect(Gate::forUser($keeper)->allows('transfer', $scienceLot))->toBeFalse()
+        ->and(Gate::forUser($admin)->allows('transfer', $scienceLot))->toBeFalse()
+        // Sanity: the same keeper may still move a chemical lot.
+        ->and(Gate::forUser($keeper)->allows('transfer', $this->chemLot))->toBeTrue();
+
+    $this->actingAs($keeper)->get(route('ims.lots.transfer.form', $scienceLot))->assertForbidden();
+    $this->actingAs($keeper)->post(route('ims.lots.transfer', $scienceLot), ($this->payload)())->assertForbidden();
+
+    expect((float) $scienceLot->fresh()->qty_remaining_base)->toEqual(2000.0)
+        ->and(Container::where('item_id', $science->id)->count())->toBe(0)
+        ->and(StockLedger::count())->toBe(0)
+        ->and(ImsMovement::where('ims_lot_id', $scienceLot->id)->where('type', 'ISSUE')->count())->toBe(0);
 });

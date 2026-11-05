@@ -29,6 +29,9 @@ final class ItemCategorySeeder extends Seeder
             ['code' => 'MATERIAL', 'name_th' => 'วัสดุ', 'is_chemical' => false],
             ['code' => 'CONSUMABLE', 'name_th' => 'วัสดุสิ้นเปลือง', 'is_chemical' => false],
             ['code' => 'GLASSWARE', 'name_th' => 'เครื่องแก้ว', 'is_chemical' => false],
+            // ITM-2610-062 (CEO 2026-11-05): the third kind, science materials that are lent and returned. It is
+            // is_chemical = false like the consumables; the code (ItemCategory::LOAN_CODE) is what marks it as science.
+            ['code' => ItemCategory::LOAN_CODE, 'name_th' => 'วัสดุวิทยาศาสตร์ (ยืม-คืน)', 'is_chemical' => false],
         ];
 
         foreach ($categories as $category) {

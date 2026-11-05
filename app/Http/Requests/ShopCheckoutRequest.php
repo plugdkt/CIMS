@@ -25,7 +25,7 @@ final class ShopCheckoutRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => ['required', Rule::in(ItemType::all())],
+            'type' => ['required', Rule::in(ItemType::requisitionKinds())],
             'purpose_type' => ['required', Rule::in(['TEACHING', 'RESEARCH', 'OTHER'])],
             'purpose_detail' => ['nullable', 'string', 'max:500'],
         ];

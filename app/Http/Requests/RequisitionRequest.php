@@ -40,7 +40,7 @@ final class RequisitionRequest extends FormRequest
         // editable field afterwards, and the old ticked `request_type` boxes are gone.
         $kind = $this->route('requisition') instanceof Requisition
             ? []
-            : ['type' => ['required', Rule::in(ItemType::all())]];
+            : ['type' => ['required', Rule::in(ItemType::requisitionKinds())]];
 
         return $kind + [
             'purpose_type' => ['required', Rule::in(['TEACHING', 'RESEARCH', 'OTHER'])],

@@ -229,7 +229,7 @@ test('issue-all needs the issue permission', function () {
 
 });
 
-test('ITM-2610-062: when working stock is short the issue page shows the "not enough in working stock" box, and the link to the paper-requisition move only for those who may move that kind', function () {
+test('when working stock is short the issue page shows the "not enough in working stock" box, and the link to that item\'s lots in IMS (move lot by lot) only for those who may move that kind', function () {
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '100.000000');
     $line = $requisition->items->first();
@@ -245,14 +245,15 @@ test('ITM-2610-062: when working stock is short the issue page shows the "not en
     $page->assertSee(__('working_stock.issue_short_title'))
         ->assertSee(__('working_stock.issue_short_desc'))
         ->assertSee(__('working_stock.issue_short_row', ['need' => '100', 'working' => '20', 'ims' => '500', 'unit' => 'g']))
-        ->assertSee(route('ims.transfers.create'), false)
+        ->assertSee(route('ims.lots.index', ['search' => $line->item->item_code]), false)
+        ->assertDontSee('ims/transfers', false)
         ->assertSee(__('working_stock.btn_go_transfer'))
         ->assertDontSee(__('requisitions.btn_set_location'));
 
     // A scientist sees the explanation but no link to a page they cannot use.
     $this->actingAs($scientist)->get(route('requisitions.issue.create', $requisition))->assertOk()
         ->assertSee(__('working_stock.issue_short_title'))
-        ->assertDontSee(route('ims.transfers.create'), false)
+        ->assertDontSee(route('ims.lots.index', ['search' => $line->item->item_code]), false)
         ->assertDontSee(__('working_stock.btn_go_transfer'));
 });
 

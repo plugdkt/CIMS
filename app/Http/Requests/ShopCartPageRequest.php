@@ -21,7 +21,7 @@ final class ShopCartPageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'type' => ['nullable', Rule::in(ItemType::all())],
+            'type' => ['nullable', Rule::in(ItemType::requisitionKinds())],
         ];
     }
 }

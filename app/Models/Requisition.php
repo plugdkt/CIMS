@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -85,6 +86,18 @@ class Requisition extends Model
     }
 
     /**
+     * Requisitions that are not finished yet (anything but ISSUED / REJECTED / CANCELLED) — same meaning as the
+     * "in flight" counts on the home cards.
+     *
+     * @param  Builder<Requisition>  $query
+     * @return Builder<Requisition>
+     */
+    public function scopeOpen(Builder $query): Builder
+    {
+        return $query->whereNotIn('status', ['ISSUED', 'REJECTED', 'CANCELLED']);
+    }
+
+    /**
      * ITM-2610-052: requisitions that contain at least one line of the given kind, judged by
      * the lines' real catalog categories — `request_type` is a box the requester ticked, so it
      * is not trusted for filtering. A legacy mixed requisition matches both kinds.
@@ -94,9 +107,7 @@ class Requisition extends Model
      */
     public function scopeOfItemType(Builder $query, string $slug): Builder
     {
-        $isChemical = ItemType::isChemical($slug);
-
-        return $query->whereHas('items.item.category', fn (Builder $c) => $c->where('is_chemical', $isChemical));
+        return $query->whereHas('items.item.category', fn (Builder $c) => \App\Models\ItemCategory::constrainKind($c, $slug));
     }
 
     /**
@@ -118,11 +129,15 @@ class Requisition extends Model
             // Same rule as itemKinds(): the kind of the real lines when there are lines, otherwise
             // (a requisition with no lines yet) the `request_type` it was filed under.
             foreach ($slugs as $slug) {
-                $q->orWhere(fn (Builder $inner) => $inner
-                    ->ofItemType($slug)
-                    ->orWhere(fn (Builder $noLines) => $noLines
-                        ->whereDoesntHave('items')
-                        ->whereRaw('FIND_IN_SET(?, request_type) > 0', [ItemType::requestTypeValue($slug)])));
+                $q->orWhere(function (Builder $inner) use ($slug) {
+                    $inner->ofItemType($slug);
+                    // Only chemical/consumable can be filed under a request_type; science (loan) never is.
+                    if (ItemType::isRequisitionKind($slug)) {
+                        $inner->orWhere(fn (Builder $noLines) => $noLines
+                            ->whereDoesntHave('items')
+                            ->whereRaw('FIND_IN_SET(?, request_type) > 0', [ItemType::requestTypeValue($slug)]));
+                    }
+                });
             }
         });
     }
@@ -136,13 +151,19 @@ class Requisition extends Model
      */
     public function itemKinds(): array
     {
-        $kinds = [];
-        if ($this->items()->whereHas('item.category', fn ($c) => $c->where('is_chemical', true))->exists()) {
-            $kinds[] = ItemType::CHEMICAL;
+        // One query: the distinct categories of the lines, each mapped to its kind by the single rule in ItemType.
+        // A finished requisition whose item was later re-categorised as science simply reports 'science' (no throw).
+        $categories = DB::table('requisition_items')
+            ->join('items', 'items.id', '=', 'requisition_items.item_id')
+            ->join('item_categories', 'item_categories.id', '=', 'items.category_id')
+            ->where('requisition_items.requisition_id', $this->id)
+            ->distinct()
+            ->get(['item_categories.is_chemical', 'item_categories.code']);
+        $found = [];
+        foreach ($categories as $category) {
+            $found[] = ItemType::slugForCategory((bool) $category->is_chemical, (string) $category->code);
         }
-        if ($this->items()->whereHas('item.category', fn ($c) => $c->where('is_chemical', false))->exists()) {
-            $kinds[] = ItemType::CONSUMABLE;
-        }
+        $kinds = array_values(array_intersect(ItemType::all(), $found));
         if ($kinds !== []) {
             return $kinds;
         }

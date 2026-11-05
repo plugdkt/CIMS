@@ -54,29 +54,18 @@ test('a warehouse manager (LAB_MANAGER/AUDITOR) gets no duplicate of what the wa
 // --- warehouse card ----------------------------------------------------------------------------
 
 test('the warehouse card gives a manager every old warehouse entry: approvals, dispensing, stock takes, disposals, adjustments, IMS, stock, register, locations, members, reports', function (string $kind) {
-    // ITM-2610-062: the "move by paper requisition" tab (ims_transfer.tab) sits right after the IMS tab.
-    expect(tabLabels(navUser($kind), MenuRegistry::OPS))->toBe([
-        ...lbl(['tab_overview', 'tab_waiting', 'tab_to_issue', 'stock_takes', 'disposals', 'adjustments', 'tab_ims']),
-        (string) __('ims_transfer.tab'),
-        ...lbl(['tab_working_stock_ops', 'tab_items', 'locations', 'lab_members', 'reports']),
-    ]);
+    // 2026-11-05: the "move by paper requisition" tab was removed again; IMS is the one tab for stock moves (lot by lot).
+    expect(tabLabels(navUser($kind), MenuRegistry::OPS))->toBe(
+        lbl(['tab_overview', 'tab_waiting', 'tab_to_issue', 'stock_takes', 'disposals', 'adjustments', 'tab_ims', 'tab_working_stock_ops', 'tab_items', 'locations', 'lab_members', 'reports'])
+    );
 })->with(['lab_manager', 'auditor']);
 
-test('ITM-2610-062: only an ims.manage holder with a branch gets the "move by paper requisition" tab (ADMIN and SCIENTIST do not), and its pages light only that tab', function () {
-    $label = (string) __('ims_transfer.tab');
+test('the removed "move by paper requisition" page leaves no tab and no route behind, and on the IMS stock list the IMS tab alone is lit', function () {
+    expect(\Illuminate\Support\Facades\Route::has('ims.transfers.create'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('ims.transfers.review'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('ims.transfers.store'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('ims.transfers.doc-check'))->toBeFalse();
 
-    expect(tabLabels(navUser('auditor'), MenuRegistry::OPS))->toContain($label);
-    expect(tabLabels(navUser('lab_manager'), MenuRegistry::OPS))->toContain($label);
-    expect(tabLabels(navUser('admin'), MenuRegistry::OPS))->not->toContain($label);
-    expect(tabLabels(navUser('scientist'), MenuRegistry::OPS))->not->toContain($label);
-    expect(tabLabels(navUser('lab_manager', ['lab_id' => null]), MenuRegistry::OPS))->not->toContain($label);
-
-    // On the transfer page exactly one tab is lit: the new one, not "IMS" (which used to match `ims.*`).
-    $nav = layoutNav($this->actingAs(navUser('auditor'))->get(route('ims.transfers.create'))->assertOk()->getContent());
-    $active = array_values(array_filter($nav['tabs'], fn (array $t) => $t['active']));
-    expect($nav['title'])->toBe(__('nav.card_ops'))->and($active)->toHaveCount(1)->and($active[0]['label'])->toBe($label);
-
-    // And on the IMS stock list the IMS tab alone is lit.
     $nav = layoutNav($this->actingAs(navUser('auditor'))->get(route('ims.lots.index'))->assertOk()->getContent());
     $active = array_values(array_filter($nav['tabs'], fn (array $t) => $t['active']));
     expect($active)->toHaveCount(1)->and($active[0]['label'])->toBe(__('nav.tab_ims'));

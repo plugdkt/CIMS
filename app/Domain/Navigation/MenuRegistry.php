@@ -351,12 +351,7 @@ final class MenuRegistry
             $tabs[] = $this->tab((string) __('nav.adjustments'), route('adjustments.index'), ['adjustments.*']);
         }
         if ($user->can('viewAny', ImsReceipt::class)) {
-            // Listed by name (not `ims.*`) so the "move by paper requisition" tab below is the only one lit on its pages.
             $tabs[] = $this->tab((string) __('nav.tab_ims'), route('ims.lots.index'), ['ims.receipts.*', 'ims.lots.*', 'ims.places.*']);
-        }
-        // ITM-2610-062: managers move IMS stock into working stock against the paper requisition.
-        if ($user->can('transferAny', ImsLot::class)) {
-            $tabs[] = $this->tab((string) __('ims_transfer.tab'), route('ims.transfers.create'), ['ims.transfers.*']);
         }
         if ($this->ownsOpsStockPages($user) && $user->can('viewAny', Container::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_working_stock_ops'), route('stock-in.index'), ['stock-in.*']);
@@ -500,15 +495,16 @@ final class MenuRegistry
     private function typeForRequest(Request $request): string
     {
         $query = $request->query('type');
-        if (is_string($query) && ItemType::isValid($query)) {
+        if (is_string($query) && ItemType::isRequisitionKind($query)) {
             return $query;
         }
 
         $item = $request->route('item');
         if ($item instanceof Item) {
-            $category = $item->category;
+            // A science (loan) item has no requisition card of its own: it counts with the consumable one here.
+            $kind = ItemType::forItem($item);
 
-            return ItemType::slugFor($category === null || $category->is_chemical);
+            return ItemType::isRequisitionKind($kind) ? $kind : ItemType::CONSUMABLE;
         }
 
         $requisition = $request->route('requisition');
@@ -516,7 +512,7 @@ final class MenuRegistry
             // Judged by the lines' real categories, not the box the requester ticked; a legacy
             // mixed requisition (any chemical line) stays with the chemical card.
             $hasChemicalLine = $requisition->items()
-                ->whereHas('item.category', fn ($c) => $c->where('is_chemical', true))
+                ->whereHas('item.category', fn ($c) => \App\Models\ItemCategory::constrainKind($c, ItemType::CHEMICAL))
                 ->exists();
             if ($hasChemicalLine) {
                 return ItemType::CHEMICAL;

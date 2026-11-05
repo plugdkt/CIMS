@@ -144,6 +144,9 @@
                             </td>
                             <td class="px-4 py-3 align-top text-xs text-ink-muted whitespace-nowrap">
                                 {{ $item->category?->name_th }}
+                                @if ($item->category !== null)
+                                    <span class="block mt-0.5"><x-item-kind-badge :kind="$item->category->kind()" /></span>
+                                @endif
                             </td>
                             <td class="px-4 py-3 align-top whitespace-nowrap">
                                 <span class="px-2.5 py-1 rounded-full text-xs font-semibold {{ $item->is_active ? 'bg-success-soft text-success-ink' : 'bg-danger-soft text-danger-ink' }}">

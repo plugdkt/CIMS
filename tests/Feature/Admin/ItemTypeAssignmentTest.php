@@ -334,3 +334,105 @@ test('a plain manager can still be switched on and off, and switching on never c
     Livewire::actingAs($admin)->test(UserRoleManager::class)->call('toggleItemType', $manager->id, 'chemical');
     expect(storedKinds($manager))->toBe([]);
 });
+
+// --- the third kind: science (loan-and-return), CEO 2026-11-05 (ITM-2610-063) ----------------------------------------
+
+test('ADMIN can switch the science kind on and off for a manager, audited old to new, without touching the other kinds', function () {
+    $admin = userWithRole('ADMIN');
+    $manager = auditorUser(['itemTypes' => ['chemical']]);
+
+    Livewire::actingAs($admin)->test(UserRoleManager::class)->call('toggleItemType', $manager->id, 'science');
+    expect(storedKinds($manager))->toBe(['chemical', 'science']);
+
+    Livewire::actingAs($admin)->test(UserRoleManager::class)->call('toggleItemType', $manager->id, 'science');
+    expect(storedKinds($manager))->toBe(['chemical']);
+
+    $rows = AuditLog::where('action', 'ITEM_TYPE_CHANGE')->where('entity_id', $manager->id)->orderBy('id')->get();
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0]->old_value)->toBe(['item_types' => ['chemical']])->and($rows[0]->new_value)->toBe(['item_types' => ['chemical', 'science']])
+        ->and($rows[1]->old_value)->toBe(['item_types' => ['chemical', 'science']])->and($rows[1]->new_value)->toBe(['item_types' => ['chemical']]);
+});
+
+test('a non-ADMIN cannot switch science on, not even for themself; non-managers and Super Admins cannot be given it', function () {
+    $manager = auditorUser(['itemTypes' => ['chemical']]);
+    $this->actingAs($manager);
+    expect(fn () => (new UserRoleManager())->toggleItemType($manager->id, 'science'))->toThrow(AuthorizationException::class);
+    expect(storedKinds($manager))->toBe(['chemical']);
+
+    $admin = userWithRole('ADMIN');
+    foreach (['STAFF', 'SCIENTIST', 'STUDENT'] as $roleCode) {
+        $target = userWithRole($roleCode);
+        Livewire::actingAs($admin)->test(UserRoleManager::class)->call('toggleItemType', $target->id, 'science');
+        expect(storedKinds($target))->toBe([], $roleCode);
+    }
+    $super = adminUser();
+    $super->roles()->attach(Role::where('code', 'AUDITOR')->firstOrFail());
+    Livewire::actingAs($admin)->test(UserRoleManager::class)->call('toggleItemType', $super->id, 'science');
+    expect(storedKinds($super))->toBe([]);
+    expect(AuditLog::where('action', 'ITEM_TYPE_CHANGE')->count())->toBe(0);
+});
+
+test('the users page shows a third toggle (science) per manager, pressed only when assigned', function () {
+    $admin = userWithRole('ADMIN');
+    $lab = makeLab();
+    $keeper = auditorUser(['lab_id' => $lab->id, 'itemTypes' => ['chemical', 'science']]);
+    $plain = labManagerUser(['lab_id' => $lab->id, 'itemTypes' => ['chemical', 'consumable']]);
+
+    $component = Livewire::actingAs($admin)->test(UserRoleManager::class)->set('tab', (string) $lab->id);
+    $xp = htmlXPath($component->html());
+    $button = fn (User $user, string $kind) => $xp->query('//button[@*[name()="wire:click" and .="toggleItemType('.$user->id.', \''.$kind.'\')"]]');
+
+    expect($button($keeper, 'science')->length)->toBe(1)
+        ->and($button($keeper, 'science')->item(0)->getAttribute('aria-pressed'))->toBe('true')
+        ->and($button($plain, 'science')->length)->toBe(1)
+        ->and($button($plain, 'science')->item(0)->getAttribute('aria-pressed'))->toBe('false');
+    $component->assertSee(__('items.kind_science'));
+});
+
+test('User::managedItemTypes: ADMIN holds all THREE kinds (science included), a manager exactly the rows given, a manager without rows none', function () {
+    $admin = adminUser();
+    $manager = auditorUser(['itemTypes' => ['science']]);
+    $none = auditorUser(['itemTypes' => []]);
+
+    expect($admin->managedItemTypes())->toBe(['chemical', 'consumable', 'science'])
+        ->and($admin->managesItemType('science'))->toBeTrue()
+        ->and($manager->fresh()->managedItemTypes())->toBe(['science'])
+        ->and($manager->fresh()->managesItemType('science'))->toBeTrue()
+        ->and($manager->fresh()->managesItemType('chemical'))->toBeFalse()
+        ->and($none->managesItemType('science'))->toBeFalse();
+});
+
+test('managers:backfill-item-types never grants science: a fresh manager gets exactly chemical + consumable', function () {
+    $fresh = labManagerUser(['itemTypes' => []]);
+    $freshAuditor = auditorUser(['itemTypes' => []]);
+
+    $this->artisan('managers:backfill-item-types')->assertSuccessful();
+
+    foreach ([$fresh, $freshAuditor] as $manager) {
+        expect(storedKinds($manager))->toBe(['chemical', 'consumable']);
+    }
+    expect(DB::table('user_item_types')->where('item_type', 'science')->count())->toBe(0);
+});
+
+test('managers:backfill-item-types does not take anything away from existing keepers: science-only and chemical+science keepers are left exactly as they are, re-runs included', function () {
+    $scienceOnly = auditorUser(['itemTypes' => ['science']]);
+    $chemAndScience = labManagerUser(['itemTypes' => ['chemical', 'science']]);
+    $everything = auditorUser(['itemTypes' => ['chemical', 'consumable', 'science']]);
+
+    $this->artisan('managers:backfill-item-types')->assertSuccessful();
+    $this->artisan('managers:backfill-item-types')->assertSuccessful();
+
+    expect(storedKinds($scienceOnly))->toBe(['science'])          // not given chemical/consumable on top
+        ->and(storedKinds($chemAndScience))->toBe(['chemical', 'science'])
+        ->and(storedKinds($everything))->toBe(['chemical', 'consumable', 'science'])
+        ->and(AuditLog::where('action', 'ITEM_TYPE_BACKFILL')->count())->toBe(0);
+});
+
+test('managers:backfill-item-types --dry-run counts only managers with no kind at all (a science-only keeper is not counted)', function () {
+    labManagerUser(['itemTypes' => []]);
+    auditorUser(['itemTypes' => ['science']]);
+
+    $this->artisan('managers:backfill-item-types', ['--dry-run' => true])
+        ->expectsOutputToContain('จะเพิ่มชนิดให้ผู้ดูแลคลัง 1 คน')
+        ->assertSuccessful();
+});

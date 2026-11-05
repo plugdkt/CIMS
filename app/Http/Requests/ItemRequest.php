@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Domain\Inventory\ItemDetailFields;
 use App\Models\Item;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -42,17 +43,9 @@ final class ItemRequest extends FormRequest
         $item = $this->route('item');
         $itemId = $item instanceof Item ? $item->id : null;
 
-        return [
+        // The material-details fields are shared with the IMS lot page (ItemDetailFields) — one set of rules.
+        return ItemDetailFields::rules() + [
             'item_code' => ['required', 'string', 'max:32', Rule::unique('items', 'item_code')->ignore($itemId)],
-            'category_id' => ['required', 'integer', Rule::exists('item_categories', 'id')],
-            'name_th' => ['required', 'string', 'max:255'],
-            'name_en' => ['nullable', 'string', 'max:255'],
-            'cas_no' => ['nullable', 'string', 'max:20'],
-            'formula' => ['nullable', 'string', 'max:128'],
-            'brand' => ['nullable', 'string', 'max:128'],
-            'grade' => ['nullable', 'string', 'max:64'],
-            'physical_state' => ['nullable', 'string', 'max:32', Rule::in(['liquid', 'solid', 'powder', 'solution', 'gas', 'crystal', 'pellet'])],
-            'specification' => ['nullable', 'string'],
             'package_size' => ['nullable', 'numeric', 'min:0'],
             'package_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')],
             'sub_unit_id' => ['nullable', 'integer', Rule::exists('units', 'id')],
@@ -67,7 +60,6 @@ final class ItemRequest extends FormRequest
             'h_statements.*' => [Rule::in(array_keys(config('ghs.hazard_statements')))],
             'p_statements' => ['nullable', 'array'],
             'p_statements.*' => [Rule::in(array_keys(config('ghs.precautionary_statements')))],
-            'storage_class' => ['nullable', 'string', 'max:64'],
             'shelf_life_days_after_open' => ['nullable', 'integer', 'min:0'],
             'expiry_date' => ['nullable', 'date'],
             'is_active' => ['boolean'],
@@ -77,11 +69,9 @@ final class ItemRequest extends FormRequest
     /** @return array<string, string> */
     public function messages(): array
     {
-        return [
+        return ItemDetailFields::messages() + [
             'item_code.required' => __('items.validation.item_code_required'),
             'item_code.unique' => __('items.validation.item_code_unique'),
-            'category_id.required' => __('items.validation.category_required'),
-            'name_th.required' => __('items.validation.name_th_required'),
             'base_unit_id.required' => __('items.validation.base_unit_required'),
             'control_class.required_if' => __('items.validation.control_class_required'),
             'ghs_codes.*.in' => __('items.validation.ghs_code_invalid'),

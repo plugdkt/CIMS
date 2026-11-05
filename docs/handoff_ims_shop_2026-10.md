@@ -13,7 +13,7 @@ university warehouse report / manual entry
         │  (receipt document: DRAFT → confirm selected complete lines)
         ▼
 IMS (branch central store)   ims_receipts → ims_receipt_lines → ims_lots (→ ims_lot_groups) ; ims_movements (append-only)
-        │  [ITM-2610-062, 2026-11-05] by hand only: "ย้ายตามใบเบิกกระดาษ" (ims.transfers.*) or one lot at a time (lots.transfer).
+        │  [ITM-2610-062, 2026-11-05] by hand only, one lot at a time (ims.lots.transfer). The paper-requisition page (ims.transfers.*) was added and removed the same day (CEO, after talking to the keepers).
         │  NOT cut automatically at dispensing any more.
         ▼
 Working stock                containers + stock_ledger (append-only, BCMath, _base in the item's own base unit)
@@ -62,17 +62,15 @@ IMS is per branch (`labs`). Quantities are packs × catalog package size; price 
 - **Rule:** users may SEE IMS (`ims.browse`) but order / dispense from WORKING stock only. `ShopAvailability::orderable` (= working) is the one
   number for "may this be requested / issued"; `total` is display only. Expired stock and containers with no place (or a place of another branch) never count.
 - **Dispensing (`issue-all`):** no `provisionWorkingStock` call any more (method kept, unused). A line working stock cannot cover is refused whole with
-  "คลังใช้งานไม่พอ ให้ผู้ดูแลคลังย้ายจาก IMS ตามใบเบิกกระดาษก่อน"; requisition status does not move for it; other lines go through; a line failing
-  half-way (e.g. BR-04 over the ceiling) rolls back only itself. The issue page shows the "ของไม่พอในคลังใช้งาน" box, with a link only for users who may move that kind.
-- **Move page** `ims.transfers.create/review/store/doc-check` (menu: งานคลัง -> "ย้ายตามใบเบิกกระดาษ"): one paper document number, many rows, whole packs,
-  review step, one-time token, one transaction (any bad row rolls back everything), one container per pack, `ims_movements` ISSUE with `ref_doc_no`,
-  one audit row `IMS_TRANSFER_BATCH`. Permission = `ims.manage` + the user keeps the lot's kind (`ImsLotPolicy::transfer`, which also closes the old `ims.lots.transfer`).
-  A mixed-kind document posted by one kind's keeper is a 403 for the whole request. Wrong move = no way back, use ADJUST.
+  "คลังใช้งานไม่พอ ให้ผู้ดูแลคลังย้ายจาก IMS เข้าคลังใช้งานก่อน (ทีละ Lot)"; requisition status does not move for it; other lines go through; a line failing
+  half-way (e.g. BR-04 over the ceiling) rolls back only itself. The issue page shows the "ของไม่พอในคลังใช้งาน" box, with a link (to `ims.lots.index?search=<item code>`) only for users who may move that kind.
+- **Move (one lot at a time only)** `ims.lots.transfer.form` / `ims.lots.transfer` (`ImsLotController::transfer`, `ImsTransferRequest`). Permission = `ims.manage` + the user keeps the lot's kind (`ImsLotPolicy::transfer`); a science (loan) lot is refused for everybody (ITM-2610-063). The multi-row "move by paper requisition" page (`ims.transfers.*`, `ImsBatchTransferService`, `IMS_TRANSFER_BATCH` audit) was REMOVED 2026-11-05. Wrong move = no way back, use ADJUST.
 - **Shop:** IMS-only items stay on the shelf / product page with a badge and "ขอให้เติมคลังใช้งาน" (`shop.request-refill`: in-app notice to the kind's keepers
   of the requester's branch, no email, throttled, audit `SHOP_REFILL_REQUEST`). Item picker and `RequisitionItemRequest` refuse IMS-only items.
 - **Before cut-over:** run `php artisan managers:backfill-item-types` (otherwise nobody can move anything), then `php artisan ims:reconcile-working-stock`
   (read-only) and have the keepers move stuck stock; see docs/admin_manual.md (ITM-2610-062) for the deploy order.
-- **Known gap:** places (`locations`) are not tied to a working store yet (`WorkingStockDestinations` lists every place of the branch), so a chemical can be moved to a consumable place unless the keeper checks.
+- **Known gap:** places (`locations`) are not tied to a working store yet (the move form offers every place of the branch), so a chemical can be moved to a consumable place unless the keeper checks.
+- **ITM-2610-063 (2026-11-05):** third kind of stock `science` (loan-and-return; category `LOAN_SCIENCE`, seeded by `ItemCategorySeeder`), never requisitionable; material details editable from the IMS lot page (`ImsLotPolicy::editItem`, `ItemUpdater`, audit `ITEM_UPDATE`). See CHANGELOG.md and docs/admin_manual.md.
 <!-- END ITM-2610-062 -->
 - **No receiver signature/OTP any more** (user decision 2026-10-16). A SHA-256 marker of
   `ISSUE|requisition|issuer|receiver|time` is stored in `signature_hash` (column is NOT NULL).

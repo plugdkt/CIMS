@@ -80,7 +80,7 @@
                                                     'bg-surface text-ink-faint border-border hover:border-ink-faint' => ! $held,
                                                 ])
                                             >
-                                                {{ __('requisitions.request_type_'.$itemType) }}
+                                                {{ App\Domain\Shared\ItemType::label($itemType) }}
                                             </button>
                                         @endforeach
                                         @if ($user->itemTypes->isEmpty())

@@ -43,7 +43,7 @@ final class RequisitionTable extends Component
             $q->where('requester_id', $user->id)->orWhere('advisor_id', $user->id);
         });
 
-        if (ItemType::isValid($this->type)) {
+        if (ItemType::isRequisitionKind($this->type)) {
             $query->ofItemType((string) $this->type);
         }
 

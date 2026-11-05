@@ -188,12 +188,9 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::get('/lots/{ims_lot}/photos/{attachment}', [ImsLotController::class, 'photo'])->name('lots.photos.show');
     Route::get('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transferForm'])->name('lots.transfer.form');
     Route::post('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transfer'])->name('lots.transfer');
-
-    // ITM-2610-062: move many lots IMS -> working stock against one paper requisition (review -> confirm -> store).
-    Route::get('/transfers/create', [\App\Http\Controllers\ImsTransferController::class, 'create'])->name('transfers.create');
-    Route::post('/transfers/review', [\App\Http\Controllers\ImsTransferController::class, 'review'])->name('transfers.review');
-    Route::post('/transfers', [\App\Http\Controllers\ImsTransferController::class, 'store'])->name('transfers.store');
-    Route::get('/transfers/doc-check', [\App\Http\Controllers\ImsTransferController::class, 'docCheck'])->name('transfers.doc-check');
+    // Package C: edit the material's own details from the lot page (same rules/service as the items register).
+    Route::get('/lots/{ims_lot}/item/edit', [ImsLotController::class, 'editItem'])->name('lots.item.edit');
+    Route::put('/lots/{ims_lot}/item', [ImsLotController::class, 'updateItem'])->name('lots.item.update');
 });
 
 // ITM-2610-062: "ask the stock keeper to refill working stock" (in-app notification, throttled, no email).

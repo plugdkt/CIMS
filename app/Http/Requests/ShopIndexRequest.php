@@ -23,7 +23,7 @@ final class ShopIndexRequest extends FormRequest
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'integer'],
             // ITM-2610-052: which home card the shopper came from (chemicals / consumables).
-            'type' => ['nullable', Rule::in(ItemType::all())],
+            'type' => ['nullable', Rule::in(ItemType::requisitionKinds())],
         ];
     }
 }

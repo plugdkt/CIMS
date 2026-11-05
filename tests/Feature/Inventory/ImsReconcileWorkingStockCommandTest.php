@@ -91,16 +91,16 @@ test('section 1 compares IMS with working stock per item, flags "IMS only" and "
 
     $out = ($this->report)($this->lab->code);
 
-    expect($out)->toContain(__('ims_transfer.reconcile.readonly_note'))
-        ->toContain('CHM-REC01')->toContain('1000.000000')->toContain('300.000000')->toContain(__('ims_transfer.reconcile.flag_both'))
-        ->toContain('CHM-REC02')->toContain('500.000000')->toContain(__('ims_transfer.reconcile.flag_ims_only'))
+    expect($out)->toContain(__('ims_reconcile.readonly_note'))
+        ->toContain('CHM-REC01')->toContain('1000.000000')->toContain('300.000000')->toContain(__('ims_reconcile.flag_both'))
+        ->toContain('CHM-REC02')->toContain('500.000000')->toContain(__('ims_reconcile.flag_ims_only'))
         ->toContain('CHM-REC03')->toContain('0.300000')
         ->not->toContain('CHM-REC04')        // nothing left in IMS: not part of the comparison
         ->not->toContain('2000.000000');     // the other branch's 3 packs are not added in
 
     // "both" is flagged only where working stock really holds something.
-    expect(preg_match('/CHM-REC02[^\n]*'.preg_quote(__('ims_transfer.reconcile.flag_ims_only'), '/').'/u', $out))->toBe(1);
-    expect(preg_match('/CHM-REC01[^\n]*'.preg_quote(__('ims_transfer.reconcile.flag_both'), '/').'/u', $out))->toBe(1);
+    expect(preg_match('/CHM-REC02[^\n]*'.preg_quote(__('ims_reconcile.flag_ims_only'), '/').'/u', $out))->toBe(1);
+    expect(preg_match('/CHM-REC01[^\n]*'.preg_quote(__('ims_reconcile.flag_both'), '/').'/u', $out))->toBe(1);
 });
 
 test('section 1 only counts containers whose place belongs to the branch and that are SEALED or IN_USE', function () {
@@ -133,11 +133,11 @@ test('section 2 finds containers with no place, a place of no branch, or a branc
     makeContainer(['item_id' => $item->id, 'ims_lot_id' => $lot->id, 'location_id' => null, 'remaining_qty_base' => '0.000000', 'status' => 'EMPTY', 'barcode' => 'BC-GONE']);
 
     $own = ($this->report)($this->lab->code);
-    expect($own)->toContain(__('ims_transfer.reconcile.containers_count', ['count' => 1, 'sample' => 'BC-ODD-1']))
+    expect($own)->toContain(__('ims_reconcile.containers_count', ['count' => 1, 'sample' => 'BC-ODD-1']))
         ->not->toContain('BC-OK-1')->not->toContain('BC-ODD-3')->not->toContain('BC-GONE');
 
     $other = ($this->report)($this->otherLab->code);
-    expect($other)->toContain(__('ims_transfer.reconcile.containers_count', ['count' => 1, 'sample' => 'BC-ODD-3']));
+    expect($other)->toContain(__('ims_reconcile.containers_count', ['count' => 1, 'sample' => 'BC-ODD-3']));
 });
 
 test('section 2 says "none found" for a clean branch', function () {
@@ -145,7 +145,7 @@ test('section 2 says "none found" for a clean branch', function () {
     $lot = makeImsLot($this->lab->id, $item, '1', '500');
     makeContainer(['item_id' => $item->id, 'ims_lot_id' => $lot->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '500.000000']);
 
-    expect(($this->report)($this->lab->code))->toContain('  '.__('ims_transfer.reconcile.containers_none'));
+    expect(($this->report)($this->lab->code))->toContain('  '.__('ims_reconcile.containers_none'));
 });
 
 test('section 3: short lines are counted per kind (documents and lines), covered / no-IMS / wrong-status ones are not', function () {
@@ -184,8 +184,8 @@ test('section 3: short lines are counted per kind (documents and lines), covered
     $out = ($this->report)($this->lab->code);
 
     // "สารเคมี | 2 | 3" = chemical: documents 1 and 2, three lines. "วัสดุสิ้นเปลือง | 1 | 1".
-    expect(preg_match('/'.preg_quote(__('ims_transfer.reconcile.kind_chemical'), '/').'\s*\|\s*2\s*\|\s*3\s*\|/u', $out))->toBe(1, $out);
-    expect(preg_match('/'.preg_quote(__('ims_transfer.reconcile.kind_consumable'), '/').'\s*\|\s*1\s*\|\s*1\s*\|/u', $out))->toBe(1, $out);
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_chemical'), '/').'\s*\|\s*2\s*\|\s*3\s*\|/u', $out))->toBe(1, $out);
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_consumable'), '/').'\s*\|\s*1\s*\|\s*1\s*\|/u', $out))->toBe(1, $out);
 });
 
 test('section 3 says "none found" when nothing is stuck', function () {
@@ -194,7 +194,7 @@ test('section 3 says "none found" when nothing is stuck', function () {
     makeContainer(['item_id' => $item->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '500.000000']);
     ($this->requisition)($this->lab->id, $item, '100');
 
-    expect(($this->report)($this->lab->code))->toContain('  '.__('ims_transfer.reconcile.requisitions_none'));
+    expect(($this->report)($this->lab->code))->toContain('  '.__('ims_reconcile.requisitions_none'));
 });
 
 test('section 4 warns when a kind has no keeper or more than one in the branch, ignoring ADMIN and inactive accounts', function () {
@@ -212,8 +212,8 @@ test('section 4 warns when a kind has no keeper or more than one in the branch, 
 
     $out = ($this->report)($this->lab->code);
 
-    expect(preg_match('/'.preg_quote(__('ims_transfer.reconcile.kind_chemical'), '/').'\s*\|\s*2\s*\|\s*'.preg_quote(__('ims_transfer.reconcile.warn_many_managers'), '/').'/u', $out))->toBe(1, $out);
-    expect(preg_match('/'.preg_quote(__('ims_transfer.reconcile.kind_consumable'), '/').'\s*\|\s*0\s*\|\s*'.preg_quote(__('ims_transfer.reconcile.warn_no_manager'), '/').'/u', $out))->toBe(1, $out);
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_chemical'), '/').'\s*\|\s*2\s*\|\s*'.preg_quote(__('ims_reconcile.warn_many_managers'), '/').'/u', $out))->toBe(1, $out);
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_consumable'), '/').'\s*\|\s*0\s*\|\s*'.preg_quote(__('ims_reconcile.warn_no_manager'), '/').'/u', $out))->toBe(1, $out);
 });
 
 test('section 4 is "ok" with exactly one keeper per kind', function () {
@@ -223,15 +223,15 @@ test('section 4 is "ok" with exactly one keeper per kind', function () {
 
     $out = ($this->report)($this->lab->code);
 
-    expect(preg_match('/'.preg_quote(__('ims_transfer.reconcile.kind_chemical'), '/').'\s*\|\s*1\s*\|\s*'.preg_quote(__('ims_transfer.reconcile.ok'), '/').'/u', $out))->toBe(1, $out);
-    expect(preg_match('/'.preg_quote(__('ims_transfer.reconcile.kind_consumable'), '/').'\s*\|\s*1\s*\|\s*'.preg_quote(__('ims_transfer.reconcile.ok'), '/').'/u', $out))->toBe(1, $out);
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_chemical'), '/').'\s*\|\s*1\s*\|\s*'.preg_quote(__('ims_reconcile.ok'), '/').'/u', $out))->toBe(1, $out);
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_consumable'), '/').'\s*\|\s*1\s*\|\s*'.preg_quote(__('ims_reconcile.ok'), '/').'/u', $out))->toBe(1, $out);
 });
 
 test('a branch with no IMS stock gets no keeper warnings (nothing to move there)', function () {
     $out = ($this->report)($this->lab->code);
 
-    expect($out)->not->toContain(__('ims_transfer.reconcile.warn_no_manager'))
-        ->toContain(__('ims_transfer.reconcile.compare_none'));
+    expect($out)->not->toContain(__('ims_reconcile.warn_no_manager'))
+        ->toContain(__('ims_reconcile.compare_none'));
 });
 
 test('--lab accepts the branch code or its id; an unknown branch fails and prints a message', function () {
@@ -247,5 +247,64 @@ test('--lab accepts the branch code or its id; an unknown branch fails and print
         ->and($all)->toContain('CHM-LAB01')->toContain('CHM-LAB02');
 
     expect(Artisan::call('ims:reconcile-working-stock', ['--lab' => 'NO-SUCH-LAB']))->toBe(1);
-    expect(Artisan::output())->toContain(__('ims_transfer.reconcile.lab_not_found', ['lab' => 'NO-SUCH-LAB']));
+    expect(Artisan::output())->toContain(__('ims_reconcile.lab_not_found', ['lab' => 'NO-SUCH-LAB']));
+});
+
+// --- science (loan-and-return), CEO 2026-11-05 (ITM-2610-063) --------------------------------------------------------
+
+test('section 1 leaves science (loan) items out: their IMS stock is lent, not moved into working stock', function () {
+    $chem = makeItem(['item_code' => 'CHM-SCI01', 'name_th' => 'สารคู่เทียบ']);
+    $sci = scienceItem(['item_code' => 'SCI-REC01', 'name_th' => 'วัสดุยืมคืนในรายงาน']);
+    makeImsLot($this->lab->id, $chem, '2', '500');
+    makeImsLot($this->lab->id, $sci, '2', '500');
+    makeContainer(['item_id' => $sci->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '40.000000']);
+
+    $out = ($this->report)($this->lab->code);
+
+    expect($out)->toContain('CHM-SCI01')->not->toContain('SCI-REC01')->not->toContain('วัสดุยืมคืนในรายงาน');
+});
+
+test('section 1 says "none" when the branch holds only science stock in IMS', function () {
+    makeImsLot($this->lab->id, scienceItem(['item_code' => 'SCI-ONLY01']), '2', '500');
+
+    $out = ($this->report)($this->lab->code);
+
+    expect($out)->not->toContain('SCI-ONLY01')->toContain('  '.__('ims_reconcile.compare_none'));
+});
+
+test('section 3 reports an unfinished document that has a science line as its OWN row (kind science), and does not throw', function () {
+    $sci = makeItem(['item_code' => 'SCI-REC02']);
+    makeImsLot($this->lab->id, $sci, '1', '500');
+    $doc = ($this->requisition)($this->lab->id, $sci, '100');                 // approved while it was still a normal item
+    $sci->update(['category_id' => categoryId(\App\Models\ItemCategory::LOAN_CODE)]);   // ...then moved to science
+
+    $out = ($this->report)($this->lab->code);
+
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_science'), '/').'\s*\|\s*1\s*\|\s*1\s*\|/u', $out))->toBe(1, $out);
+    expect($doc->fresh()->status)->toBe('APPROVED');
+});
+
+test('section 3 keeps counting chemical and consumable documents next to the science row', function () {
+    $chem = makeItem(['item_code' => 'CHM-REQ21']);
+    $sci = makeItem(['item_code' => 'SCI-REQ21']);
+    makeImsLot($this->lab->id, $chem, '1', '500');
+    makeImsLot($this->lab->id, $sci, '1', '500');
+    ($this->requisition)($this->lab->id, $chem, '100');
+    ($this->requisition)($this->lab->id, $sci, '100');
+    $sci->update(['category_id' => categoryId(\App\Models\ItemCategory::LOAN_CODE)]);
+
+    $out = ($this->report)($this->lab->code);
+
+    expect(preg_match('/'.preg_quote(__('ims_reconcile.kind_chemical'), '/').'\s*\|\s*1\s*\|\s*1\s*\|/u', $out))->toBe(1, $out)
+        ->and(preg_match('/'.preg_quote(__('ims_reconcile.kind_science'), '/').'\s*\|\s*1\s*\|\s*1\s*\|/u', $out))->toBe(1, $out);
+});
+
+test('the report with science data is still read-only', function () {
+    $sci = scienceItem();
+    makeImsLot($this->lab->id, $sci, '2', '500');
+    $before = ($this->snapshot)();
+
+    ($this->report)();
+
+    expect(($this->snapshot)())->toBe($before);
 });

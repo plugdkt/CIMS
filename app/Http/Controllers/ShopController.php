@@ -58,12 +58,12 @@ final class ShopController extends Controller
         $categoryId = $request->filled('category') ? (int) $request->query('category') : null;
         $type = $request->filled('type') ? (string) $request->query('type') : null;
 
-        // ITM-2610-052 phase 1: browsing is narrowed to one kind of stock by the items' real category
-        // (is_chemical). Read-only filter — the cart and checkout are still one shared basket until phase 2.
+        // ITM-2610-052: browsing is narrowed to one kind of stock by the items' real category (is_chemical).
+        // Read-only filter — the cart and checkout are kept separate per kind (one requisition = one kind).
         $matchesType = function ($q) use ($type) {
             $q->when($type !== null, fn ($q) => $q->whereHas(
                 'category',
-                fn ($c) => $c->where('is_chemical', ItemType::isChemical((string) $type)),
+                fn ($c) => $c->ofKind((string) $type),
             ));
         };
 
@@ -104,7 +104,8 @@ final class ShopController extends Controller
             'stock' => $availability->forItems($ids, $labId),
             'photos' => $photos,
             'units' => Unit::orderBy('sort_order')->get()->groupBy('dimension'),
-            'categories' => ItemCategory::when($type !== null, fn ($q) => $q->where('is_chemical', ItemType::isChemical((string) $type)))->orderBy('id')->get(),
+            // Only requisitionable categories are offered (science / loan materials never are).
+            'categories' => ItemCategory::requisitionable()->when($type !== null, fn ($q) => $q->ofKind((string) $type))->orderBy('id')->get(),
             'counts' => $counts,
             'search' => $search,
             'categoryId' => $categoryId,
@@ -127,9 +128,9 @@ final class ShopController extends Controller
         $user = $request->user();
         $labId = (int) $user->lab_id;
         $stock = $availability->forItem($item, $labId);
-        abort_unless($item->is_active && bccomp($stock['total'], '0', 6) > 0, 404);
-
         $item->load(['baseUnit', 'category']);
+        // Science (loan-and-return) materials are not on offer here, even by typing the URL.
+        abort_unless($item->is_active && ItemType::isRequisitionKind(ItemType::forItem($item)) && bccomp($stock['total'], '0', 6) > 0, 404);
 
         $lots = \App\Models\ImsLot::with(['photos', 'location', 'groups.location'])
             ->where('item_id', $item->id)->where('lab_id', $labId)
@@ -194,6 +195,9 @@ final class ShopController extends Controller
 
         // The item decides which basket it goes into; kinds are never mixed in one basket.
         $type = ItemType::forItem($item);
+        if (! ItemType::isRequisitionKind($type)) {
+            return back()->withErrors(['cart' => __('requisitions.validation.item_not_requisitionable')]);
+        }
         $cart = $this->cart($type);
         $key = $item->ulid;
         $qty = (string) $data['qty'];
@@ -248,6 +252,9 @@ final class ShopController extends Controller
         }
 
         $kind = ItemType::forItem($item);
+        if (! ItemType::isRequisitionKind($kind)) {
+            return back()->withErrors(['cart' => __('requisitions.validation.item_not_requisitionable')]);
+        }
         // Active holders of this kind in the requester's branch; a pure ADMIN is never a recipient.
         $keepers = User::query()
             ->where('is_active', true)
@@ -275,7 +282,7 @@ final class ShopController extends Controller
             'unit' => (string) $item->baseUnit?->code,
         ]);
         foreach ($keepers as $keeper) {
-            $notifications->notifyInApp($keeper, 'shop.refill_request', $title, $body, route('ims.transfers.create'));
+            $notifications->notifyInApp($keeper, 'shop.refill_request', $title, $body, route('ims.lots.index', ['search' => (string) $item->item_code]));
         }
 
         AuditLog::record(
@@ -306,7 +313,7 @@ final class ShopController extends Controller
             'lines' => $lines,
             'cartCount' => count($lines),
             'type' => $type,
-            'baskets' => array_combine(ItemType::all(), array_map(fn (string $t) => count($this->cart($t)), ItemType::all())),
+            'baskets' => array_combine(ItemType::requisitionKinds(), array_map(fn (string $t) => count($this->cart($t)), ItemType::requisitionKinds())),
         ]);
     }
 
@@ -318,7 +325,7 @@ final class ShopController extends Controller
 
         /** @var User $user */
         $user = $request->user();
-        $model = Item::where('ulid', $item)->firstOrFail();
+        $model = Item::with('category')->where('ulid', $item)->firstOrFail();
         // Find the basket that holds it rather than trusting the item's *current* category: if the
         // category was changed after the item was put in, it is still in the basket it went into.
         $type = $this->basketHolding($item);
@@ -465,7 +472,7 @@ final class ShopController extends Controller
     /** Which basket holds this item, if any. */
     private function basketHolding(string $ulid): ?string
     {
-        foreach (ItemType::all() as $type) {
+        foreach (ItemType::requisitionKinds() as $type) {
             if (isset($this->cart($type)[$ulid])) {
                 return $type;
             }
@@ -477,7 +484,7 @@ final class ShopController extends Controller
     /** The first basket that has something in it, else the chemical one. */
     private function firstFilledType(): string
     {
-        foreach (ItemType::all() as $type) {
+        foreach (ItemType::requisitionKinds() as $type) {
             if ($this->cart($type) !== []) {
                 return $type;
             }
@@ -494,6 +501,11 @@ final class ShopController extends Controller
      */
     private function stockProblem(Item $item, Unit $unit, string $qty, ShopAvailability $availability, UnitConverter $converter, int $labId): ?string
     {
+        // Science (loan) is never requisitionable — also catches a basket line whose item was re-categorised later.
+        if (! ItemType::isRequisitionKind(ItemType::forItem($item))) {
+            return (string) __('requisitions.validation.item_not_requisitionable');
+        }
+
         $wantedBase = $converter->toItemBase($item, $unit, $qty);
         $stock = $availability->forItem($item, $labId);
 
@@ -530,7 +542,7 @@ final class ShopController extends Controller
             return [];
         }
 
-        $items = Item::with('baseUnit')->whereIn('ulid', array_keys($cart))->get()->keyBy('ulid');
+        $items = Item::with(['baseUnit', 'category'])->whereIn('ulid', array_keys($cart))->get()->keyBy('ulid');
         /** @var list<int> $itemIds */
         $itemIds = $items->pluck('id')->values()->all();
         $stock = $availability->forItems($itemIds, $labId);

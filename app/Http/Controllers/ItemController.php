@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Chemicals\Services\ChemicalSyncService;
+use App\Domain\Inventory\Exceptions\ItemKindChangeBlockedException;
+use App\Domain\Inventory\Services\ItemUpdater;
 use App\Http\Requests\ItemRequest;
 use App\Models\Container;
 use App\Models\Item;
 use App\Models\ItemCategory;
 use App\Models\Unit;
+use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -84,9 +87,17 @@ final class ItemController extends Controller
         ]);
     }
 
-    public function update(ItemRequest $request, Item $item): RedirectResponse
+    public function update(ItemRequest $request, Item $item, ItemUpdater $updater): RedirectResponse
     {
-        $item->update($request->validated());
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $updater->update($item, $request->validated(), $user, ItemUpdater::SOURCE_REGISTER);
+        } catch (ItemKindChangeBlockedException $e) {
+            // Refused (open requisitions still list this item): say so, keep what was typed.
+            return back()->withInput()->withErrors(['category_id' => $e->getMessage()]);
+        }
 
         return redirect()->route('items.index')->with('status', __('items.saved'));
     }

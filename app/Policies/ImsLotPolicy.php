@@ -38,10 +38,18 @@ final class ImsLotPolicy extends Policy
         return $this->hasPermission($user, 'ims.manage') && $user->lab_id === $lot->lab_id;
     }
 
-    /** Opening the "move by paper requisition" pages: an `ims.manage` holder with a branch (rows are then checked one by one via {@see transfer()}). */
-    public function transferAny(User $user): bool
+    /**
+     * Editing the material's own details (name, spec, category/kind...) from the lot page: an `ims.manage` holder of the
+     * lot's branch who looks after the lot's CURRENT kind (deny by default). ADMIN has no `ims.manage`, so ADMIN edits
+     * through the items register instead. Moving to another kind additionally needs that NEW kind (ImsLotItemRequest).
+     */
+    public function editItem(User $user, ImsLot $lot): bool
     {
-        return $this->hasPermission($user, 'ims.manage') && $user->lab_id !== null;
+        return $this->hasPermission($user, 'ims.manage')
+            && $user->lab_id !== null
+            && $user->lab_id === $lot->lab_id
+            && $lot->item !== null
+            && $user->managesItemType(ItemType::forItem($lot->item));
     }
 
     /**
@@ -54,6 +62,8 @@ final class ImsLotPolicy extends Policy
             && $user->lab_id === $lot->lab_id
             && bccomp($lot->qty_remaining_base, '0', 6) > 0
             && $lot->item !== null
+            // Science (loan) stock is lent, not cut into working stock (moving it into the loan register comes later).
+            && ItemType::isRequisitionKind(ItemType::forItem($lot->item))
             && $user->managesItemType(ItemType::forItem($lot->item));
     }
 }

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Domain\Shared\ItemType;
 use App\Models\Container;
 use App\Models\ImsLot;
+use App\Models\Item;
 use App\Models\Requisition;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -52,6 +54,14 @@ final class RequisitionItemRequest extends FormRequest
 
             /** @var Requisition $requisition */
             $requisition = $this->route('requisition');
+
+            // Science (loan-and-return) materials cannot be requisitioned (checked server-side, whatever the picker offered).
+            $item = Item::query()->with('category')->find((int) $itemId);
+            if ($item !== null && ! ItemType::isRequisitionKind(ItemType::forItem($item))) {
+                $validator->errors()->add('item_id', __('requisitions.validation.item_not_requisitionable'));
+
+                return;
+            }
 
             $hasStockInOwnLab = Container::query()
                 ->where('item_id', (int) $itemId)

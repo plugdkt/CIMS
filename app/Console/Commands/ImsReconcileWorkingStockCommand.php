@@ -30,7 +30,7 @@ final class ImsReconcileWorkingStockCommand extends Command
     {
         foreach (['labs', 'ims_lots', 'containers', 'locations', 'requisitions', 'requisition_items', 'items', 'user_item_types'] as $table) {
             if (! Schema::hasTable($table)) {
-                $this->info((string) __('ims_transfer.reconcile.no_tables'));
+                $this->info((string) __('ims_reconcile.no_tables'));
 
                 return self::SUCCESS;
             }
@@ -43,16 +43,16 @@ final class ImsReconcileWorkingStockCommand extends Command
         }
         $rows = $labs->get(['id', 'code', 'name_th']);
         if ($rows->isEmpty()) {
-            $this->error((string) __('ims_transfer.reconcile.lab_not_found', ['lab' => (string) $option]));
+            $this->error((string) __('ims_reconcile.lab_not_found', ['lab' => (string) $option]));
 
             return self::FAILURE;
         }
 
-        $this->line((string) __('ims_transfer.reconcile.readonly_note'));
+        $this->line((string) __('ims_reconcile.readonly_note'));
         foreach ($rows as $lab) {
             $this->report((int) $lab->id, $lab->code.' '.$lab->name_th);
         }
-        $this->info((string) __('ims_transfer.reconcile.done'));
+        $this->info((string) __('ims_reconcile.done'));
 
         return self::SUCCESS;
     }
@@ -60,7 +60,7 @@ final class ImsReconcileWorkingStockCommand extends Command
     private function report(int $labId, string $label): void
     {
         $this->newLine();
-        $this->info((string) __('ims_transfer.reconcile.header', ['lab' => $label]));
+        $this->info((string) __('ims_reconcile.header', ['lab' => $label]));
 
         $ims = $this->imsByItem($labId);
         $working = $this->workingByItem($labId);
@@ -75,7 +75,17 @@ final class ImsReconcileWorkingStockCommand extends Command
     private function imsByItem(int $labId): array
     {
         $out = [];
-        foreach (DB::table('ims_lots')->where('lab_id', $labId)->where('qty_remaining_base', '>', 0)->get(['item_id', 'qty_remaining_base']) as $lot) {
+        // Science (loan-and-return) materials are not moved into working stock (they are lent), so they are left out.
+        $lots = DB::table('ims_lots')
+            ->join('items', 'items.id', '=', 'ims_lots.item_id')
+            ->leftJoin('item_categories', 'item_categories.id', '=', 'items.category_id')
+            ->where('ims_lots.lab_id', $labId)
+            ->where('ims_lots.qty_remaining_base', '>', 0)
+            ->get(['ims_lots.item_id', 'ims_lots.qty_remaining_base', 'item_categories.is_chemical', 'item_categories.code']);
+        foreach ($lots as $lot) {
+            if (ItemType::slugForCategory($lot->is_chemical === null ? null : (bool) $lot->is_chemical, $lot->code === null ? null : (string) $lot->code) === ItemType::SCIENCE) {
+                continue;
+            }
             $id = (int) $lot->item_id;
             /** @var numeric-string $qty */
             $qty = (string) $lot->qty_remaining_base;
@@ -111,9 +121,9 @@ final class ImsReconcileWorkingStockCommand extends Command
      */
     private function compare(array $ims, array $working): void
     {
-        $this->line((string) __('ims_transfer.reconcile.sec_compare'));
+        $this->line((string) __('ims_reconcile.sec_compare'));
         if ($ims === []) {
-            $this->line('  '.__('ims_transfer.reconcile.compare_none'));
+            $this->line('  '.__('ims_reconcile.compare_none'));
 
             return;
         }
@@ -128,24 +138,24 @@ final class ImsReconcileWorkingStockCommand extends Command
                 mb_substr((string) ($item->name_th ?? ''), 0, 40),
                 $qty,
                 $w,
-                bccomp($w, '0', self::SCALE) > 0 ? __('ims_transfer.reconcile.flag_both') : __('ims_transfer.reconcile.flag_ims_only'),
+                bccomp($w, '0', self::SCALE) > 0 ? __('ims_reconcile.flag_both') : __('ims_reconcile.flag_ims_only'),
             ];
         }
         usort($table, fn (array $a, array $b) => strcmp((string) $a[0], (string) $b[0]));
 
         $this->table([
-            (string) __('ims_transfer.reconcile.col_code'),
-            (string) __('ims_transfer.reconcile.col_name'),
-            (string) __('ims_transfer.reconcile.col_ims'),
-            (string) __('ims_transfer.reconcile.col_working'),
-            (string) __('ims_transfer.reconcile.col_flag'),
+            (string) __('ims_reconcile.col_code'),
+            (string) __('ims_reconcile.col_name'),
+            (string) __('ims_reconcile.col_ims'),
+            (string) __('ims_reconcile.col_working'),
+            (string) __('ims_reconcile.col_flag'),
         ], $table);
     }
 
     /** Containers with no place, a place of no branch, or a branch other than the lot they were cut from. */
     private function oddContainers(int $labId): void
     {
-        $this->line((string) __('ims_transfer.reconcile.sec_containers'));
+        $this->line((string) __('ims_reconcile.sec_containers'));
 
         $base = DB::table('containers')
             ->leftJoin('locations', 'locations.id', '=', 'containers.location_id')
@@ -165,13 +175,13 @@ final class ImsReconcileWorkingStockCommand extends Command
 
         $count = (clone $base)->count();
         if ($count === 0) {
-            $this->line('  '.__('ims_transfer.reconcile.containers_none'));
+            $this->line('  '.__('ims_reconcile.containers_none'));
 
             return;
         }
 
         $sample = (clone $base)->orderBy('containers.id')->limit(10)->pluck('containers.barcode')->implode(', ');
-        $this->line('  '.__('ims_transfer.reconcile.containers_count', ['count' => $count, 'sample' => $sample]));
+        $this->line('  '.__('ims_reconcile.containers_count', ['count' => $count, 'sample' => $sample]));
     }
 
     /**
@@ -180,7 +190,7 @@ final class ImsReconcileWorkingStockCommand extends Command
      */
     private function openRequisitions(int $labId, array $ims, array $working): void
     {
-        $this->line((string) __('ims_transfer.reconcile.sec_requisitions'));
+        $this->line((string) __('ims_reconcile.sec_requisitions'));
 
         /** @var array<string, array{docs: array<int, true>, lines: int}> $byKind */
         $byKind = [];
@@ -194,7 +204,7 @@ final class ImsReconcileWorkingStockCommand extends Command
             ->select([
                 'requisition_items.requisition_id', 'requisition_items.item_id',
                 'requisition_items.qty_requested_base', 'requisition_items.qty_approved_base', 'requisition_items.qty_issued_base',
-                'item_categories.is_chemical',
+                'item_categories.is_chemical', 'item_categories.code',
             ])
             ->orderBy('requisition_items.id')
             ->get();
@@ -209,43 +219,48 @@ final class ImsReconcileWorkingStockCommand extends Command
                 continue;
             }
 
-            $itemId = (int) $line->item_id;
-            $w = $working[$itemId] ?? '0';
-            $i = $ims[$itemId] ?? '0';
-            // Short in working stock, but IMS holds something that could be moved.
-            if (bccomp($w, $left, self::SCALE) >= 0 || bccomp($i, '0', self::SCALE) <= 0) {
-                continue;
+            // Same rule as ItemType::forItem(): no category counts as chemical. A science (loan) line cannot be
+            // requisitioned any more, so it is reported under its own kind row rather than failing.
+            $kind = ItemType::slugForCategory($line->is_chemical === null ? null : (bool) $line->is_chemical, $line->code === null ? null : (string) $line->code);
+
+            // Science is not moved from IMS (it is lent), so there is no IMS/working comparison: every open line
+            // with something left to issue is counted. Other kinds: only lines working stock cannot cover but IMS could.
+            if ($kind !== ItemType::SCIENCE) {
+                $itemId = (int) $line->item_id;
+                $w = $working[$itemId] ?? '0';
+                $i = $ims[$itemId] ?? '0';
+                if (bccomp($w, $left, self::SCALE) >= 0 || bccomp($i, '0', self::SCALE) <= 0) {
+                    continue;
+                }
             }
 
-            // Same rule as ItemType::forItem(): no category counts as chemical.
-            $kind = ItemType::slugFor($line->is_chemical === null || (bool) $line->is_chemical);
             $byKind[$kind]['docs'][(int) $line->requisition_id] = true;
             $byKind[$kind]['lines'] = ($byKind[$kind]['lines'] ?? 0) + 1;
         }
 
         if ($byKind === []) {
-            $this->line('  '.__('ims_transfer.reconcile.requisitions_none'));
+            $this->line('  '.__('ims_reconcile.requisitions_none'));
 
             return;
         }
 
         $table = [];
         foreach ($byKind as $kind => $data) {
-            $table[] = [(string) __('ims_transfer.reconcile.kind_'.$kind), count($data['docs']), $data['lines']];
+            $table[] = [(string) __('ims_reconcile.kind_'.$kind), count($data['docs']), $data['lines']];
         }
         $this->table([
-            (string) __('ims_transfer.reconcile.col_kind'),
-            (string) __('ims_transfer.reconcile.col_docs'),
-            (string) __('ims_transfer.reconcile.col_lines'),
+            (string) __('ims_reconcile.col_kind'),
+            (string) __('ims_reconcile.col_docs'),
+            (string) __('ims_reconcile.col_lines'),
         ], $table);
     }
 
     /** Active managers per kind in the branch (ADMIN is not counted). Only shown for branches that hold IMS stock. */
     private function managers(int $labId, bool $hasImsStock): void
     {
-        $this->line((string) __('ims_transfer.reconcile.sec_managers'));
+        $this->line((string) __('ims_reconcile.sec_managers'));
         if (! $hasImsStock) {
-            $this->line('  '.__('ims_transfer.reconcile.compare_none'));
+            $this->line('  '.__('ims_reconcile.compare_none'));
 
             return;
         }
@@ -263,15 +278,15 @@ final class ImsReconcileWorkingStockCommand extends Command
                 ->count();
 
             $note = $count === 0
-                ? __('ims_transfer.reconcile.warn_no_manager')
-                : ($count > 1 ? __('ims_transfer.reconcile.warn_many_managers') : __('ims_transfer.reconcile.ok'));
-            $table[] = [(string) __('ims_transfer.reconcile.kind_'.$kind), $count, $note];
+                ? __('ims_reconcile.warn_no_manager')
+                : ($count > 1 ? __('ims_reconcile.warn_many_managers') : __('ims_reconcile.ok'));
+            $table[] = [(string) __('ims_reconcile.kind_'.$kind), $count, $note];
         }
 
         $this->table([
-            (string) __('ims_transfer.reconcile.col_kind'),
-            (string) __('ims_transfer.reconcile.col_managers'),
-            (string) __('ims_transfer.reconcile.col_flag'),
+            (string) __('ims_reconcile.col_kind'),
+            (string) __('ims_reconcile.col_managers'),
+            (string) __('ims_reconcile.col_flag'),
         ], $table);
     }
 }

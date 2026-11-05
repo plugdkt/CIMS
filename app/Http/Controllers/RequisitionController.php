@@ -58,7 +58,7 @@ final class RequisitionController extends Controller
         // The kind comes from the card the user started in (?type=); without it the form asks, one kind only.
         $type = request()->query('type');
 
-        return view('requisitions.create', ['type' => is_string($type) && ItemType::isValid($type) ? $type : null]);
+        return view('requisitions.create', ['type' => is_string($type) && ItemType::isRequisitionKind($type) ? $type : null]);
     }
 
     public function store(RequisitionRequest $request, DocumentNumberGenerator $generator): RedirectResponse
@@ -146,6 +146,7 @@ final class RequisitionController extends Controller
         }
 
         $items = Item::query()
+            ->requisitionable() // science (loan-and-return) materials are lent, never requisitioned
             ->where('is_active', true)
             // ITM-2610-062: only WORKING stock can be requested. Items that exist only in the branch's IMS store
             // are left out of the picker (they are visible in the shop, flagged "not orderable yet").

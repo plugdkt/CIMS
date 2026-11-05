@@ -52,7 +52,7 @@
                                     <span class="font-mono text-xs">{{ $row['line']->item?->item_code }}</span>
                                     <span class="text-xs">{{ __('working_stock.issue_short_row', ['need' => $fmtAll($row['remaining_base']), 'working' => $fmtAll($row['availability']['working']), 'ims' => $fmtAll($row['availability']['ims']), 'unit' => $bu]) }}</span>
                                     @if ($row['can_transfer'])
-                                        <a href="{{ route('ims.transfers.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('working_stock.btn_go_transfer') }}</a>
+                                        <a href="{{ route('ims.lots.index', ['search' => $row['line']->item?->item_code]) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('working_stock.btn_go_transfer') }}</a>
                                     @endif
                                 </li>
                             @endforeach
