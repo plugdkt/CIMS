@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Domain\Notification\Services\NotificationService;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Services\RequisitionService;
 use App\Domain\Requisition\Services\ShopAvailability;
@@ -15,7 +16,9 @@ use App\Http\Requests\ShopCartPageRequest;
 use App\Http\Requests\ShopCartUpdateRequest;
 use App\Http\Requests\ShopCheckoutRequest;
 use App\Http\Requests\ShopIndexRequest;
+use App\Http\Requests\ShopRefillRequest;
 use App\Http\Requests\ShopShowRequest;
+use App\Models\AuditLog;
 use App\Models\Item;
 use App\Models\ItemCategory;
 use App\Models\Requisition;
@@ -25,10 +28,11 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 
 /**
- * "Shopping" way to request materials: browse what the branch can hand out (working stock plus
- * its IMS store), put items in a cart, and check out into an ordinary requisition that goes
+ * "Shopping" way to request materials: browse what the branch holds (working stock, plus its IMS store shown
+ * for information only: ITM-2610-062 — only working stock can be put in a cart), put items in a cart, and check out into an ordinary requisition that goes
  * through the usual approval and dispensing. The cart lives in the session — it is only a
  * wish list until checkout, nothing is reserved.
  *
@@ -207,8 +211,8 @@ final class ShopController extends Controller
         }
 
         /** @var numeric-string $qty */
-        if (! $this->withinStock($item, $unit, $qty, $availability, $converter, (int) $user->lab_id)) {
-            return back()->withErrors(['cart' => __('shop.error.over_stock', ['item' => $item->name_th])]);
+        if (($problem = $this->stockProblem($item, $unit, $qty, $availability, $converter, (int) $user->lab_id)) !== null) {
+            return back()->withErrors(['cart' => $problem]);
         }
 
         $cart[$key] = ['qty' => $this->trim($qty), 'unit_id' => $unit->id];
@@ -217,7 +221,76 @@ final class ShopController extends Controller
         return back()->with('status', __('shop.added', ['item' => $item->name_th]));
     }
 
-    public function cartPage(ShopCartPageRequest $request, ShopAvailability $availability): View|RedirectResponse
+    /** Per user + item: one request a day. Per user: at most this many requests a day. */
+    private const REFILL_PER_USER_PER_DAY = 20;
+
+    private const REFILL_WINDOW_SECONDS = 86400;
+
+    /**
+     * ITM-2610-062 "ask for a refill": the item sits only in the branch's IMS store, so it cannot be ordered yet.
+     * Tells (in the system, no email) the active keepers of that kind of stock in the requester's own branch to move
+     * it into working stock. No table: throttled with RateLimiter, recorded as one audit row. If nobody holds that
+     * kind in the branch the requester is told so (never silent) and no quota is used.
+     */
+    public function requestRefill(ShopRefillRequest $request, Item $item, NotificationService $notifications, ShopAvailability $availability): RedirectResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $labId = (int) $user->lab_id;
+
+        $perItemKey = "shop-refill:{$user->id}:{$item->id}";
+        $perUserKey = "shop-refill-user:{$user->id}";
+        if (RateLimiter::tooManyAttempts($perItemKey, 1)) {
+            return back()->withErrors(['cart' => __('working_stock.refill_already_today')]);
+        }
+        if (RateLimiter::tooManyAttempts($perUserKey, self::REFILL_PER_USER_PER_DAY)) {
+            return back()->withErrors(['cart' => __('working_stock.refill_user_limit')]);
+        }
+
+        $kind = ItemType::forItem($item);
+        // Active holders of this kind in the requester's branch; a pure ADMIN is never a recipient.
+        $keepers = User::query()
+            ->where('is_active', true)
+            ->where('lab_id', $labId)
+            ->whereHas('itemTypes', fn ($q) => $q->where('item_type', $kind))
+            ->with('roles')
+            ->get()
+            ->filter(fn (User $u) => ! $u->hasRole('ADMIN') || $u->isBranchManager())
+            ->values();
+
+        if ($keepers->isEmpty()) {
+            return back()->withErrors(['cart' => __('working_stock.refill_no_keeper')]);
+        }
+
+        RateLimiter::hit($perItemKey, self::REFILL_WINDOW_SECONDS);
+        RateLimiter::hit($perUserKey, self::REFILL_WINDOW_SECONDS);
+
+        $stock = $availability->forItem($item, $labId);
+        $title = (string) __('working_stock.refill_notify_title');
+        $body = (string) __('working_stock.refill_notify_body', [
+            'requester' => $user->full_name,
+            'item' => $item->name_th,
+            'code' => (string) $item->item_code,
+            'ims' => rtrim(rtrim($stock['ims'], '0'), '.') ?: '0',
+            'unit' => (string) $item->baseUnit?->code,
+        ]);
+        foreach ($keepers as $keeper) {
+            $notifications->notifyInApp($keeper, 'shop.refill_request', $title, $body, route('ims.transfers.create'));
+        }
+
+        AuditLog::record(
+            action: 'SHOP_REFILL_REQUEST',
+            userId: $user->id,
+            username: $user->username,
+            entityType: 'item',
+            entityId: $item->id,
+            newValue: ['lab_id' => $labId, 'kind' => $kind, 'recipients' => $keepers->count()],
+        );
+
+        return back()->with('status', __('working_stock.refill_sent', ['count' => $keepers->count(), 'item' => $item->name_th]));
+    }
+
+    public function cartPage(ShopCartPageRequest $request, ShopAvailability $availability, UnitConverter $converter): View|RedirectResponse
     {
         if ($gate = $this->gate()) {
             return $gate;
@@ -227,7 +300,7 @@ final class ShopController extends Controller
         $user = $request->user();
         // No `type` given: show the basket that has something in it (chemical first), else the chemical one.
         $type = $request->filled('type') ? (string) $request->query('type') : $this->firstFilledType();
-        $lines = $this->cartLines((int) $user->lab_id, $type, $availability);
+        $lines = $this->cartLines((int) $user->lab_id, $type, $availability, $converter);
 
         return view('shop.cart', [
             'lines' => $lines,
@@ -256,8 +329,8 @@ final class ShopController extends Controller
         /** @var numeric-string $qty */
         $qty = (string) $request->validated('qty');
 
-        if (! $this->withinStock($model, $unit, $qty, $availability, $converter, (int) $user->lab_id)) {
-            return back()->withErrors(['cart' => __('shop.error.over_stock', ['item' => $model->name_th])]);
+        if (($problem = $this->stockProblem($model, $unit, $qty, $availability, $converter, (int) $user->lab_id)) !== null) {
+            return back()->withErrors(['cart' => $problem]);
         }
 
         $cart[$item]['qty'] = $this->trim($qty);
@@ -316,8 +389,11 @@ final class ShopController extends Controller
             $unit = Unit::find($row['unit_id']);
             /** @var numeric-string $qty */
             $qty = $row['qty'];
-            if ($item === null || $unit === null || ! $this->withinStock($item, $unit, $qty, $availability, $converter, (int) $user->lab_id)) {
-                return redirect()->route('shop.cart', ['type' => $type])->withErrors(['cart' => __('shop.error.over_stock', ['item' => $item->name_th ?? $ulid])]);
+            if ($item === null || $unit === null) {
+                return redirect()->route('shop.cart', ['type' => $type])->withErrors(['cart' => __('shop.error.over_stock', ['item' => $ulid])]);
+            }
+            if (($problem = $this->stockProblem($item, $unit, $qty, $availability, $converter, (int) $user->lab_id)) !== null) {
+                return redirect()->route('shop.cart', ['type' => $type])->withErrors(['cart' => $problem]);
             }
             // One requisition = one kind: a basket can only hold its own kind, but re-check in case a category changed since.
             if (ItemType::forItem($item) !== $type) {
@@ -411,13 +487,31 @@ final class ShopController extends Controller
     }
 
     /**
+     * ITM-2610-062: what is requested is checked against WORKING stock only (`orderable`); IMS is visible but
+     * cannot be ordered. Returns a Thai message when the line cannot be taken, null when it can.
+     *
      * @param  numeric-string  $qty
      */
-    private function withinStock(Item $item, Unit $unit, string $qty, ShopAvailability $availability, UnitConverter $converter, int $labId): bool
+    private function stockProblem(Item $item, Unit $unit, string $qty, ShopAvailability $availability, UnitConverter $converter, int $labId): ?string
     {
         $wantedBase = $converter->toItemBase($item, $unit, $qty);
+        $stock = $availability->forItem($item, $labId);
 
-        return bccomp($wantedBase, $availability->forItem($item, $labId)['total'], 6) <= 0 && bccomp($wantedBase, '0', 6) > 0;
+        if (bccomp($wantedBase, '0', 6) <= 0) {
+            return (string) __('shop.error.over_stock', ['item' => $item->name_th]);
+        }
+        if (bccomp($stock['orderable'], '0', 6) <= 0) {
+            return (string) __('working_stock.error.not_in_working', ['item' => $item->name_th]);
+        }
+        if (bccomp($wantedBase, $stock['orderable'], 6) > 0) {
+            return (string) __('working_stock.error.over_working', [
+                'item' => $item->name_th,
+                'max' => rtrim(rtrim($stock['orderable'], '0'), '.') ?: '0',
+                'unit' => (string) $item->baseUnit?->code,
+            ]);
+        }
+
+        return null;
     }
 
     /** @param  numeric-string  $qty */
@@ -427,9 +521,9 @@ final class ShopController extends Controller
     }
 
     /**
-     * @return list<array{item: Item, unit: Unit, qty: string, stock: array{working: numeric-string, ims: numeric-string, total: numeric-string}}>
+     * @return list<array{item: Item, unit: Unit, qty: string, stock: array{working: numeric-string, ims: numeric-string, total: numeric-string, orderable: numeric-string}, problem: ?string}>
      */
-    private function cartLines(int $labId, string $type, ShopAvailability $availability): array
+    private function cartLines(int $labId, string $type, ShopAvailability $availability, UnitConverter $converter): array
     {
         $cart = $this->cart($type);
         if ($cart === []) {
@@ -447,7 +541,16 @@ final class ShopController extends Controller
             $item = $items->get($ulid);
             $unit = $units->get($row['unit_id']);
             if ($item !== null && $unit !== null) {
-                $lines[] = ['item' => $item, 'unit' => $unit, 'qty' => $row['qty'], 'stock' => $stock[$item->id]];
+                /** @var numeric-string $qty */
+                $qty = $row['qty'];
+                $lines[] = [
+                    'item' => $item,
+                    'unit' => $unit,
+                    'qty' => $row['qty'],
+                    'stock' => $stock[$item->id],
+                    // Shown in the basket so a line that can no longer be ordered is visible before checkout.
+                    'problem' => $this->stockProblem($item, $unit, $qty, $availability, $converter, $labId),
+                ];
             }
         }
 

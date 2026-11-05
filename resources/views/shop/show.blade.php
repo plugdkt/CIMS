@@ -60,14 +60,30 @@
             </div>
 
             <div class="bg-surface border border-border rounded-xl p-5">
+                @php $canOrder = bccomp($stock['orderable'], '0', 6) > 0; @endphp
                 <div class="flex items-center gap-2">
-                    <span class="rounded bg-success-soft text-success-ink text-xs font-semibold px-2 py-0.5">{{ __('shop.in_stock') }}</span>
-                    <span class="font-mono font-bold text-lg">{{ $fmt($stock['total']) }} {{ $unit }}</span>
+                    @if ($canOrder)
+                        <span class="rounded bg-success-soft text-success-ink text-xs font-semibold px-2 py-0.5">{{ __('shop.in_stock') }}</span>
+                        <span class="font-mono font-bold text-lg">{{ $fmt($stock['orderable']) }} {{ $unit }}</span>
+                    @else
+                        <span class="rounded bg-warning-soft text-warning-ink text-xs font-semibold px-2 py-0.5">{{ __('working_stock.ims_only_badge') }}</span>
+                    @endif
                 </div>
                 <p class="text-xs text-ink-faint mt-1">
-                    {{ __('shop.from_working') }} {{ $fmt($stock['working']) }} {{ $unit }} · {{ __('shop.from_ims') }} {{ $fmt($stock['ims']) }} {{ $unit }}
+                    {{ __('shop.from_working') }} {{ $fmt($stock['working']) }} {{ $unit }} · {{ __('shop.from_ims') }} {{ $fmt($stock['ims']) }} {{ $unit }} ({{ __('working_stock.ims_not_orderable') }})
                 </p>
 
+                @unless ($canOrder)
+                    <p class="mt-3 text-sm text-warning-ink">{{ __('working_stock.ims_only_hint') }}</p>
+                    @can('requestRefill', $item)
+                        <form method="POST" action="{{ route('shop.request-refill', $item->ulid) }}" class="mt-3">
+                            @csrf
+                            <button type="submit" class="rounded-lg border border-accent text-accent hover:bg-accent-soft text-sm font-semibold px-5 py-2.5">{{ __('working_stock.btn_request_refill') }}</button>
+                        </form>
+                    @endcan
+                @endunless
+
+                @if ($canOrder)
                 <form method="POST" action="{{ route('shop.cart.add') }}" class="mt-4 flex items-end gap-3">
                     @csrf
                     <input type="hidden" name="item" value="{{ $item->ulid }}">
@@ -85,6 +101,7 @@
                     </div>
                     <button type="submit" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-5 py-2.5">{{ __('shop.btn_add') }}</button>
                 </form>
+                @endif
             </div>
 
             <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">

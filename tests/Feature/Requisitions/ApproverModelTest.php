@@ -277,7 +277,7 @@ if (! function_exists('issuableReq')) {
     {
         $requisition = approverReq($lab, $category, ['status' => 'APPROVED']);
         $line = $requisition->items()->firstOrFail();
-        $container = stockedContainer($line->item_id, '50.000000', staffUser());
+        $container = stockedContainer($line->item_id, '50.000000', staffUser(), $lab->id);
 
         return [$requisition, $line, $container, Unit::where('code', 'g')->firstOrFail()];
     }
@@ -379,7 +379,7 @@ test('a STUDENT requisition becomes APPROVED when the advisor approves, and a sc
     expect($requisition->fresh()->scientist_id)->toBeNull();   // no second approver was involved
 
     $line = $requisition->items()->firstOrFail();
-    $container = stockedContainer($line->item_id, '50.000000', $student);
+    $container = stockedContainer($line->item_id, '50.000000', $student, $lab->id);
     $scientist = scientistUser(['lab_id' => $lab->id]);
 
     $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), ['lines' => [$line->id => ['qty' => '5', 'unit_id' => $g->id]]])

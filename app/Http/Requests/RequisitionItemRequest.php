@@ -14,7 +14,8 @@ use Illuminate\Validation\Validator;
 /**
  * FR-RQ-04: one requisition line = one item + how much, in what unit.
  *
- * `item_id` also has to actually have stock in the requisition's own lab — the
+ * `item_id` also has to actually have WORKING stock in the requisition's own lab (ITM-2610-062: IMS-only
+ * stock is not requestable) — the
  * add-line picker (a type-to-search box, not a full-catalog <select>) already only
  * offers matches scoped that way, but `withValidator()` below is the real gate:
  * without it, a direct POST could still name an item this branch never stocked.
@@ -59,17 +60,21 @@ final class RequisitionItemRequest extends FormRequest
                 ->whereHas('location', fn ($q) => $q->where('lab_id', $requisition->lab_id))
                 ->exists();
 
-            // Stock still sitting in the branch's IMS store counts too — it is cut into working
-            // stock automatically when the requisition is dispensed.
+            if ($hasStockInOwnLab) {
+                return;
+            }
+
+            // ITM-2610-062: only working stock can be requested; stock that sits only in the branch's IMS store
+            // is visible but cannot be requested (and is no longer cut into working stock at dispensing).
             $hasImsStock = ImsLot::query()
                 ->where('item_id', (int) $itemId)
                 ->where('lab_id', $requisition->lab_id)
                 ->where('qty_remaining_base', '>', 0)
                 ->exists();
 
-            if (! $hasStockInOwnLab && ! $hasImsStock) {
-                $validator->errors()->add('item_id', __('requisitions.validation.item_not_in_lab_stock'));
-            }
+            $validator->errors()->add('item_id', $hasImsStock
+                ? __('working_stock.error.item_ims_only')
+                : __('requisitions.validation.item_not_in_lab_stock'));
         });
     }
 

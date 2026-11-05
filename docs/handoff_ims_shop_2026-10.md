@@ -13,7 +13,8 @@ university warehouse report / manual entry
         │  (receipt document: DRAFT → confirm selected complete lines)
         ▼
 IMS (branch central store)   ims_receipts → ims_receipt_lines → ims_lots (→ ims_lot_groups) ; ims_movements (append-only)
-        │  cut automatically at dispensing, or by hand (lots.transfer)
+        │  [ITM-2610-062, 2026-11-05] by hand only: "ย้ายตามใบเบิกกระดาษ" (ims.transfers.*) or one lot at a time (lots.transfer).
+        │  NOT cut automatically at dispensing any more.
         ▼
 Working stock                containers + stock_ledger (append-only, BCMath, _base in the item's own base unit)
         │
@@ -39,12 +40,13 @@ IMS is per branch (`labs`). Quantities are packs × catalog package size; price 
 - **Bulk locate** (`ims.lots.locate`): pick one place, tick many lots, save once.
 - Warnings for lots with no storage place: banner + filter in the lot list, warning after confirming a receipt,
   warning on the dispense page with buttons (set location / cut into working stock).
+  **[ITM-2610-062: the dispense-page box is now "ของไม่พอในคลังใช้งาน" with a link to the paper-requisition move page; see block below.]**
 - Partial multi-word search (`ImsLot::search` scope) on lot list, bulk-locate and place page.
 
 ### Shop and requisition
 - Shop (`/shop`): search, category tabs, product detail page (locations, expiry per batch, hazard info), session cart,
   checkout creates and submits a normal Requisition. Availability = working stock in the branch + non-expired IMS lots
-  (`ShopAvailability`).
+  (`ShopAvailability`). **[ITM-2610-062 supersedes this: only WORKING stock is orderable (`orderable`); IMS is shown, not orderable.]**
 - Menus split: "ใบเบิกของฉัน" (`RequisitionTable`) vs "จัดการใบเบิก" (`RequisitionManageTable`, drafts excluded,
   next-step buttons instead of "view").
 - Manager can approve less than requested (earlier feature, see CLAUDE.md).
@@ -53,6 +55,25 @@ IMS is per branch (`labs`). Quantities are packs × catalog package size; price 
 - Page has **only** "จ่ายทั้งใบเบิกในครั้งเดียว": one row per line with quantity prefilled, one button (`issue-all`).
 - Per line: working stock first, shortfall cut from IMS in whole packs (soonest expiry first, lot **must have a location**),
   then FEFO across containers. A failing line does not roll back the others; failures are listed.
+  **[SUPERSEDED by ITM-2610-062 (2026-11-05): no automatic IMS cut; a line working stock cannot cover is refused whole. See below.]**
+
+<!-- BEGIN ITM-2610-062 : block belongs to ITM-2610-062 only -->
+### ITM-2610-062 — IMS to working stock by hand (CEO decisions 2026-11-05; pint, phpstan L8 และ pest ชุดเต็ม 1,562 ผ่าน (2026-11-05 ก่อนแก้ QA รอบนี้; รันซ้ำแล้วจะอัปเดต) รอ CEO อนุมัติก่อน commit/deploy)
+- **Rule:** users may SEE IMS (`ims.browse`) but order / dispense from WORKING stock only. `ShopAvailability::orderable` (= working) is the one
+  number for "may this be requested / issued"; `total` is display only. Expired stock and containers with no place (or a place of another branch) never count.
+- **Dispensing (`issue-all`):** no `provisionWorkingStock` call any more (method kept, unused). A line working stock cannot cover is refused whole with
+  "คลังใช้งานไม่พอ ให้ผู้ดูแลคลังย้ายจาก IMS ตามใบเบิกกระดาษก่อน"; requisition status does not move for it; other lines go through; a line failing
+  half-way (e.g. BR-04 over the ceiling) rolls back only itself. The issue page shows the "ของไม่พอในคลังใช้งาน" box, with a link only for users who may move that kind.
+- **Move page** `ims.transfers.create/review/store/doc-check` (menu: งานคลัง -> "ย้ายตามใบเบิกกระดาษ"): one paper document number, many rows, whole packs,
+  review step, one-time token, one transaction (any bad row rolls back everything), one container per pack, `ims_movements` ISSUE with `ref_doc_no`,
+  one audit row `IMS_TRANSFER_BATCH`. Permission = `ims.manage` + the user keeps the lot's kind (`ImsLotPolicy::transfer`, which also closes the old `ims.lots.transfer`).
+  A mixed-kind document posted by one kind's keeper is a 403 for the whole request. Wrong move = no way back, use ADJUST.
+- **Shop:** IMS-only items stay on the shelf / product page with a badge and "ขอให้เติมคลังใช้งาน" (`shop.request-refill`: in-app notice to the kind's keepers
+  of the requester's branch, no email, throttled, audit `SHOP_REFILL_REQUEST`). Item picker and `RequisitionItemRequest` refuse IMS-only items.
+- **Before cut-over:** run `php artisan managers:backfill-item-types` (otherwise nobody can move anything), then `php artisan ims:reconcile-working-stock`
+  (read-only) and have the keepers move stuck stock; see docs/admin_manual.md (ITM-2610-062) for the deploy order.
+- **Known gap:** places (`locations`) are not tied to a working store yet (`WorkingStockDestinations` lists every place of the branch), so a chemical can be moved to a consumable place unless the keeper checks.
+<!-- END ITM-2610-062 -->
 - **No receiver signature/OTP any more** (user decision 2026-10-16). A SHA-256 marker of
   `ISSUE|requisition|issuer|receiver|time` is stored in `signature_hash` (column is NOT NULL).
 - Receiver selectable (default requester; others must be active users of the same branch).

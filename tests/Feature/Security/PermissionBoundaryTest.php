@@ -116,7 +116,7 @@ test('control: a NON-controlled item can be issued through issue-all (proves the
     $staff = staffUser();
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
-    $container = stockedContainer($line->item_id, '50.000000', $staff);
+    $container = stockedContainer($line->item_id, '50.000000', $staff, $requisition->lab_id);
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
 
@@ -132,7 +132,7 @@ test('issue-all must NOT cut stock for a controlled substance without controlled
     $requisition = approvedRequisition($staff, '20.000000');
     $line = $requisition->items->first();
     $line->item()->update(['is_controlled' => true]);
-    $container = stockedContainer($line->item_id, '50.000000', $staff);
+    $container = stockedContainer($line->item_id, '50.000000', $staff, $requisition->lab_id);
     $scientist = scientistUser(['lab_id' => $requisition->lab_id]);
     $g = Unit::where('code', 'g')->firstOrFail();
     $payload = ['lines' => [$line->id => ['qty' => '5', 'unit_id' => $g->id]]];

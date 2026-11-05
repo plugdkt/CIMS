@@ -73,13 +73,27 @@
                             <a href="{{ route('shop.show', $item->ulid) }}" class="font-semibold leading-snug hover:text-accent">{{ $item->name_th }}</a>
                             <div class="text-xs text-ink-faint font-mono mt-0.5">{{ $item->item_code }}@if ($item->category) · {{ $item->category->name_th }}@endif</div>
                         </div>
+                        @php $canOrder = bccomp($s['orderable'], '0', 6) > 0; @endphp
                         <div class="text-sm">
-                            <span class="inline-block rounded bg-success-soft text-success-ink text-xs font-semibold px-2 py-0.5">{{ __('shop.in_stock') }}</span>
-                            <span class="ml-1 font-mono font-semibold">{{ $fmt($s['total']) }} {{ $unit }}</span>
+                            @if ($canOrder)
+                                <span class="inline-block rounded bg-success-soft text-success-ink text-xs font-semibold px-2 py-0.5">{{ __('shop.in_stock') }}</span>
+                                <span class="ml-1 font-mono font-semibold">{{ $fmt($s['orderable']) }} {{ $unit }}</span>
+                            @else
+                                <span class="inline-block rounded bg-warning-soft text-warning-ink text-xs font-semibold px-2 py-0.5">{{ __('working_stock.ims_only_badge') }}</span>
+                            @endif
                             <div class="text-xs text-ink-faint mt-1">
-                                {{ __('shop.from_working') }} {{ $fmt($s['working']) }} · {{ __('shop.from_ims') }} {{ $fmt($s['ims']) }}
+                                {{ __('shop.from_working') }} {{ $fmt($s['working']) }} · {{ __('shop.from_ims') }} {{ $fmt($s['ims']) }} ({{ __('working_stock.ims_not_orderable') }})
                             </div>
                         </div>
+                        @unless ($canOrder)
+                            @can('requestRefill', $item)
+                                <form method="POST" action="{{ route('shop.request-refill', $item->ulid) }}" class="mt-auto pt-2">
+                                    @csrf
+                                    <button type="submit" class="w-full rounded-lg border border-accent text-accent hover:bg-accent-soft text-sm font-semibold px-3 py-2">{{ __('working_stock.btn_request_refill') }}</button>
+                                </form>
+                            @endcan
+                        @endunless
+                        @if ($canOrder)
                         <form method="POST" action="{{ route('shop.cart.add') }}" class="mt-auto pt-2 flex items-end gap-2">
                             @csrf
                             <input type="hidden" name="item" value="{{ $item->ulid }}">
@@ -98,6 +112,7 @@
                             </div>
                             <button type="submit" class="grow rounded-lg bg-accent hover:bg-accent-strong text-white text-sm font-semibold px-3 py-2">{{ __('shop.btn_add') }}</button>
                         </form>
+                        @endif
                     </div>
                 </div>
             @endforeach

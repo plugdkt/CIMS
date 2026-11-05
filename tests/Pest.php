@@ -230,9 +230,16 @@ if (! function_exists('approvedRequisition')) {
 }
 
 if (! function_exists('stockedContainer')) {
-    function stockedContainer(int $itemId, string $qtyBase, \App\Models\User $receiver): \App\Models\Container
+    /**
+     * ITM-2610-062: pass `$labId` to put the container in a storage place of that branch. Only containers whose place
+     * belongs to the branch count as working stock for the shop / the issue page (a container with no place does not).
+     */
+    function stockedContainer(int $itemId, string $qtyBase, \App\Models\User $receiver, ?int $labId = null): \App\Models\Container
     {
         $container = makeContainer(['item_id' => $itemId, 'remaining_qty_base' => '0.000000']);
+        if ($labId !== null) {
+            $container->update(['location_id' => makeLocationForLab(\App\Models\Lab::findOrFail($labId))->id]);
+        }
         $g = \App\Models\Unit::where('code', 'g')->firstOrFail();
         app(\App\Domain\Inventory\Services\LedgerService::class)->receive(
             $container->id,
@@ -732,5 +739,38 @@ if (! function_exists('loanCancelPost')) {
     function loanCancelPost($test, \App\Models\User $user, \App\Models\Loan $loan, array $payload = [])
     {
         return $test->actingAs($user)->post(route('loans.cancel', $loan), $payload);
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ITM-2610-062 (IMS -> working stock) helpers.
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('makeImsLot')) {
+    /**
+     * An IMS lot written directly (no receipt document): `$packs` whole packs of `$packSize` base units each in branch
+     * `$labId`. `$packSize = null` makes a lot with no recorded pack size, then `$packs` is the number of base units.
+     */
+    function makeImsLot(int $labId, \App\Models\Item $item, string $packs = '4', ?string $packSize = '500', array $overrides = []): \App\Models\ImsLot
+    {
+        $total = $packSize === null ? $packs : bcmul($packs, $packSize, 6);
+
+        return \App\Models\ImsLot::create(array_merge([
+            'item_id' => $item->id,
+            'lab_id' => $labId,
+            'lot_no' => 'LOT-'.fake()->unique()->numerify('######'),
+            'pack_size_base' => $packSize,
+            'qty_received_base' => $total,
+            'qty_remaining_base' => $total,
+            'received_at' => now()->toDateString(),
+        ], $overrides));
+    }
+}
+
+if (! function_exists('consumableItem')) {
+    /** A catalog item of the CONSUMABLE kind (category MATERIAL, not chemical), base unit g. */
+    function consumableItem(array $overrides = []): \App\Models\Item
+    {
+        return makeItem(array_merge(['category_id' => categoryId('MATERIAL')], $overrides));
     }
 }

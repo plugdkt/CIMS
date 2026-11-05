@@ -27,6 +27,8 @@ dataset('direct page access', function () use ($open, $deny) {
         'chemicals.lookup' => [$open, $open, $open, $open, $deny],
         'stock-in.index' => [$open, $open, $open, $open, $deny],
         'ims.lots.index' => [$open, $open, $open, $open, $deny],
+        // ITM-2610-062: moving IMS stock into working stock needs ims.manage (managers only; ADMIN has none)
+        'ims.transfers.create' => [$deny, $deny, $open, $deny, $deny],
         'locations.index' => [$deny, $deny, $open, $deny, $deny],
         'stock-takes.index' => [$deny, $deny, $open, $open, $deny],
         'disposals.index' => [$deny, $deny, $open, $open, $deny],
@@ -64,7 +66,7 @@ test('every page behind login still sends a guest to the login page', function (
 })->with([
     'items.index', 'locations.index', 'stock-takes.index', 'disposals.index', 'adjustments.index',
     'reports.index', 'labs.members', 'admin.users.index', 'admin.labs.index', 'requisitions.index',
-    'requisitions.manage', 'warehouse.overview', 'shop.index', 'stock-in.index', 'ims.lots.index',
+    'requisitions.manage', 'warehouse.overview', 'shop.index', 'stock-in.index', 'ims.lots.index', 'ims.transfers.create',
     'loans.available', 'loans.assets.index', 'loans.assets.create', 'notifications.index', 'account.my-data',
 ]);
 

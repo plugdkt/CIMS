@@ -10,14 +10,17 @@ use App\Models\Item;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * What a branch can actually hand out for an item: the usable bottles in its working stock plus
- * whatever is still in its IMS store (which is cut into working stock automatically at dispensing
- * time). Expired stock never counts. Everything is in the item's own base unit.
+ * What a branch holds of an item, in the item's own base unit. Expired stock never counts.
+ *
+ * ITM-2610-062: users may SEE the branch's IMS store (`ims`, and `total` = working + ims, for display only) but
+ * may only ORDER / dispense from working stock. `orderable` (= `working`) is the one number every
+ * "may this be requested / issued" decision must use; never decide on `total`.
  */
 final class ShopAvailability
 {
     /**
-     * Items with anything usable in this branch — the "shop shelf".
+     * Items with anything usable in this branch — the "shop shelf". IMS-only items stay on it so people can see
+     * them (flagged "in the central store, not yet orderable").
      *
      * @return Builder<Item>
      */
@@ -34,7 +37,7 @@ final class ShopAvailability
 
     /**
      * @param  list<int>  $itemIds
-     * @return array<int, array{working: numeric-string, ims: numeric-string, total: numeric-string}>
+     * @return array<int, array{working: numeric-string, ims: numeric-string, total: numeric-string, orderable: numeric-string}>
      */
     public function forItems(array $itemIds, int $labId): array
     {
@@ -63,13 +66,18 @@ final class ShopAvailability
 
         $result = [];
         foreach ($itemIds as $id) {
-            $result[$id] = ['working' => $working[$id], 'ims' => $ims[$id], 'total' => bcadd($working[$id], $ims[$id], 6)];
+            $result[$id] = [
+                'working' => $working[$id],
+                'ims' => $ims[$id],
+                'total' => bcadd($working[$id], $ims[$id], 6),
+                'orderable' => $working[$id],
+            ];
         }
 
         return $result;
     }
 
-    /** @return array{working: numeric-string, ims: numeric-string, total: numeric-string} */
+    /** @return array{working: numeric-string, ims: numeric-string, total: numeric-string, orderable: numeric-string} */
     public function forItem(Item $item, int $labId): array
     {
         return $this->forItems([$item->id], $labId)[$item->id];

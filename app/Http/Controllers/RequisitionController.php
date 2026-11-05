@@ -147,12 +147,12 @@ final class RequisitionController extends Controller
 
         $items = Item::query()
             ->where('is_active', true)
-            ->where(function ($stock) use ($user) {
-                $stock->whereHas('containers', function ($query) use ($user) {
-                    $query->whereIn('status', ['SEALED', 'IN_USE'])
-                        ->where('remaining_qty_base', '>', 0)
-                        ->whereHas('location', fn ($q) => $q->where('lab_id', $user->lab_id));
-                })->orWhereHas('imsLots', fn ($q) => $q->where('lab_id', $user->lab_id)->where('qty_remaining_base', '>', 0));
+            // ITM-2610-062: only WORKING stock can be requested. Items that exist only in the branch's IMS store
+            // are left out of the picker (they are visible in the shop, flagged "not orderable yet").
+            ->whereHas('containers', function ($query) use ($user) {
+                $query->whereIn('status', ['SEALED', 'IN_USE'])
+                    ->where('remaining_qty_base', '>', 0)
+                    ->whereHas('location', fn ($q) => $q->where('lab_id', $user->lab_id));
             })
             ->when($term !== '', function ($query) use ($term) {
                 $query->where(function ($q) use ($term) {

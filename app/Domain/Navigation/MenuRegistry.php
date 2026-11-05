@@ -351,7 +351,12 @@ final class MenuRegistry
             $tabs[] = $this->tab((string) __('nav.adjustments'), route('adjustments.index'), ['adjustments.*']);
         }
         if ($user->can('viewAny', ImsReceipt::class)) {
-            $tabs[] = $this->tab((string) __('nav.tab_ims'), route('ims.lots.index'), ['ims.*']);
+            // Listed by name (not `ims.*`) so the "move by paper requisition" tab below is the only one lit on its pages.
+            $tabs[] = $this->tab((string) __('nav.tab_ims'), route('ims.lots.index'), ['ims.receipts.*', 'ims.lots.*', 'ims.places.*']);
+        }
+        // ITM-2610-062: managers move IMS stock into working stock against the paper requisition.
+        if ($user->can('transferAny', ImsLot::class)) {
+            $tabs[] = $this->tab((string) __('ims_transfer.tab'), route('ims.transfers.create'), ['ims.transfers.*']);
         }
         if ($this->ownsOpsStockPages($user) && $user->can('viewAny', Container::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_working_stock_ops'), route('stock-in.index'), ['stock-in.*']);

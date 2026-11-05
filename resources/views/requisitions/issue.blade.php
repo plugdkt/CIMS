@@ -30,9 +30,8 @@
         @php
             $pending = $lines->filter(fn ($r) => bccomp($r['remaining_base'], '0', 6) > 0);
             $fmtAll = fn ($v) => rtrim(rtrim((string) $v, '0'), '.') ?: '0';
-            // Lines that need an IMS cut but whose IMS lot has no storage place yet.
-            $blocked = $pending->filter(fn ($r) => $r['unplaced_lots']->isNotEmpty()
-                && bccomp($r['availability']['working'], $r['remaining_base'], 6) < 0);
+            // ITM-2610-062: lines the working stock cannot cover (IMS is never cut automatically).
+            $blocked = $pending->filter(fn ($r) => bccomp($r['availability']['orderable'], $r['remaining_base'], 6) < 0);
         @endphp
         @if ($pending->isNotEmpty())
             <form method="POST" action="{{ route('requisitions.issue-all', $requisition) }}"
@@ -43,23 +42,18 @@
 
                 @if ($blocked->isNotEmpty())
                     <div class="mb-4 rounded-lg border border-warning/40 bg-warning-soft text-warning-ink px-4 py-3 text-sm">
-                        <p class="font-semibold mb-2">⚠️ {{ __('requisitions.unplaced_warning', ['count' => $blocked->count()]) }}</p>
-                        @can('ims.manage')
-                            <a href="{{ route('ims.lots.locate') }}" class="mb-2 inline-block rounded-lg bg-success hover:bg-success-ink text-white text-xs font-semibold px-3 py-1.5">{{ __('ims.locate_open') }}</a>
-                        @endcan
+                        <p class="font-semibold mb-1">⚠️ {{ __('working_stock.issue_short_title') }}</p>
+                        <p class="mb-2">{{ __('working_stock.issue_short_desc') }}</p>
                         <ul class="space-y-2">
                             @foreach ($blocked as $row)
+                                @php $bu = $row['line']->item?->baseUnit?->code; @endphp
                                 <li class="flex flex-wrap items-center gap-2">
                                     <span class="font-semibold">{{ $row['line']->item?->name_th }}</span>
                                     <span class="font-mono text-xs">{{ $row['line']->item?->item_code }}</span>
-                                    @foreach ($row['unplaced_lots'] as $lot)
-                                        @can('manage', $lot)
-                                            <a href="{{ route('ims.lots.edit', $lot) }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('requisitions.btn_set_location') }}@if ($lot->lot_no) ({{ $lot->lot_no }})@endif</a>
-                                        @endcan
-                                        @can('transfer', $lot)
-                                            <a href="{{ route('ims.lots.transfer.form', $lot) }}" class="rounded-lg border border-border bg-surface hover:bg-surface-alt text-ink text-xs font-semibold px-3 py-1.5">{{ __('requisitions.btn_go_working_stock') }}</a>
-                                        @endcan
-                                    @endforeach
+                                    <span class="text-xs">{{ __('working_stock.issue_short_row', ['need' => $fmtAll($row['remaining_base']), 'working' => $fmtAll($row['availability']['working']), 'ims' => $fmtAll($row['availability']['ims']), 'unit' => $bu]) }}</span>
+                                    @if ($row['can_transfer'])
+                                        <a href="{{ route('ims.transfers.create') }}" class="rounded-lg bg-accent hover:bg-accent-strong text-white text-xs font-semibold px-3 py-1.5">{{ __('working_stock.btn_go_transfer') }}</a>
+                                    @endif
                                 </li>
                             @endforeach
                         </ul>
@@ -83,7 +77,7 @@
                                     $l = $row['line'];
                                     $bu = $l->item?->baseUnit;
                                     $same = $units->filter(fn ($u) => $bu === null || $u->dimension === $bu->dimension);
-                                    $isShort = bccomp($row['availability']['total'], $row['remaining_base'], 6) < 0;
+                                    $isShort = bccomp($row['availability']['orderable'], $row['remaining_base'], 6) < 0;
                                 @endphp
                                 <tr>
                                     <td class="py-2 pr-3">
@@ -92,7 +86,7 @@
                                     </td>
                                     <td class="py-2 pr-3 font-mono font-bold whitespace-nowrap">{{ $fmtAll($row['remaining_base']) }} {{ $bu?->code }}</td>
                                     <td class="py-2 pr-3 font-mono whitespace-nowrap {{ $isShort ? 'text-danger-ink font-semibold' : 'text-ink-muted' }}">
-                                        {{ $fmtAll($row['availability']['total']) }} {{ $bu?->code }}
+                                        {{ $fmtAll($row['availability']['orderable']) }} {{ $bu?->code }}
                                         @if ($isShort) <span class="text-xs">({{ __('requisitions.stock_short') }})</span> @endif
                                     </td>
                                     <td class="py-2 pr-3">
@@ -166,7 +160,7 @@
                 $sameDimension = $units->filter(fn ($u) => $baseUnit === null || $u->dimension === $baseUnit->dimension);
                 $reduced = $line->qty_approved_base !== null && bccomp($line->qty_approved_base, $line->qty_requested_base, 6) < 0;
                 $need = $row['remaining_base'];
-                $stockTotal = $row['availability']['total'];
+                $stockTotal = $row['availability']['orderable'];
                 $short = bccomp($stockTotal, $need, 6) < 0;
             @endphp
             <div class="bg-surface border border-border rounded-xl p-6 mb-4">
@@ -205,12 +199,12 @@
                     </div>
                 </div>
 
-                {{-- Can the branch cover it? Working stock first; the rest is cut from IMS automatically. --}}
+                {{-- Can working stock cover it? (IMS is shown for information only and is not cut automatically.) --}}
                 @if (bccomp($need, '0', 6) > 0)
                     <p class="text-sm mb-3 {{ $short ? 'text-danger-ink font-semibold' : 'text-ink-muted' }}">
                         {{ __('requisitions.stock_available') }}
                         <span class="font-mono font-semibold">{{ $fmt($stockTotal) }} {{ $unitCode }}</span>
-                        <span class="text-xs">({{ __('shop.from_working') }} {{ $fmt($row['availability']['working']) }} · {{ __('shop.from_ims') }} {{ $fmt($row['availability']['ims']) }})</span>
+                        <span class="text-xs">({{ __('shop.from_working') }} {{ $fmt($row['availability']['working']) }} · {{ __('shop.from_ims') }} {{ $fmt($row['availability']['ims']) }} {{ __('working_stock.ims_not_orderable') }})</span>
                         @if ($short)
                             — {{ __('requisitions.stock_short') }}
                         @endif
@@ -220,7 +214,7 @@
                 @if ($row['low_stock'])
                     <div class="mb-3">
                         <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-warning-soft text-warning-ink font-semibold">
-                            ⚠️ {{ __('requisitions.low_stock_warning', ['balance' => $fmt($row['stock_balance'])]) }}
+                            ⚠️ {{ __('requisitions.low_stock_warning', ['balance' => $fmt($row['stock_balance'])]) }} ({{ __('working_stock.excludes_ims_note') }})
                         </span>
                     </div>
                 @endif

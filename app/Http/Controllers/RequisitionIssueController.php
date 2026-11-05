@@ -5,19 +5,17 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
-use App\Domain\Inventory\Exceptions\ImsException;
 use App\Domain\Inventory\Services\FefoContainerSelector;
-use App\Domain\Inventory\Services\ImsService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Requisition\Exceptions\ExcessiveIssueQuantityException;
 use App\Domain\Requisition\Exceptions\InvalidRequisitionTransitionException;
 use App\Domain\Requisition\Services\IssueService;
 use App\Domain\Requisition\Services\ReturnService;
 use App\Domain\Requisition\Services\ShopAvailability;
+use App\Domain\Shared\ItemType;
 use App\Domain\Shared\UnitConverter;
 use App\Http\Requests\RequisitionIssueAllRequest;
 use App\Models\Container;
-use App\Models\ImsLot;
 use App\Models\IssueTransaction;
 use App\Models\Requisition;
 use App\Models\RequisitionItem;
@@ -25,6 +23,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 
 /** FR-RQ-09/10: dispensing against an APPROVED/PARTIALLY_ISSUED requisition, via the issue-all form (FEFO across containers). */
 final class RequisitionIssueController extends Controller
@@ -50,7 +49,7 @@ final class RequisitionIssueController extends Controller
         // User-requested 2026-09-21: warn right where the actual dispensing happens
         // (not on the earlier review page) once an item's current balance is below
         // its reorder point — the person issuing is exactly who'd go restock it.
-        $lines = $requisition->items->map(function (RequisitionItem $line) use ($selector, $returns, $stockBalance, $availability, $requisition) {
+        $lines = $requisition->items->map(function (RequisitionItem $line) use ($selector, $returns, $stockBalance, $availability, $requisition, $user) {
             $item = $line->item()->firstOrFail();
             $balance = $stockBalance->currentBalance($item);
 
@@ -63,17 +62,12 @@ final class RequisitionIssueController extends Controller
                 'containers' => $selector->recommend($item),
                 'issued_containers' => $returns->issuedContainersFor($line),
                 'stock_balance' => $balance,
-                // What the branch can actually hand out for this line: working stock plus IMS (cut automatically).
+                // ITM-2610-062: only `working` (= `orderable`) can be dispensed; `ims` is shown for information. Nothing is
+                // cut from IMS automatically any more: a stock keeper moves it by hand first (ims.transfers).
                 'availability' => $availability->forItem($item, $requisition->lab_id),
                 'low_stock' => $stockBalance->isBelowReorderPoint($item, $balance),
-                // IMS lots with no storage place cannot be cut into working stock automatically.
-                'unplaced_lots' => ImsLot::where('item_id', $item->id)
-                    ->where('lab_id', $requisition->lab_id)
-                    ->where('qty_remaining_base', '>', 0)
-                    ->whereNull('location_id')
-                    ->where(fn ($q) => $q->whereNull('expiry_date')->orWhere('expiry_date', '>=', now()->toDateString()))
-                    ->orderBy('id')
-                    ->get(),
+                // May this user go and move this item's kind of stock from IMS (deny by default)?
+                'can_transfer' => $user->can('ims.manage') && $user->managesItemType(ItemType::forItem($item)),
             ];
         });
 
@@ -102,7 +96,6 @@ final class RequisitionIssueController extends Controller
         IssueService $service,
         FefoContainerSelector $selector,
         UnitConverter $converter,
-        ImsService $ims,
         ShopAvailability $availability,
     ): RedirectResponse {
         $data = $request->validated();
@@ -168,7 +161,6 @@ final class RequisitionIssueController extends Controller
                 $service,
                 $selector,
                 $converter,
-                $ims,
                 $availability,
             );
 
@@ -194,8 +186,11 @@ final class RequisitionIssueController extends Controller
     }
 
     /**
-     * Dispenses one line: working stock first, the shortfall cut from this branch's IMS store
-     * (whole bottles, soonest-expiring lot first), then FEFO-allocated across containers.
+     * Dispenses one line from WORKING stock only, FEFO-allocated across containers (ITM-2610-062: nothing is cut from
+     * IMS automatically any more). If working stock cannot cover the whole quantity the line is rejected whole: nothing
+     * is issued for it, so the requisition keeps its status (APPROVED / PARTIALLY_ISSUED) and the line stays open.
+     * Each line is its own transaction: a line that fails rolls back only its own containers, never other lines
+     * (lines already issued stay issued, and the status already reflects them).
      * Used by {@see storeAll()} only.
      *
      * @param  numeric-string  $qty
@@ -215,24 +210,14 @@ final class RequisitionIssueController extends Controller
         IssueService $service,
         FefoContainerSelector $selector,
         UnitConverter $converter,
-        ImsService $ims,
         ShopAvailability $availability,
     ): array {
         $item = $requisitionItem->item()->firstOrFail();
 
-        try {
-            /** @var numeric-string $neededBase */
-            $neededBase = $converter->toItemBase($item, $unit, $qty);
-            $ims->provisionWorkingStock(
-                $item,
-                $requisition->lab_id,
-                $neededBase,
-                $availability->forItem($item, $requisition->lab_id)['working'],
-                $issuer,
-                $requisition->doc_no,
-            );
-        } catch (ImsException $e) {
-            return ['error' => $e->getMessage(), 'message' => null];
+        /** @var numeric-string $neededBase */
+        $neededBase = $converter->toItemBase($item, $unit, $qty);
+        if (bccomp($neededBase, $availability->forItem($item, $requisition->lab_id)['orderable'], 6) > 0) {
+            return ['error' => __('working_stock.error.issue_working_short'), 'message' => null];
         }
 
         $containers = $selector->recommendExcludingExpired($item)->filter(function (Container $c) use ($requisition) {
@@ -242,41 +227,41 @@ final class RequisitionIssueController extends Controller
         })->values();
 
         try {
-            $transactions = $service->issueAcrossContainers(
-                $requisitionItem,
-                $containers,
-                $qty,
-                $unit,
-                $issuer,
-                $receiver,
-                $signatureHash,
-                $signatureImagePath,
-                is_string($remark) ? $remark : null,
-                is_numeric($overageApprovedBy) ? (int) $overageApprovedBy : null,
-            );
+            $transactions = DB::transaction(function () use ($service, $requisitionItem, $containers, $qty, $unit, $issuer, $receiver, $signatureHash, $signatureImagePath, $remark, $overageApprovedBy, $neededBase) {
+                $transactions = $service->issueAcrossContainers(
+                    $requisitionItem,
+                    $containers,
+                    $qty,
+                    $unit,
+                    $issuer,
+                    $receiver,
+                    $signatureHash,
+                    $signatureImagePath,
+                    is_string($remark) ? $remark : null,
+                    is_numeric($overageApprovedBy) ? (int) $overageApprovedBy : null,
+                );
+
+                // The containers the selector found cannot cover it after all: undo this line completely.
+                $issuedBase = array_reduce(
+                    $transactions,
+                    fn (string $sum, IssueTransaction $t) => bcadd($sum, $t->qty_issued_base, 6),
+                    '0.000000',
+                );
+                if (bccomp($issuedBase, $neededBase, 6) < 0) {
+                    throw new InsufficientStockException($transactions === []
+                        ? (string) __('requisitions.validation.no_stock_available')
+                        : (string) __('working_stock.error.issue_working_short'));
+                }
+
+                return $transactions;
+            });
         } catch (InvalidRequisitionTransitionException|ExcessiveIssueQuantityException|InsufficientStockException $e) {
+            // The failed line's in-memory copy may hold quantities that were rolled back.
+            $requisitionItem->refresh();
+
             return ['error' => $e->getMessage(), 'message' => null];
         }
 
-        if ($transactions === []) {
-            return ['error' => __('requisitions.validation.no_stock_available'), 'message' => null];
-        }
-
-        $totalIssuedBase = array_reduce(
-            $transactions,
-            fn (string $sum, IssueTransaction $t) => bcadd($sum, $t->qty_issued_base, 6),
-            '0.000000',
-        );
-        $shortfallBase = bcsub($converter->toItemBase($item, $unit, $qty), $totalIssuedBase, 6);
-
-        $message = bccomp($shortfallBase, '0', 6) > 0
-            ? __('requisitions.issue_recorded_partial', [
-                'containers' => count($transactions),
-                'issued' => rtrim(rtrim($totalIssuedBase, '0'), '.'),
-                'unit' => $item->baseUnit?->code,
-            ])
-            : __('requisitions.issue_recorded_multi', ['containers' => count($transactions)]);
-
-        return ['error' => null, 'message' => $message];
+        return ['error' => null, 'message' => __('requisitions.issue_recorded_multi', ['containers' => count($transactions)])];
     }
 }

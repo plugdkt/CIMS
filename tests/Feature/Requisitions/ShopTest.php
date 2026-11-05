@@ -41,7 +41,7 @@ beforeEach(function () {
     };
 });
 
-test('the shelf lists items the branch can hand out, working stock plus IMS, and nothing else', function () {
+test('the shelf lists items the branch holds, working stock plus IMS-only (flagged "not orderable yet"), and nothing else', function () {
     $inIms = makeItem(['name_th' => 'สารในคลังกลาง']);
     $inWorking = makeItem(['name_th' => 'สารในคลังใช้งาน']);
     makeItem(['name_th' => 'สารที่ไม่มีของเลย']);
@@ -52,7 +52,8 @@ test('the shelf lists items the branch can hand out, working stock plus IMS, and
     ($this->imsLot)($otherBranch, '1000', $this->otherLab->id);
 
     $page = $this->actingAs($this->shopper)->get(route('shop.index'))->assertOk();
-    $page->assertSee('สารในคลังกลาง')->assertSee('สารในคลังใช้งาน')->assertSee('1000 g')->assertSee('200 g')
+    $page->assertSee('สารในคลังกลาง')->assertSee('สารในคลังใช้งาน')->assertSee(__('shop.from_ims').' 1000')->assertSee('200 g')
+        ->assertSee(__('working_stock.ims_only_badge'))
         ->assertDontSee('สารที่ไม่มีของเลย')->assertDontSee('สารของสาขาอื่น');
 
     $this->actingAs($this->shopper)->get(route('shop.index', ['search' => 'คลังกลาง']))->assertOk()
@@ -65,10 +66,10 @@ test('a guest is sent to login and a user with no role cannot shop', function ()
     $this->actingAs($roleless)->get(route('shop.index'))->assertForbidden();
 });
 
-test('items go into the cart, merge when added again, and cannot exceed the stock', function () {
+test('items go into the cart, merge when added again, and cannot exceed the WORKING stock (IMS does not count)', function () {
     $item = makeItem(['name_th' => 'สารทดสอบตะกร้า']);
     ($this->imsLot)($item, '1000');
-    makeContainer(['item_id' => $item->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '100.000000']);   // 1100 g in total
+    makeContainer(['item_id' => $item->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '600.000000']);   // 600 g orderable, 1600 g with IMS
 
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '300', 'unit_id' => $this->g->id])->assertRedirect();
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '0.2', 'unit_id' => Unit::where('code', 'kg')->firstOrFail()->id])->assertRedirect();
@@ -76,9 +77,14 @@ test('items go into the cart, merge when added again, and cannot exceed the stoc
     $cart = session('shop.cart.chemical');
     expect((float) $cart[$item->ulid]['qty'])->toEqual(500.0)->and($cart[$item->ulid]['unit_id'])->toBe($this->g->id);
 
-    // 500 + 700 would be 1200 > 1100.
+    // 500 + 700 would be 1200 > 600 working (it would still fit "working + IMS" = 1600, which no longer counts).
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '700', 'unit_id' => $this->g->id])->assertSessionHasErrors('cart');
     expect((float) session('shop.cart.chemical')[$item->ulid]['qty'])->toEqual(500.0);
+    // 500 + 150 > 600 as well; 500 + 100 = 600 is exactly the working stock and fits.
+    $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '150', 'unit_id' => $this->g->id])->assertSessionHasErrors('cart');
+    $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '100', 'unit_id' => $this->g->id])->assertSessionHasNoErrors();
+    expect((float) session('shop.cart.chemical')[$item->ulid]['qty'])->toEqual(600.0);
+    $this->actingAs($this->shopper)->put(route('shop.cart.update', $item->ulid), ['qty' => '500'])->assertRedirect();
 
     // A volume unit for a mass item is refused.
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $item->ulid, 'qty' => '1', 'unit_id' => $this->ml->id])->assertSessionHasErrors('cart');
@@ -93,8 +99,9 @@ test('items go into the cart, merge when added again, and cannot exceed the stoc
 test('checking out turns the cart into a submitted requisition with one line per item, and empties the cart', function () {
     $a = makeItem(['name_th' => 'สาร เอ']);
     $b = makeItem(['name_th' => 'สาร บี']);
-    ($this->imsLot)($a, '1000');
-    ($this->imsLot)($b, '500');
+    ($this->imsLot)($a, '1000');                       // IMS stays untouched; the cart needs working stock
+    makeContainer(['item_id' => $a->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '300.000000']);
+    makeContainer(['item_id' => $b->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '200.000000']);
 
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $a->ulid, 'qty' => '100', 'unit_id' => $this->g->id]);
     $this->actingAs($this->shopper)->post(route('shop.cart.add'), ['item' => $b->ulid, 'qty' => '50', 'unit_id' => $this->g->id]);
@@ -118,9 +125,9 @@ test('checking out an empty cart is refused', function () {
     expect(Requisition::count())->toBe(0);
 });
 
-test('dispensing uses working stock first and cuts only the shortfall from IMS, in whole bottles', function () {
-    $item = makeItem(['name_th' => 'สารตัดอัตโนมัติ']);
-    $lot = ($this->imsLot)($item, '1000');          // 2 packs of 500 g
+test('ITM-2610-062: dispensing never cuts from IMS. Working stock short -> the line is refused whole, IMS and working stock stay as they were and the requisition keeps its status', function () {
+    $item = makeItem(['name_th' => 'สารไม่ตัดอัตโนมัติ']);
+    $lot = ($this->imsLot)($item, '1000');          // 2 packs of 500 g in the central store
     $old = makeContainer(['item_id' => $item->id, 'location_id' => $this->location->id, 'remaining_qty_base' => '10.000000', 'status' => 'IN_USE']);
 
     $requisition = makeRequisition($this->shopper);
@@ -128,24 +135,26 @@ test('dispensing uses working stock first and cuts only the shortfall from IMS, 
     $requisition->update(['status' => 'APPROVED']);
     $line = $requisition->items()->firstOrFail();
     $scientist = scientistUser(['lab_id' => $this->lab->id]);
+    $ledgerBefore = \App\Models\StockLedger::count();
 
     $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
         'lines' => [$line->id => ['qty' => '30', 'unit_id' => $this->g->id]],
-    ])->assertRedirect(route('requisitions.issue.create', $requisition));
+    ])->assertRedirect(route('requisitions.issue.create', $requisition))->assertSessionHasErrors('issue');
 
-    expect($requisition->fresh()->status)->toBe('ISSUED')
-        ->and((float) $line->fresh()->qty_issued_base)->toEqual(30.0)
-        ->and((float) $lot->fresh()->qty_remaining_base)->toEqual(500.0)                  // exactly one 500 g bottle left IMS
-        ->and((float) $old->fresh()->remaining_qty_base)->toEqual(0.0);
-    $new = Container::where('ims_lot_id', $lot->id)->firstOrFail();
-    expect((float) $new->remaining_qty_base)->toEqual(480.0);                            // 500 g bottle, 20 g used
-    expect(ImsMovement::where('ims_lot_id', $lot->id)->where('type', 'ISSUE')->count())->toBe(1);
+    expect(session('errors')->get('issue')[0])->toContain(__('working_stock.error.issue_working_short'));
+    expect($requisition->fresh()->status)->toBe('APPROVED')
+        ->and((float) $line->fresh()->qty_issued_base)->toEqual(0.0)
+        ->and((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0)
+        ->and(Container::where('ims_lot_id', $lot->id)->count())->toBe(0)
+        ->and((float) $old->fresh()->remaining_qty_base)->toEqual(10.0)
+        ->and(ImsMovement::where('ims_lot_id', $lot->id)->where('type', 'ISSUE')->count())->toBe(0)
+        ->and(\App\Models\StockLedger::count())->toBe($ledgerBefore);
 });
 
-test('when working stock already covers the request, IMS is not touched', function () {
+test('when working stock already covers the request, issue-all dispenses from it and IMS is not touched', function () {
     $item = makeItem();
     $lot = ($this->imsLot)($item, '1000');
-    stockedContainer($item->id, '100.000000', $this->shopper)->update(['location_id' => $this->location->id]);
+    stockedContainer($item->id, '100.000000', $this->shopper, $this->lab->id);
 
     $requisition = makeRequisition($this->shopper);
     app(\App\Domain\Requisition\Services\RequisitionService::class)->addLine($requisition, $item, $this->g, '30');
@@ -154,12 +163,14 @@ test('when working stock already covers the request, IMS is not touched', functi
 
     $this->actingAs($scientist)->post(route('requisitions.issue-all', $requisition), [
         'lines' => [$requisition->items()->firstOrFail()->id => ['qty' => '30', 'unit_id' => $this->g->id]],
-    ])->assertRedirect();
+    ])->assertRedirect()->assertSessionHasNoErrors();
 
-    expect((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0)->and(Container::where('ims_lot_id', $lot->id)->count())->toBe(0);
+    expect($requisition->fresh()->status)->toBe('ISSUED')
+        ->and((float) $lot->fresh()->qty_remaining_base)->toEqual(1000.0)
+        ->and(Container::where('ims_lot_id', $lot->id)->count())->toBe(0);
 });
 
-test('a lot with no storage location cannot be cut automatically, and nothing moves', function () {
+test('an IMS lot with no storage place changes nothing either: the line is refused because working stock is short, the status stays APPROVED', function () {
     $item = makeItem();
     $lot = ($this->imsLot)($item, '1000', null, false);
 
@@ -186,7 +197,10 @@ test('the product page shows what the item is, where each bit sits and when it e
     $page = $this->actingAs($this->shopper)->get(route('shop.show', $item->ulid))->assertOk();
     $page->assertSee('สารหน้ารายละเอียด')->assertSee('Detail Chemical')->assertSee('64-17-5')->assertSee('AR grade')
         ->assertSee('LOT-XY')->assertSee('01/12/2570')->assertSee('01/02/2571')->assertSee('05/05/2571')
-        ->assertSee('1100 g')->assertSee($this->location->name)
+        ->assertSee('100 g')->assertSee('1000 g')                     // working stock 100 g (orderable) · IMS 1000 g (shown, not orderable)
+        ->assertSee(__('working_stock.ims_not_orderable'))
+        ->assertDontSee('1100 g')                                     // the two are no longer added together
+        ->assertSee($this->location->name)
         ->assertDontSee('100.00')->assertSee(route('shop.cart.add'), false);
 
     // The shelf links to it.

@@ -11,4 +11,9 @@
            @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2', 'border-accent text-accent' => request()->routeIs('ims.receipts.*'), 'border-transparent text-ink-muted hover:text-ink' => ! request()->routeIs('ims.receipts.*')])
            @if (request()->routeIs('ims.receipts.*')) aria-current="page" @endif>{{ __('ims.tab_receipts') }}</a>
     @endcan
+    @can('transferAny', App\Models\ImsLot::class)
+        <a href="{{ route('ims.transfers.create') }}"
+           @class(['px-4 py-2.5 text-sm font-semibold -mb-px border-b-2', 'border-accent text-accent' => request()->routeIs('ims.transfers.*'), 'border-transparent text-ink-muted hover:text-ink' => ! request()->routeIs('ims.transfers.*')])
+           @if (request()->routeIs('ims.transfers.*')) aria-current="page" @endif>{{ __('ims_transfer.tab') }}</a>
+    @endcan
 </nav>

@@ -61,7 +61,12 @@
                                         <button type="submit" class="text-xs font-semibold text-accent hover:text-accent-strong">{{ __('shop.btn_update') }}</button>
                                     </form>
                                 </td>
-                                <td class="px-4 py-3 text-right font-mono align-top">{{ $fmt($line['stock']['total']) }} {{ $item->baseUnit?->code }}</td>
+                                <td class="px-4 py-3 text-right font-mono align-top">
+                                    {{ $fmt($line['stock']['orderable']) }} {{ $item->baseUnit?->code }}
+                                    @if ($line['problem'] !== null)
+                                        <div class="mt-1 text-xs font-sans text-danger-ink">{{ $line['problem'] }}</div>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3 text-right align-top">
                                     <form method="POST" action="{{ route('shop.cart.remove', $item->ulid) }}">
                                         @csrf @method('DELETE')

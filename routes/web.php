@@ -188,7 +188,16 @@ Route::middleware('auth')->prefix('ims')->name('ims.')->group(function () {
     Route::get('/lots/{ims_lot}/photos/{attachment}', [ImsLotController::class, 'photo'])->name('lots.photos.show');
     Route::get('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transferForm'])->name('lots.transfer.form');
     Route::post('/lots/{ims_lot}/transfer', [ImsLotController::class, 'transfer'])->name('lots.transfer');
+
+    // ITM-2610-062: move many lots IMS -> working stock against one paper requisition (review -> confirm -> store).
+    Route::get('/transfers/create', [\App\Http\Controllers\ImsTransferController::class, 'create'])->name('transfers.create');
+    Route::post('/transfers/review', [\App\Http\Controllers\ImsTransferController::class, 'review'])->name('transfers.review');
+    Route::post('/transfers', [\App\Http\Controllers\ImsTransferController::class, 'store'])->name('transfers.store');
+    Route::get('/transfers/doc-check', [\App\Http\Controllers\ImsTransferController::class, 'docCheck'])->name('transfers.doc-check');
 });
+
+// ITM-2610-062: "ask the stock keeper to refill working stock" (in-app notification, throttled, no email).
+Route::middleware('auth')->post('/shop/item/{item}/request-refill', [\App\Http\Controllers\ShopController::class, 'requestRefill'])->name('shop.request-refill');
 
 // ITM-2610-052: the warehouse card's overview (queue numbers + the old dashboard analytics).
 // Authorization: WarehouseOverviewRequest (access-warehouse); analytics additionally need report.view.
