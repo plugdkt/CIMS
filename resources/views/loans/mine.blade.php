@@ -29,11 +29,14 @@
             <label for="status" class="block text-xs text-ink-faint mb-0.5">{{ __('loans.col_status') }}</label>
             <select id="status" name="status" class="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
                 <option value="">{{ __('loans.filter_all') }}</option>
-                @foreach (['DRAFT', 'SUBMITTED', 'ADVISOR_APPROVED', 'APPROVED', 'REJECTED', 'CANCELLED'] as $st)
+                @foreach (['DRAFT', 'SUBMITTED', 'ADVISOR_APPROVED', 'APPROVED', 'ON_LOAN', 'PARTIALLY_RETURNED', 'CLOSED', 'REJECTED', 'CANCELLED'] as $st)
                     <option value="{{ $st }}" @selected(request('status') === $st)>{{ __('loans.loan_status_'.strtolower($st)) }}</option>
                 @endforeach
             </select>
         </div>
+        <label class="flex items-center gap-2 text-sm py-2">
+            <input type="checkbox" name="overdue" value="1" @checked(request('overdue') === '1')> {{ __('loans.overdue_only') }}
+        </label>
         <button type="submit" class="rounded-lg border border-border text-sm font-semibold px-4 py-2 hover:bg-surface-alt">{{ __('loans.btn_search') }}</button>
     </form>
 

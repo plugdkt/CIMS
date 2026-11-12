@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,6 +36,9 @@ use Illuminate\Support\Str;
  * @property int|null $approved_by
  * @property \Illuminate\Support\Carbon|null $approved_at
  * @property \Illuminate\Support\Carbon|null $submitted_at
+ * @property \Illuminate\Support\Carbon|null $handed_out_at
+ * @property \Illuminate\Support\Carbon|null $closed_at
+ * @property int $renew_count
  * @property string $status
  */
 #[Fillable(['purpose_type', 'purpose_detail', 'loan_date', 'due_date', 'remark'])]
@@ -43,6 +49,9 @@ class Loan extends Model
 
     /** Statuses a manager may still decide on. */
     public const AWAITING_MANAGER = ['SUBMITTED', 'ADVISOR_APPROVED'];
+
+    /** Step 3: statuses in which things are with the borrower (returns and renewals happen here; "overdue" sits on top). */
+    public const OUT = ['ON_LOAN', 'PARTIALLY_RETURNED'];
 
     protected static function booted(): void
     {
@@ -69,7 +78,54 @@ class Loan extends Model
             'cancelled_at' => 'datetime',
             'handed_out_at' => 'datetime',
             'closed_at' => 'datetime',
+            'renew_count' => 'integer',
         ];
+    }
+
+    public function isOut(): bool
+    {
+        return in_array($this->status, self::OUT, true);
+    }
+
+    /**
+     * BR-L08: "overdue" is computed, never stored: things are still out and the due date is before today.
+     * (A scheduler that misses a run therefore cannot leave a wrong status behind.)
+     *
+     * Step 4: a loan whose pieces have ALL come back (or were written down as damaged / lost) but which stays
+     * PARTIALLY_RETURNED because an incident is still waiting for its result (BR-L12) is NOT overdue: nothing is
+     * with the borrower any more, so they must not be flagged or blocked (BR-L08) for the branch's pending decision.
+     */
+    public function isOverdue(): bool
+    {
+        return $this->isOut() && $this->due_date->lt(CarbonImmutable::today()) && $this->hasOutstanding();
+    }
+
+    /** True while at least one line still has pieces with the borrower (uses the loaded `lines` when present). */
+    public function hasOutstanding(): bool
+    {
+        return $this->lines->contains(fn (LoanLine $line) => bccomp($line->outstanding(), '0', 6) > 0);
+    }
+
+    /** Whole calendar days past the due date (0 when not overdue). */
+    public function daysOverdue(): int
+    {
+        return $this->isOverdue() ? (int) $this->due_date->copy()->startOfDay()->diffInDays(CarbonImmutable::today()) : 0;
+    }
+
+    /**
+     * The same rule as isOverdue(), for queries; `$graceDays` > 0 keeps only loans overdue by MORE than that many days.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function overdue(Builder $query, int $graceDays = 0): void
+    {
+        $query->whereIn('status', self::OUT)
+            ->whereDate('due_date', '<', CarbonImmutable::today()->subDays(max(0, $graceDays))->toDateString())
+            // Step 4: something must still be with the borrower (see isOverdue()). Static SQL, no input.
+            ->whereHas('lines', fn ($line) => $line->whereRaw(
+                'COALESCE(loan_lines.qty_approved, loan_lines.qty) - loan_lines.qty_returned_ok - loan_lines.qty_returned_damaged - loan_lines.qty_lost > 0'
+            ));
     }
 
     public function isStudentBorrower(): bool
@@ -130,6 +186,24 @@ class Loan extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(LoanLine::class)->orderBy('line_no');
+    }
+
+    /** @return HasMany<LoanDueChange, $this> */
+    public function dueChanges(): HasMany
+    {
+        return $this->hasMany(LoanDueChange::class)->orderBy('seq');
+    }
+
+    /** @return HasMany<LoanMovement, $this> */
+    public function movements(): HasMany
+    {
+        return $this->hasMany(LoanMovement::class)->orderBy('id');
+    }
+
+    /** @return HasMany<LoanIncident, $this> */
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(LoanIncident::class)->orderBy('id');
     }
 
     /** @return HasMany<LoanApproval, $this> */

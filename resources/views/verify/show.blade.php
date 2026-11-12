@@ -16,7 +16,8 @@
             </div>
             <div class="flex justify-between">
                 <dt class="text-ink-faint">{{ __('requisitions.col_status') }}</dt>
-                <dd>{{ __('requisitions.status_'.strtolower($status)) }}</dd>
+                {{-- A loan slip (ITM-2610-051) passes its own status word; a requisition keeps the original lookup. --}}
+                <dd>{{ $statusLabel ?? __('requisitions.status_'.strtolower($status)) }}</dd>
             </div>
         </dl>
         <p class="text-xs text-ink-muted mt-6">{{ __('requisitions.verify_page_hint') }}</p>

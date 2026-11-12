@@ -13,8 +13,7 @@ use Illuminate\Contracts\View\View;
 
 /**
  * ITM-2610-051 FR-LN-31: every loan of the branch (managers: their own branch; ADMIN: any, optionally one), filtered
- * by status, borrower, item and pick-up dates. Other people's DRAFTs are never listed. (The "overdue only" filter
- * arrives with hand-out in step 3.)
+ * by status, borrower, item, pick-up dates and "overdue only" (step 3). Other people's DRAFTs are never listed.
  */
 final class LoanBranchController extends Controller
 {
@@ -30,16 +29,17 @@ final class LoanBranchController extends Controller
             ->when(! $isAdmin, fn ($q) => $q->where('lab_id', $user->lab_id))
             ->when($isAdmin && $request->filled('lab_id'), fn ($q) => $q->where('lab_id', (int) $request->query('lab_id')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->query('status')))
-            ->when($request->filled('q'), fn ($q) => $q->where('doc_no', 'like', '%'.trim((string) $request->query('q')).'%'))
+            // `%` and `_` typed in a search box are literal characters, not wildcards (same as the counter's search).
+            ->when($request->filled('q'), fn ($q) => $q->where('doc_no', 'like', '%'.addcslashes(trim((string) $request->query('q')), '%_\\').'%'))
             ->when($request->filled('borrower'), function ($q) use ($request) {
-                $term = trim((string) $request->query('borrower'));
+                $term = addcslashes(trim((string) $request->query('borrower')), '%_\\');
                 // Nested group: a bare orWhere inside whereHas would escape the relation's own join condition.
                 $q->whereHas('borrower', fn ($b) => $b->where(
                     fn ($w) => $w->where('full_name', 'like', "%{$term}%")->orWhere('username', 'like', "%{$term}%")
                 ));
             })
             ->when($request->filled('item'), function ($q) use ($request) {
-                $term = trim((string) $request->query('item'));
+                $term = addcslashes(trim((string) $request->query('item')), '%_\\');
                 $q->whereHas('lines.asset.item', fn ($i) => $i->where(
                     fn ($w) => $w->where('name_th', 'like', "%{$term}%")
                         ->orWhere('name_en', 'like', "%{$term}%")
@@ -48,6 +48,8 @@ final class LoanBranchController extends Controller
             })
             ->when($request->filled('from'), fn ($q) => $q->whereDate('loan_date', '>=', (string) $request->query('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('loan_date', '<=', (string) $request->query('to')))
+            // Step 3 (FR-LN-31): only what is out and past its due date (computed, BR-L08).
+            ->when($request->query('overdue') === '1', fn ($q) => $q->overdue())
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();

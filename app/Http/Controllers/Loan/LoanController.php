@@ -7,8 +7,11 @@ namespace App\Http\Controllers\Loan;
 use App\Domain\Loan\Exceptions\LoanDomainException;
 use App\Domain\Loan\Services\BorrowerContext;
 use App\Domain\Loan\Services\BorrowerResolver;
+use App\Domain\Loan\Services\LoanAccess;
 use App\Domain\Loan\Services\LoanNotifier;
+use App\Domain\Loan\Services\LoanRenewalService;
 use App\Domain\Loan\Services\LoanService;
+use App\Domain\Loan\Services\LoanSlipPdfService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Loan\LoanCancelRequest;
 use App\Http\Requests\Loan\LoanListRequest;
@@ -20,6 +23,7 @@ use App\Models\LoanAsset;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 
 /**
  * ITM-2610-051 step 2: the borrower's side — "things I borrowed", the request form, submit, cancel — plus the
@@ -40,7 +44,10 @@ final class LoanController extends Controller
                 $q->where('borrower_id', $user->id)->orWhere('created_by', $user->id);
             })
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->query('status')))
-            ->when($request->filled('q'), fn ($q) => $q->where('doc_no', 'like', '%'.trim((string) $request->query('q')).'%'))
+            // `%` and `_` typed in the box are literal characters, not wildcards (same as the counter's search).
+            ->when($request->filled('q'), fn ($q) => $q->where('doc_no', 'like', '%'.addcslashes(trim((string) $request->query('q')), '%_\\').'%'))
+            // Step 3 (FR-LN-30): only what is out and past its due date.
+            ->when($request->query('overdue') === '1', fn ($q) => $q->overdue())
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
@@ -61,7 +68,7 @@ final class LoanController extends Controller
         return view('loans.pending-lab');
     }
 
-    public function create(LoanListRequest $request, BorrowerResolver $resolver): View|RedirectResponse
+    public function create(LoanListRequest $request, BorrowerResolver $resolver, LoanService $service): View|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -71,10 +78,10 @@ final class LoanController extends Controller
             return $context;
         }
 
-        return view('loans.form', $this->formData($user, $context['context'], null, $request, $context['error']));
+        return view('loans.form', $this->formData($user, $context['context'], null, $request, $context['error'], $service));
     }
 
-    public function edit(Loan $loan, LoanListRequest $request, BorrowerResolver $resolver): View|RedirectResponse
+    public function edit(Loan $loan, LoanListRequest $request, BorrowerResolver $resolver, LoanService $service): View|RedirectResponse
     {
         $this->authorize('updateLoan', $loan);
 
@@ -82,14 +89,14 @@ final class LoanController extends Controller
         $viewer = $request->user();
         $borrower = User::with('roles.permissions')->findOrFail($loan->borrower_id);
 
-        return view('loans.form', $this->formData($viewer, $resolver->forSelf($borrower), $loan, $request, null));
+        return view('loans.form', $this->formData($viewer, $resolver->forSelf($borrower), $loan, $request, null, $service));
     }
 
     public function store(LoanStoreRequest $request, LoanService $service, BorrowerResolver $resolver, LoanNotifier $notifier): RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
-        /** @var array{purpose_type: string, purpose_detail?: string|null, loan_date: string, due_date: string, remark?: string|null, qty: array<string, string|int|null>} $data (shape guaranteed by LoanStoreRequest) */
+        /** @var array{purpose_type: string, purpose_detail?: string|null, loan_date: string, due_date: string, remark?: string|null, overdue_override_reason?: string|null, qty: array<string, string|int|null>} $data (shape guaranteed by LoanStoreRequest) */
         $data = $request->validated();
 
         try {
@@ -103,7 +110,7 @@ final class LoanController extends Controller
                 $context = $resolver->forOnBehalf($user, $onBehalf);
             }
 
-            $loan = $service->createDraft($user, $context, $data, $data['qty']);
+            $loan = $service->createDraft($user, $context, $data, $data['qty'], $data['overdue_override_reason'] ?? null);
         } catch (LoanDomainException $e) {
             return back()->withInput()->withErrors(['loan' => $e->getMessage()]);
         }
@@ -127,13 +134,44 @@ final class LoanController extends Controller
         return $this->afterSave($request, $loan, $user, $service, $notifier);
     }
 
-    public function show(Loan $loan): View
+    public function show(Loan $loan, LoanRenewalService $renewals, LoanService $service, LoanAccess $access): View
     {
         $this->authorize('viewLoan', $loan);
 
-        $loan->load(['lab', 'borrower', 'creator', 'advisor', 'approver', 'lines.asset.item', 'approvals.actor']);
+        $loan->load([
+            'lab', 'borrower', 'creator', 'advisor', 'approver', 'lines.asset.item', 'approvals.actor',
+            // Step 3: the due-date history and what was handed out / taken back on this document.
+            'dueChanges.requester:id,full_name', 'dueChanges.approver:id,full_name',
+            'movements.creator:id,full_name', 'movements.asset.item',
+            // Step 4: the damage / loss cases (kind, quantity, state only on this page; no file, no value).
+            'incidents',
+        ]);
 
-        return view('loans.show', ['loan' => $loan]);
+        /** @var User $viewer */
+        $viewer = auth()->user();
+
+        return view('loans.show', [
+            'loan' => $loan,
+            'latestRenewDue' => $renewals->latestPossibleDue($loan),
+            // The same number LoanRenewalService::request() enforces (every request counts, rejected ones too).
+            'renewRequestMax' => min(255, max(1, (int) config('loans.max_renewal_requests', 6))),
+            // Step 4: the incident pages (description, files, reference, value) are never for the borrower.
+            'canSeeIncidents' => $access->canSeeIncidentFiles($viewer, $loan),
+            // BR-L08, on a DRAFT: is the borrower blocked, and may this viewer allow the request anyway?
+            'blockingLoans' => $loan->status === 'DRAFT' ? $service->blockingOverdueLoans($loan->borrower_id) : [],
+            'mayOverrideBlock' => $loan->status === 'DRAFT' && $service->mayOverrideOverdueBlock($viewer, $loan->borrower_id, (int) $loan->lab_id),
+        ]);
+    }
+
+    /** FR-LN-25: the printable loan slip with a QR code to the public /verify/{ulid} page. */
+    public function pdf(Loan $loan, LoanSlipPdfService $service): Response
+    {
+        $this->authorize('printLoan', $loan);
+
+        return response($service->render($loan), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$loan->doc_no.'.pdf"',
+        ]);
     }
 
     public function submit(LoanSubmitRequest $request, Loan $loan, LoanService $service, LoanNotifier $notifier): RedirectResponse
@@ -142,7 +180,7 @@ final class LoanController extends Controller
         $user = $request->user();
 
         try {
-            $loan = $service->submit($user, $loan);
+            $loan = $service->submit($user, $loan, $request->input('overdue_override_reason'));
         } catch (LoanDomainException $e) {
             return redirect()->route('loans.show', $loan)->withErrors(['loan' => $e->getMessage()]);
         }
@@ -176,7 +214,7 @@ final class LoanController extends Controller
         }
 
         try {
-            $loan = $service->submit($user, $loan);
+            $loan = $service->submit($user, $loan, $request->input('overdue_override_reason'));
         } catch (LoanDomainException $e) {
             // The draft is saved; only the submit was refused, so the user lands on the draft with the reason.
             return redirect()->route('loans.show', $loan)->withErrors(['loan' => $e->getMessage()]);
@@ -235,7 +273,7 @@ final class LoanController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function formData(User $viewer, BorrowerContext $context, ?Loan $loan, LoanListRequest $request, ?string $error): array
+    private function formData(User $viewer, BorrowerContext $context, ?Loan $loan, LoanListRequest $request, ?string $error, LoanService $service): array
     {
         $term = trim((string) $request->query('q', ''));
 
@@ -248,6 +286,8 @@ final class LoanController extends Controller
                 // BR-L15: nothing with no piece free is offered (static SQL, no user input in it).
                 ->whereRaw('qty_total - qty_on_loan - qty_unavailable > 0')
                 ->when($term !== '', function ($q) use ($term) {
+                    // `%` and `_` typed in the box are literal characters, not wildcards (same as the counter's search).
+                    $term = addcslashes($term, '%_\\');
                     $q->where(function ($w) use ($term) {
                         $w->where('asset_tag', 'like', "%{$term}%")
                             ->orWhereHas('item', fn ($i) => $i->where(
@@ -286,7 +326,8 @@ final class LoanController extends Controller
                 ->when(! $viewer->hasRole('ADMIN'), fn ($q) => $q->where('lab_id', $viewer->lab_id))
                 ->whereHas('roles.permissions', fn ($q) => $q->where('code', 'loan.create'))
                 ->where(function ($q) use ($bq) {
-                    $q->where('full_name', 'like', "%{$bq}%")->orWhere('username', 'like', "%{$bq}%");
+                    $like = '%'.addcslashes($bq, '%_\\').'%';
+                    $q->where('full_name', 'like', $like)->orWhere('username', 'like', $like);
                 })
                 ->with('lab:id,code')
                 ->orderBy('full_name')
@@ -306,6 +347,11 @@ final class LoanController extends Controller
             'canOnBehalf' => $loan === null && $viewer->can('createOnBehalf', Loan::class),
             'onBehalf' => $context->user->id !== $viewer->id || ($loan !== null && $loan->isOnBehalf()),
             'error' => $error,
+            // BR-L08 (step 3): the borrower's long-overdue loans (not empty = blocked) and whether the person at the
+            // keyboard may allow this one request (an approver of the borrower's branch, never the borrower).
+            'blockingLoans' => $service->blockingOverdueLoans($context->user->id),
+            'mayOverrideBlock' => $service->mayOverrideOverdueBlock($viewer, $context->user->id, $context->labId),
+            'blockDays' => (int) config('loans.overdue_block_days', 7),
             'defaultDays' => (int) config('loans.default_loan_days', 7),
             'maxDays' => (int) config('loans.max_loan_days', 30),
         ];

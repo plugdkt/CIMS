@@ -78,6 +78,22 @@
         @if ($editing) @method('PUT') @endif
         @if ($borrowerParam && ! $editing) <input type="hidden" name="borrower" value="{{ $borrowerParam }}"> @endif
 
+        {{-- BR-L08 (step 3): a borrower with long-overdue loans gets no new request, unless an approver of the branch
+             who is typing the request in for them allows this one and says why (LoanService decides; audited). --}}
+        @if ($blockingLoans !== [])
+            <div class="rounded-lg border border-danger/40 bg-danger-soft text-danger-ink px-4 py-3 text-sm">
+                <div class="font-semibold">{{ __('loans.overdue_block_title') }}</div>
+                <div>{{ __('loans.overdue_block_body', ['days' => $blockDays, 'docs' => implode(', ', $blockingLoans)]) }}</div>
+                @if ($mayOverrideBlock)
+                    <div class="mt-3">
+                        <label for="overdue_override_reason" class="block text-xs font-medium mb-1">{{ __('loans.overdue_override_label') }}</label>
+                        <input id="overdue_override_reason" name="overdue_override_reason" type="text" maxlength="500" value="{{ old('overdue_override_reason') }}" class="w-full rounded-lg border border-border px-3 py-2 text-sm text-ink">
+                        <p class="mt-1 text-xs">{{ __('loans.overdue_override_hint') }}</p>
+                    </div>
+                @endif
+            </div>
+        @endif
+
         <div class="bg-surface border border-border rounded-xl overflow-hidden">
             <div class="px-4 py-3 border-b border-border">
                 <h2 class="text-sm font-semibold">{{ __('loans.section_items') }}</h2>

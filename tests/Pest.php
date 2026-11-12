@@ -743,6 +743,249 @@ if (! function_exists('loanCancelPost')) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// ITM-2610-051 (borrow / return module), step 3 helpers (hand-out / return / renew).
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('approvedLoan')) {
+    /**
+     * An APPROVED loan through the real services: a STUDENT's by the advisor named on it, anybody else's by
+     * `$approver` (default: a throw-away scientist of the branch, deactivated again so the branch roster the test
+     * reasons about holds only the people the test adds).
+     *
+     * @param  \App\Models\LoanAsset|list<\App\Models\LoanAsset>  $assets
+     */
+    function approvedLoan(\App\Models\User $borrower, \App\Models\LoanAsset|array $assets, int|string $qty = 2, ?\App\Models\User $approver = null, array $data = []): \App\Models\Loan
+    {
+        $loan = submittedLoan($borrower, $assets, $qty, null, $data);
+        $service = app(\App\Domain\Loan\Services\LoanApprovalService::class);
+
+        if ($loan->isStudentBorrower()) {
+            $advisor = \App\Models\User::with('roles.permissions')->findOrFail($loan->advisor_id);
+
+            return $service->advisorDecide($loan, $advisor, 'APPROVE')->fresh();
+        }
+
+        $throwAway = $approver === null;
+        $approver ??= scientistUser(['lab_id' => $loan->lab_id]);
+        $approved = $service->managerDecide($loan, $approver->fresh(), 'APPROVE')->fresh();
+        if ($throwAway) {
+            $approver->update(['is_active' => false]);
+        }
+
+        return $approved;
+    }
+}
+
+if (! function_exists('loanConditions')) {
+    /** @return array<int, array{condition: string, note: string|null}> line_no => the condition written down for every line */
+    function loanConditions(\App\Models\Loan $loan, string $condition = 'GOOD', ?string $note = null): array
+    {
+        $rows = [];
+        foreach ($loan->lines()->get() as $line) {
+            $rows[$line->line_no] = ['condition' => $condition, 'note' => $note];
+        }
+
+        return $rows;
+    }
+}
+
+if (! function_exists('handedOutLoan')) {
+    /**
+     * A loan that is ON_LOAN, handed out through the real LoanCirculationService by `$handler` (default: a throw-away
+     * scientist of the branch, deactivated again afterwards). Every line goes out in GOOD condition.
+     *
+     * @param  \App\Models\LoanAsset|list<\App\Models\LoanAsset>  $assets
+     */
+    function handedOutLoan(\App\Models\User $borrower, \App\Models\LoanAsset|array $assets, int|string $qty = 2, ?\App\Models\User $handler = null, array $data = []): \App\Models\Loan
+    {
+        $loan = approvedLoan($borrower, $assets, $qty, null, $data);
+
+        $throwAway = $handler === null;
+        $handler ??= scientistUser(['lab_id' => $loan->lab_id]);
+        $out = app(\App\Domain\Loan\Services\LoanCirculationService::class)->handOut($handler->fresh(), $loan, loanConditions($loan))->fresh();
+        if ($throwAway) {
+            $handler->update(['is_active' => false]);
+        }
+
+        return $out;
+    }
+}
+
+if (! function_exists('loanHandoutPost')) {
+    /** POST the hand-out form (every line GOOD unless `$lines` says otherwise). */
+    function loanHandoutPost($test, \App\Models\User $user, \App\Models\Loan $loan, ?array $lines = null)
+    {
+        return $test->actingAs($user)->post(route('loans.handout', $loan), ['lines' => $lines ?? loanConditions($loan)]);
+    }
+}
+
+if (! function_exists('loanReturnPost')) {
+    /** POST the return form. `$lines` = line_no => ['qty' => .., 'condition' => .., 'note' => .., 'outcome' => ..]. */
+    function loanReturnPost($test, \App\Models\User $user, \App\Models\Loan $loan, array $lines)
+    {
+        return $test->actingAs($user)->post(route('loans.return', $loan), ['lines' => $lines]);
+    }
+}
+
+if (! function_exists('loanCounterState')) {
+    /**
+     * Everything a hand-out / return may change, for "nothing was written" checks: the loan's status and dates, its
+     * lines, the quantities of its assets, how many movements those assets have, and how many counter audit rows exist.
+     *
+     * @return array<string, mixed>
+     */
+    function loanCounterState(\App\Models\Loan $loan): array
+    {
+        $fresh = $loan->fresh();
+        $lines = $fresh->lines()->get();
+        $assetIds = $lines->pluck('loan_asset_id');
+
+        return [
+            'status' => $fresh->status,
+            'handed_out_at' => $fresh->handed_out_at?->toDateTimeString(),
+            'closed_at' => $fresh->closed_at?->toDateTimeString(),
+            'lines' => $lines->map(fn ($l) => [$l->line_no, $l->qty_returned_ok, $l->condition_out, $l->condition_out_note])->all(),
+            'assets' => \App\Models\LoanAsset::whereIn('id', $assetIds)->orderBy('id')->get()
+                ->map(fn ($a) => [$a->id, $a->qty_total, $a->qty_on_loan, $a->qty_unavailable, $a->status])->all(),
+            'movements' => \App\Models\LoanMovement::whereIn('loan_asset_id', $assetIds)->count(),
+            'audit' => \App\Models\AuditLog::where('entity_type', \App\Models\Loan::class)->where('entity_id', $loan->id)
+                ->whereIn('action', ['LOAN_HANDOUT', 'LOAN_SELF_HANDOUT', 'LOAN_RETURN', 'LOAN_SELF_RETURN'])->count(),
+        ];
+    }
+}
+
+if (! function_exists('assertLoanChainIntact')) {
+    /** Every movement of the asset links to the one before it and hashes to its own row_hash (BR-L16). */
+    function assertLoanChainIntact(\App\Models\LoanAsset $asset): void
+    {
+        $hasher = app(\App\Domain\Loan\Services\LoanLedgerHasher::class);
+        $prev = null;
+        foreach (\App\Models\LoanMovement::where('loan_asset_id', $asset->id)->orderBy('id')->get() as $row) {
+            expect($row->prev_row_hash)->toBe($prev, "movement {$row->id}: link to the previous row");
+            expect($row->row_hash)->toBe($hasher->compute($row), "movement {$row->id}: own hash");
+            $prev = $row->row_hash;
+        }
+        expect($hasher->verifyChain($asset->id))->toBe(['ok' => true, 'broken_at' => null]);
+    }
+}
+
+if (! function_exists('loanRenewAudit')) {
+    /** @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\AuditLog> every renewal audit row of the loan */
+    function loanRenewAudit(\App\Models\Loan $loan): \Illuminate\Database\Eloquent\Collection
+    {
+        return \App\Models\AuditLog::where('entity_type', \App\Models\Loan::class)->where('entity_id', $loan->id)
+            ->where('action', 'like', 'LOAN_%RENEW%')->orderBy('id')->get();
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ITM-2610-051 (borrow / return module), step 4 helpers (damage / loss incidents and their results).
+// ---------------------------------------------------------------------------------------------
+
+if (! function_exists('recordLoanIncident')) {
+    /**
+     * Takes `$qty` pieces of one line back as DAMAGED / LOST through the real LoanCirculationService (the only way an
+     * incident is made) and returns the PENDING incident.
+     */
+    function recordLoanIncident(\App\Models\Loan $loan, \App\Models\User $recorder, string $kind = 'DAMAGED', int|string $qty = 1, int $lineNo = 1, string $description = 'หน้าจอแตกร้าวใช้งานต่อไม่ได้'): \App\Models\LoanIncident
+    {
+        $out = app(\App\Domain\Loan\Services\LoanCirculationService::class)->receiveReturn(
+            $recorder->fresh(),
+            $loan->fresh(),
+            [$lineNo => [$kind === 'LOST' ? 'qty_lost' : 'qty_damaged' => (string) $qty, 'incident_note' => $description]],
+        );
+
+        return \App\Models\LoanIncident::findOrFail($out->getRelation('recordedIncidents')->firstOrFail()->id);
+    }
+}
+
+if (! function_exists('attachLoanIncidentFile')) {
+    /** An attachment row of an incident, written directly (no upload): the outside letter (LOAN_DOC) by default. */
+    function attachLoanIncidentFile(\App\Models\LoanIncident $incident, \App\Models\User $uploader, string $docType = 'LOAN_DOC', string $name = 'memo.pdf'): \App\Models\Attachment
+    {
+        $stored = (string) \Illuminate\Support\Str::uuid().'.'.pathinfo($name, PATHINFO_EXTENSION);
+
+        return \App\Models\Attachment::create([
+            'owner_type' => $incident->getMorphClass(),
+            'owner_id' => $incident->id,
+            'doc_type' => $docType,
+            'original_name' => $name,
+            'stored_name' => $stored,
+            'mime_type' => str_ends_with($name, '.pdf') ? 'application/pdf' : 'image/png',
+            'size_bytes' => 1024,
+            'sha256' => hash('sha256', $stored),
+            'version' => 1 + (int) \App\Models\Attachment::where('owner_type', $incident->getMorphClass())->where('owner_id', $incident->id)->where('doc_type', $docType)->max('version'),
+            'uploaded_by' => $uploader->id,
+        ]);
+    }
+}
+
+if (! function_exists('loanResolveData')) {
+    /**
+     * The fields of the "record the result" form, complete for `$resolution` (a reference of 5+ and a note of 10+).
+     *
+     * @return array<string, mixed>
+     */
+    function loanResolveData(string $resolution, array $extra = []): array
+    {
+        return array_merge([
+            'resolution' => $resolution,
+            'external_ref' => 'อว 7301/0123',
+            'resolution_note' => 'ผู้บริหารพิจารณาตามบันทึกข้อความแล้ว',
+        ], $extra);
+    }
+}
+
+if (! function_exists('loanResolvePost')) {
+    /** POST the "record the result" form of an incident. */
+    function loanResolvePost($test, \App\Models\User $user, \App\Models\LoanIncident $incident, array $payload)
+    {
+        return $test->actingAs($user)->post(route('loans.incidents.resolve', $incident), $payload);
+    }
+}
+
+if (! function_exists('loanIncidentState')) {
+    /**
+     * Everything recording an incident or its result may change, for "nothing was written" checks.
+     *
+     * @return array<string, mixed>
+     */
+    function loanIncidentState(\App\Models\Loan $loan): array
+    {
+        $fresh = $loan->fresh();
+        $lines = $fresh->lines()->get();
+        $assetIds = $lines->pluck('loan_asset_id');
+        $incidentIds = \App\Models\LoanIncident::where('loan_id', $loan->id)->pluck('id');
+
+        return [
+            'status' => $fresh->status,
+            'closed_at' => $fresh->closed_at?->toDateTimeString(),
+            'lines' => $lines->map(fn ($l) => [$l->line_no, $l->qty_returned_ok, $l->qty_returned_damaged, $l->qty_lost])->all(),
+            'assets' => \App\Models\LoanAsset::whereIn('id', $assetIds)->orderBy('id')->get()
+                ->map(fn ($a) => [$a->id, $a->qty_total, $a->qty_on_loan, $a->qty_unavailable, $a->status])->all(),
+            'movements' => \App\Models\LoanMovement::whereIn('loan_asset_id', $assetIds)->count(),
+            'incidents' => \App\Models\LoanIncident::where('loan_id', $loan->id)->orderBy('id')->get()
+                ->map(fn ($i) => [$i->id, $i->kind, $i->qty, $i->resolution, $i->disposition, $i->resolved_by, $i->external_ref, $i->resolution_note, $i->value_snapshot])->all(),
+            'audit' => \App\Models\AuditLog::query()
+                ->whereIn('action', ['LOAN_RETURN', 'LOAN_SELF_RETURN', 'LOAN_INCIDENT_RECORD', 'LOAN_INCIDENT_RESOLVE', 'LOAN_WRITE_OFF', 'LOAN_REPLACE_IN'])
+                ->where(function ($q) use ($loan, $assetIds, $incidentIds) {
+                    $q->where(fn ($w) => $w->where('entity_type', \App\Models\Loan::class)->where('entity_id', $loan->id))
+                        ->orWhere(fn ($w) => $w->where('entity_type', \App\Models\LoanAsset::class)->whereIn('entity_id', $assetIds))
+                        ->orWhere(fn ($w) => $w->where('entity_type', \App\Models\LoanIncident::class)->whereIn('entity_id', $incidentIds));
+                })->count(),
+        ];
+    }
+}
+
+if (! function_exists('loanIncidentAudit')) {
+    /** @return \Illuminate\Database\Eloquent\Collection<int, \App\Models\AuditLog> */
+    function loanIncidentAudit(string $action, \App\Models\LoanIncident $incident): \Illuminate\Database\Eloquent\Collection
+    {
+        return \App\Models\AuditLog::where('action', $action)->where('entity_type', \App\Models\LoanIncident::class)->where('entity_id', $incident->id)->orderBy('id')->get();
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // ITM-2610-062 (IMS -> working stock) helpers.
 // ---------------------------------------------------------------------------------------------
 

@@ -119,7 +119,7 @@ test('the document routes answer a user who holds no loan permission at all with
 
 // --- the menu -------------------------------------------------------------------------------------------------------
 
-test('the loan card has exactly the tabs the user may open (step 2): borrowers, advisors, approvers, managers, ADMIN', function () {
+test('the loan card has exactly the tabs the user may open (steps 2-5): borrowers, advisors, approvers / counter staff, managers, ADMIN', function () {
     $tabs = fn ($user) => array_column(app(MenuRegistry::class)->tabsFor($user, MenuRegistry::LOAN), 'label');
     $l = fn (string ...$keys) => array_map(fn (string $k) => (string) __('nav.tab_loan_'.$k), $keys);
 
@@ -127,17 +127,32 @@ test('the loan card has exactly the tabs the user may open (step 2): borrowers, 
         expect($tabs(navUser($kind)))->toBe($l('mine', 'new'), $kind);
     }
     expect($tabs(navUser('advisor')))->toBe($l('mine', 'new', 'queue'));
-    expect($tabs(navUser('scientist')))->toBe($l('mine', 'new', 'queue', 'available'));
+    // Step 3: "hand-out / return" (`desk`) is for holders of loan.view_queue who have a branch: the scientists and the
+    // warehouse managers (who work the counter), and an ADMIN who has a branch (who only reads it: the page shows a
+    // "view only" note and no buttons, and LoanAccess::isHandlerFor refuses an ADMIN-only account).
+    expect($tabs(navUser('scientist')))->toBe($l('mine', 'new', 'queue', 'desk', 'available'));
     foreach (['lab_manager', 'auditor'] as $kind) {
-        expect($tabs(navUser($kind)))->toBe($l('mine', 'new', 'queue', 'branch', 'available', 'registry'), $kind);
+        expect($tabs(navUser($kind)))->toBe($l('mine', 'new', 'queue', 'desk', 'branch', 'available', 'registry', 'reports'), $kind);
     }
-    expect($tabs(navUser('admin')))->toBe($l('mine', 'new', 'branch', 'available', 'registry'));
+    // Step 5: "reports" (`loan.report`) comes last, for the warehouse managers and ADMIN only.
+    expect($tabs(navUser('admin')))->toBe($l('mine', 'new', 'desk', 'branch', 'available', 'registry', 'reports'));
     expect($tabs(navUser('nocard')))->toBe([]);
+    // Borrower roles never get the counter tab, whatever else they hold.
+    foreach (['student', 'staff', 'advisor'] as $kind) {
+        expect($tabs(navUser($kind)))->not->toContain((string) __('nav.tab_loan_desk'), $kind);
+    }
 
-    // No branch: borrowing needs one, so the approver / branch tabs go; ADMIN needs none for the lists.
+    // No branch: borrowing needs one, so the approver / counter / branch tabs go; ADMIN needs none for the lists
+    // (but gets no counter tab without a branch: the counter is always one branch's).
     expect($tabs(navUser('scientist', ['lab_id' => null])))->toBe($l('mine', 'new'));
-    expect($tabs(navUser('auditor', ['lab_id' => null])))->toBe($l('mine', 'new'));
-    expect($tabs(navUser('admin', ['lab_id' => null])))->toBe($l('mine', 'new', 'branch', 'available', 'registry'));
+    // The reports tab stays for a manager with no branch: LoanPolicy::browseReports needs only `loan.report`; the page
+    // then shows empty figures (LoanReportScope), which LoanReportTest pins.
+    expect($tabs(navUser('auditor', ['lab_id' => null])))->toBe($l('mine', 'new', 'reports'));
+    expect($tabs(navUser('admin', ['lab_id' => null])))->toBe($l('mine', 'new', 'branch', 'available', 'registry', 'reports'));
+    // Nobody else holds `loan.report`.
+    foreach (['student', 'staff', 'advisor', 'scientist'] as $kind) {
+        expect($tabs(navUser($kind)))->not->toContain((string) __('nav.tab_loan_reports'), $kind);
+    }
 });
 
 test('every role that holds loan.view_own has the loan card on the home page and its first tab is "things I borrowed"', function () {

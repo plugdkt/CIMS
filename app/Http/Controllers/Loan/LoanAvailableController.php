@@ -32,7 +32,8 @@ final class LoanAvailableController extends Controller
             ->where('status', 'ACTIVE')
             ->when($labId !== null, fn ($q) => $q->where('lab_id', $labId))
             ->when($request->filled('q'), function ($q) use ($request) {
-                $term = trim((string) $request->query('q'));
+                // `%` and `_` typed in the box are literal characters, not wildcards (same as the counter's search).
+                $term = addcslashes(trim((string) $request->query('q')), '%_\\');
                 $q->where(function ($w) use ($term) {
                     $w->where('asset_tag', 'like', "%{$term}%")
                         ->orWhereHas('item', fn ($i) => $i->where('name_th', 'like', "%{$term}%")

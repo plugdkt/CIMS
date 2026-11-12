@@ -49,6 +49,9 @@ final class LoanStoreRequest extends FormRequest
             'loan_date' => ['required', 'date_format:Y-m-d'],
             'due_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:loan_date'],
             'remark' => ['nullable', 'string', 'max:500'],
+            // BR-L08 (step 3): why an approver of the branch lets a borrower with long-overdue loans borrow this once.
+            // Ignored unless the borrower is blocked AND the person typing is such an approver (LoanService decides).
+            'overdue_override_reason' => ['nullable', 'string', 'max:500'],
             'borrower' => ['nullable', 'string', 'size:26', Rule::exists('users', 'ulid')],
             'qty' => ['required', 'array', 'max:500', function (string $attribute, mixed $value, \Closure $fail): void {
                 foreach (array_keys((array) $value) as $key) {

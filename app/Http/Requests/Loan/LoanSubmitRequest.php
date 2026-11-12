@@ -20,6 +20,9 @@ final class LoanSubmitRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        return [];
+        // BR-L08 (step 3): only read when the borrower is blocked and the submitter may allow it (LoanService decides).
+        return [
+            'overdue_override_reason' => ['nullable', 'string', 'max:500'],
+        ];
     }
 }

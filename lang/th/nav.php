@@ -71,6 +71,11 @@ return [
     'tab_loan_branch' => 'รายการของสาขา',
     'tab_loan_available' => 'พร้อมให้ยืม',
     'tab_loan_registry' => 'ทะเบียนของให้ยืม',
+    // ITM-2610-051 step 3: the counter (hand-out / return) and its badges on the home card.
+    'tab_loan_desk' => 'ส่งมอบ/รับคืน',
+    'tab_loan_reports' => 'รายงาน',
+    'badge_loan_handout' => 'รอส่งมอบ :count',
+    'badge_loan_overdue' => 'เกินกำหนดคืน :count',
     'badge_approval' => 'รออนุมัติ :count',
     'badge_dispense' => 'รอจ่ายของ :count',
 ];

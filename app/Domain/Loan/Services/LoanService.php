@@ -27,6 +27,8 @@ final class LoanService
 {
     private const MIN_CANCEL_REASON = 5;
 
+    private const MIN_OVERRIDE_REASON = 10;
+
     public function __construct(
         private readonly LoanState $state,
         private readonly LoanAccess $access,
@@ -43,18 +45,20 @@ final class LoanService
      *
      * @throws LoanDomainException
      */
-    public function createDraft(User $actor, BorrowerContext $borrower, array $data, array $lines): Loan
+    public function createDraft(User $actor, BorrowerContext $borrower, array $data, array $lines, ?string $overdueOverrideReason = null): Loan
     {
         if ($borrower->labId === null) {
             throw new LoanDomainException((string) __('loans.error.borrower_no_lab'));
         }
         $this->assertAdvisorOnFile($borrower->user, $borrower->isStudent(), $borrower->advisorId);
+        // BR-L08 (step 3): a borrower with a long-overdue loan gets no new request (unless allowed for this one).
+        $override = $this->resolveOverdueBlock($actor, $borrower->user->id, $borrower->labId, $overdueOverrideReason);
 
         $wanted = $this->parseLines($lines);
         $assets = $this->loadAssets($wanted, $borrower->labId);
         $this->assertPeriod($data['loan_date'], $data['due_date'], $assets);
 
-        return DB::transaction(function () use ($actor, $borrower, $data, $wanted, $assets) {
+        return DB::transaction(function () use ($actor, $borrower, $data, $wanted, $assets, $override) {
             $loan = new Loan($this->headerFields($data));
             $loan->forceFill([
                 'doc_no' => $this->numbers->next('LON'),
@@ -83,6 +87,7 @@ final class LoanService
                     'on_behalf' => $loan->isOnBehalf(),
                 ],
             );
+            $this->auditOverdueOverride($actor, $loan, $override, 'create');
 
             return $loan;
         });
@@ -125,14 +130,16 @@ final class LoanService
      *
      * @throws LoanDomainException
      */
-    public function submit(User $actor, Loan $loan): Loan
+    public function submit(User $actor, Loan $loan, ?string $overdueOverrideReason = null): Loan
     {
-        return DB::transaction(function () use ($actor, $loan) {
+        return DB::transaction(function () use ($actor, $loan, $overdueOverrideReason) {
             $locked = $this->lock($loan);
             $this->assertOwner($actor, $locked);
             if ($locked->status !== 'DRAFT') {
                 throw new LoanDomainException((string) __('loans.error.not_draft'));
             }
+            // BR-L08 again at submit: a draft made before the borrower fell behind must not slip through.
+            $override = $this->resolveOverdueBlock($actor, $locked->borrower_id, (int) $locked->lab_id, $overdueOverrideReason);
 
             $borrowerUser = User::with('roles.permissions')->find($locked->borrower_id);
             if ($borrowerUser === null || ! $borrowerUser->is_active) {
@@ -195,9 +202,90 @@ final class LoanService
                     'advisor_id' => $locked->advisor_id,
                 ],
             );
+            $this->auditOverdueOverride($actor, $locked, $override, 'submit');
 
             return $locked;
         });
+    }
+
+    /**
+     * BR-L08: the document numbers of this borrower's loans that are overdue by MORE than `loans.overdue_block_days`
+     * (computed from status + due date, never a stored flag). Not empty = no new request for this borrower.
+     *
+     * @return list<string>
+     */
+    public function blockingOverdueLoans(int $borrowerId): array
+    {
+        return array_values(Loan::query()
+            ->where('borrower_id', $borrowerId)
+            ->overdue((int) config('loans.overdue_block_days', 7))
+            ->orderBy('due_date')
+            ->pluck('doc_no')
+            ->all());
+    }
+
+    /** BR-L08's exception: an approver of the borrower's branch, not the borrower, typing the request in for them. */
+    public function mayOverrideOverdueBlock(User $actor, int $borrowerId, ?int $labId): bool
+    {
+        return $actor->id !== $borrowerId && $this->access->isApproverFor($actor, $labId);
+    }
+
+    /**
+     * BR-L08. Returns null when the borrower is not blocked; throws when blocked; returns what to audit when an
+     * approver of the borrower's branch (never the borrower) allows THIS request and says why (at least 10 characters).
+     * The permission is per request: it is given by the person typing the request in for the borrower (FR-LN-14) and
+     * is not stored anywhere but the audit log, so the next request is blocked again.
+     *
+     * @return array{blocking: list<string>, reason: string}|null
+     *
+     * @throws LoanDomainException
+     */
+    private function resolveOverdueBlock(User $actor, int $borrowerId, int $labId, ?string $reason): ?array
+    {
+        $blocking = $this->blockingOverdueLoans($borrowerId);
+        if ($blocking === []) {
+            return null;
+        }
+
+        $days = (int) config('loans.overdue_block_days', 7);
+        if (! $this->mayOverrideOverdueBlock($actor, $borrowerId, $labId)) {
+            throw new LoanDomainException((string) __('loans.error.overdue_blocked', ['days' => $days, 'docs' => implode(', ', $blocking)]));
+        }
+
+        $reason = trim((string) $reason);
+        if (mb_strlen($reason) < self::MIN_OVERRIDE_REASON) {
+            throw new LoanDomainException((string) __('loans.error.overdue_override_reason', ['days' => $days, 'docs' => implode(', ', $blocking)]));
+        }
+
+        return ['blocking' => $blocking, 'reason' => $reason];
+    }
+
+    /**
+     * @param  array{blocking: list<string>, reason: string}|null  $override
+     */
+    private function auditOverdueOverride(User $actor, Loan $loan, ?array $override, string $at): void
+    {
+        if ($override === null) {
+            return;
+        }
+
+        AuditLog::record(
+            action: 'LOAN_OVERDUE_OVERRIDE',
+            userId: $actor->id,
+            username: $actor->username,
+            entityType: Loan::class,
+            entityId: $loan->id,
+            newValue: [
+                'doc_no' => $loan->doc_no,
+                'lab_id' => $loan->lab_id,
+                'borrower_id' => $loan->borrower_id,
+                'allowed_by' => $actor->id,
+                'at' => $at,
+                'overdue_loans' => $override['blocking'],
+                'reason' => $override['reason'],
+            ],
+            message: 'new loan allowed despite overdue loans',
+        );
     }
 
     /**

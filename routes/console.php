@@ -36,6 +36,13 @@ Schedule::command('notifications:check-hash-chain')->hourly();
 // only ever catches changes made outside the application.
 Schedule::command('loans:verify --notify')->hourly();
 
+// ITM-2610-051 step 5 (N4-N7): the daily loan notices, 07:00 like the other daily checks. Running it again on the
+// same day sends nothing twice (NFR-LN-05: a UNIQUE key in `loan_notice_log` decides, see LoanDailyNotifier);
+// withoutOverlapping only spares the wasted second run.
+Schedule::command('loans:notify-daily')->dailyAt('07:00')->withoutOverlapping();
+// Spec section 14: on the 1st, tell ADMIN / AUDITOR that last month's audit report (write-offs, adjustments) is ready.
+Schedule::command('loans:notify-monthly')->monthlyOn(1, '07:30');
+
 // T-047: monthly ledger balance snapshot (performance) — runs early on the 1st, covering
 // the calendar month that just closed (the command's own default with no argument).
 Schedule::command('ledger:snapshot')->monthlyOn(1, '01:00');

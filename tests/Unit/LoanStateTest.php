@@ -4,7 +4,7 @@ use App\Domain\Loan\Exceptions\LoanDomainException;
 use App\Domain\Loan\Services\LoanState;
 
 /*
- * ITM-2610-051 step 2, spec 8.1: the loan document's state machine. Pure (no database).
+ * ITM-2610-051 steps 2-3, spec 8.1: the loan document's state machine. Pure (no database).
  *
  * The allowed transitions are listed explicitly below; EVERY other combination of status x event x borrower
  * status must be refused. A STUDENT's loan never reaches a manager straight from SUBMITTED (BR-L03 / BR-02); after the
@@ -12,10 +12,14 @@ use App\Domain\Loan\Services\LoanState;
  * Combinations that cannot occur in real data are left out of the "must refuse" sweep on purpose (marked below):
  * a non-student in ADVISOR_APPROVED, and a null borrower status other than for submit / cancel (the snapshot
  * column is NOT NULL; BR-L14 maps NULL to STUDENT before it is stored).
+ *
+ * Step 3 added three events: `handout` (APPROVED -> ON_LOAN), `returnPartial` and `close` (from ON_LOAN /
+ * PARTIALLY_RETURNED). They are in the allowed list below, so the "everything else is refused" sweep now also proves
+ * that they work from nowhere else. `return` is NOT an event (it stays in the sweep as a word that must be refused).
  */
 
 const LOAN_STATUSES = ['DRAFT', 'SUBMITTED', 'ADVISOR_APPROVED', 'APPROVED', 'ON_LOAN', 'PARTIALLY_RETURNED', 'CLOSED', 'REJECTED', 'CANCELLED'];
-const LOAN_EVENTS = ['submit', 'advisorApprove', 'advisorReject', 'managerApprove', 'managerReject', 'cancel', 'handout', 'return', 'bogus', ''];
+const LOAN_EVENTS = ['submit', 'advisorApprove', 'advisorReject', 'managerApprove', 'managerReject', 'cancel', 'handout', 'returnPartial', 'close', 'return', 'bogus', ''];
 const LOAN_BORROWERS = ['STUDENT', 'STAFF', 'LECTURER'];
 
 /**
@@ -39,6 +43,12 @@ function loanAllowedTransitions(): array
         ['SUBMITTED', 'cancel', LOAN_BORROWERS, 'CANCELLED'],
         ['ADVISOR_APPROVED', 'cancel', LOAN_BORROWERS, 'CANCELLED'],
         ['APPROVED', 'cancel', LOAN_BORROWERS, 'CANCELLED'],
+        // Step 3: the counter. Every line goes out at once; returns may come in parts; closing ends the loan.
+        ['APPROVED', 'handout', LOAN_BORROWERS, 'ON_LOAN'],
+        ['ON_LOAN', 'returnPartial', LOAN_BORROWERS, 'PARTIALLY_RETURNED'],
+        ['PARTIALLY_RETURNED', 'returnPartial', LOAN_BORROWERS, 'PARTIALLY_RETURNED'],
+        ['ON_LOAN', 'close', LOAN_BORROWERS, 'CLOSED'],
+        ['PARTIALLY_RETURNED', 'close', LOAN_BORROWERS, 'CLOSED'],
     ];
 }
 
@@ -80,7 +90,34 @@ test('every combination that is not in the allowed list is refused', function ()
         }
     }
 
-    expect($checked)->toBeGreaterThan(200);   // the sweep really ran
+    expect($checked)->toBeGreaterThan(250);   // the sweep really ran (9 statuses x 12 events x 3 borrowers, minus the allowed ones)
+});
+
+test('step 3: hand-out only from APPROVED, returns only while things are out, and CLOSED is the end', function () {
+    $state = new LoanState();
+
+    foreach (array_diff(LOAN_STATUSES, ['APPROVED']) as $status) {
+        expect(fn () => $state->apply($status, 'handout', 'STAFF'))->toThrow(LoanDomainException::class, __('loans.error.invalid_transition'));
+    }
+    foreach (array_diff(LOAN_STATUSES, ['ON_LOAN', 'PARTIALLY_RETURNED']) as $status) {
+        foreach (['returnPartial', 'close'] as $event) {
+            expect(fn () => $state->apply($status, $event, 'STAFF'))->toThrow(LoanDomainException::class, __('loans.error.invalid_transition'));
+        }
+    }
+    // Nothing at all leaves CLOSED (nor REJECTED / CANCELLED).
+    foreach (['CLOSED', 'REJECTED', 'CANCELLED'] as $end) {
+        foreach (LOAN_EVENTS as $event) {
+            foreach (LOAN_BORROWERS as $borrower) {
+                expect(fn () => $state->apply($end, $event, $borrower))->toThrow(LoanDomainException::class);
+            }
+        }
+    }
+    // The counter's events do not depend on who borrowed, an unknown borrower status included.
+    expect($state->apply('APPROVED', 'handout'))->toBe('ON_LOAN');
+    expect($state->apply('ON_LOAN', 'returnPartial', null))->toBe('PARTIALLY_RETURNED');
+    expect($state->apply('PARTIALLY_RETURNED', 'close', null))->toBe('CLOSED');
+    // A legacy ADVISOR_APPROVED row was never approved by the branch: it cannot be handed out.
+    expect(fn () => $state->apply('ADVISOR_APPROVED', 'handout', 'STUDENT'))->toThrow(LoanDomainException::class);
 });
 
 test('after hand-out (or at the end of a loan) nothing in step 2 can move the document, cancel included', function () {

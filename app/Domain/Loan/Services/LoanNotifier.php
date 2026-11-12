@@ -8,6 +8,9 @@ use App\Domain\Notification\Services\NotificationService;
 use App\Mail\LoanAdvisorApprovalMail;
 use App\Models\Loan;
 use App\Models\LoanAsset;
+use App\Models\LoanDueChange;
+use App\Models\LoanIncident;
+use App\Models\LoanMovement;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -41,8 +44,208 @@ final class LoanNotifier
 
     public const TYPE_NO_APPROVER = 'loan.no_approver';
 
-    public function __construct(private readonly NotificationService $notifications)
+    public const TYPE_READY_HANDOUT = 'loan.ready_handout';
+
+    public const TYPE_RENEW_PENDING = 'loan.renew_pending';
+
+    public const TYPE_RENEW_DECISION = 'loan.renew_decision';
+
+    public const TYPE_INCIDENT_PENDING = 'loan.incident_pending';
+
+    public const TYPE_WRITE_OFF = 'loan.write_off';
+
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly LoanAccess $access,
+    ) {
+    }
+
+    /**
+     * Step 3: a loan became APPROVED, so the counter of its branch is told it can be handed out. Same channel rule
+     * as every branch notice: in the system to every scientist and warehouse manager of the branch (the people
+     * LoanAccess::isHandlerFor accepts), email to the warehouse managers only. Not to the person who just approved
+     * it (they know) and not to the borrower (who gets the "approved" notice). Document number and pick-up date only.
+     */
+    public function readyForHandout(Loan $loan, User $actor): void
     {
+        try {
+            if ($loan->status !== 'APPROVED') {
+                return;
+            }
+
+            $title = (string) __('loans.notify.ready_handout_title');
+            $body = (string) __('loans.notify.ready_handout_body', ['doc_no' => $loan->doc_no, 'date' => $loan->loan_date->format('d/m/Y')]);
+            $link = route('loans.handout.form', $loan);
+
+            foreach ($this->branchUsersHolding('loan.handout', $loan) as $handler) {
+                if ($handler->id === $actor->id || $handler->id === $loan->borrower_id || ! $this->access->isHandlerFor($handler, (int) $loan->lab_id)) {
+                    continue;
+                }
+                if ($handler->isBranchManager()) {
+                    $this->notifications->notifyInAppAndEmail($handler, self::TYPE_READY_HANDOUT, $title, $body, $link);
+                } else {
+                    $this->notifications->notifyInApp($handler, self::TYPE_READY_HANDOUT, $title, $body, $link);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning("Failed to notify the counter about approved loan #{$loan->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Step 3 (BR-L07): a renewal was asked for. An automatic one (the first) needs nobody; a PENDING one goes to the
+     * approvers of the loan's branch — in the system to all of them, email to the warehouse managers only — except
+     * the person who asked.
+     */
+    public function renewalRequested(Loan $loan, LoanDueChange $change, User $actor): void
+    {
+        try {
+            if ($change->status !== 'PENDING') {
+                return;
+            }
+
+            $title = (string) __('loans.notify.renew_pending_title');
+            $body = (string) __('loans.notify.renew_pending_body', ['doc_no' => $loan->doc_no, 'due' => $change->new_due_date->format('d/m/Y')]);
+            $link = route('loans.show', $loan);
+
+            foreach ($this->branchUsersHolding('loan.approve', $loan) as $approver) {
+                if ($approver->id === $actor->id || ! $this->access->isApproverFor($approver, (int) $loan->lab_id)) {
+                    continue;
+                }
+                if ($approver->isBranchManager()) {
+                    $this->notifications->notifyInAppAndEmail($approver, self::TYPE_RENEW_PENDING, $title, $body, $link);
+                } else {
+                    $this->notifications->notifyInApp($approver, self::TYPE_RENEW_PENDING, $title, $body, $link);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning("Failed to notify about the renewal request on loan #{$loan->id}: {$e->getMessage()}");
+        }
+    }
+
+    /** Step 3: the result of a renewal request goes to the borrower (not to themselves when they decided it). */
+    public function renewalDecided(Loan $loan, LoanDueChange $change, User $actor): void
+    {
+        try {
+            $borrower = User::find($loan->borrower_id);
+            if ($borrower === null || $borrower->id === $actor->id || ! $borrower->is_active) {
+                return;
+            }
+
+            $approved = $change->status === 'APPROVED';
+            $this->notifications->notifyInAppAndEmail(
+                $borrower,
+                self::TYPE_RENEW_DECISION,
+                (string) __($approved ? 'loans.notify.renew_approved_title' : 'loans.notify.renew_rejected_title', ['doc_no' => $loan->doc_no]),
+                (string) __($approved ? 'loans.notify.renew_approved_body' : 'loans.notify.renew_rejected_body', [
+                    'doc_no' => $loan->doc_no,
+                    'due' => $loan->due_date->format('d/m/Y'),
+                ]),
+                route('loans.show', $loan),
+            );
+        } catch (Throwable $e) {
+            Log::warning("Failed to notify about the renewal decision on loan #{$loan->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Step 4: damaged / lost pieces were recorded on a return, so a result has to be recorded. Told: the people of
+     * the loan's branch who MAY record it (LoanAccess::incidentResolverProblem: `loan.asset_approve`, not the
+     * recorder, not the borrower, not the on-behalf creator) — in the system to all of them (the scientists
+     * included), email to the warehouse managers only. Document number and date only: no name, no description.
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, LoanIncident>  $incidents  the ones this return wrote
+     */
+    public function incidentRecorded(Loan $loan, \Illuminate\Database\Eloquent\Collection $incidents, User $actor): void
+    {
+        try {
+            $first = $incidents->first();
+            if ($first === null) {
+                return;
+            }
+
+            $title = (string) __('loans.notify.incident_pending_title');
+            $body = (string) __('loans.notify.incident_pending_body', ['doc_no' => $loan->doc_no, 'date' => now()->format('d/m/Y')]);
+            $link = $incidents->count() === 1 ? route('loans.incidents.show', $first) : route('loans.incidents.index');
+
+            foreach ($this->branchUsersHolding('loan.asset_approve', $loan) as $resolver) {
+                if ($resolver->id === $actor->id || $this->access->incidentResolverProblem($resolver, $loan, $first) !== null) {
+                    continue;
+                }
+                if ($resolver->isBranchManager()) {
+                    $this->notifications->notifyInAppAndEmail($resolver, self::TYPE_INCIDENT_PENDING, $title, $body, $link);
+                } else {
+                    $this->notifications->notifyInApp($resolver, self::TYPE_INCIDENT_PENDING, $title, $body, $link);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning("Failed to notify about incidents on loan #{$loan->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * FR-LN-N9: pieces were WRITTEN OFF as the result of an incident -> every ADMIN, in the system and by email, so
+     * somebody outside the branch always learns of it (the control against two people agreeing, spec R10).
+     * Document number and date only; who recorded and who decided are on the incident page and in the audit log.
+     */
+    public function writtenOff(LoanIncident $incident): void
+    {
+        try {
+            $loan = $incident->loan;
+            if ($loan === null) {
+                return;
+            }
+
+            $title = (string) __('loans.notify.write_off_title');
+            $body = (string) __('loans.notify.write_off_body', ['doc_no' => $loan->doc_no, 'date' => now()->format('d/m/Y')]);
+
+            foreach ($this->notifications->usersWithRole('ADMIN') as $admin) {
+                // An ADMIN who is the borrower / on-behalf creator cannot open the incident page: link the document.
+                $link = $this->access->isOwner($admin, $loan) ? route('loans.show', $loan) : route('loans.incidents.show', $incident);
+                $this->notifications->notifyInAppAndEmail($admin, self::TYPE_WRITE_OFF, $title, $body, $link);
+            }
+        } catch (Throwable $e) {
+            Log::warning("Failed to notify ADMIN about the write-off of incident #{$incident->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * FR-LN-N9, the other half: the count of an asset that was EVER lent was adjusted down (ADJUST_OUT) -> every
+     * ADMIN. Nothing is sent for an asset that never left the shelf. Date only; the rest is on the asset's page.
+     */
+    public function adjustedOut(LoanAsset $asset): void
+    {
+        try {
+            if (! LoanMovement::where('loan_asset_id', $asset->id)->where('movement_type', 'HANDOUT')->exists()) {
+                return;
+            }
+
+            $title = (string) __('loans.notify.adjust_out_title');
+            $body = (string) __('loans.notify.adjust_out_body', ['date' => now()->format('d/m/Y')]);
+
+            foreach ($this->notifications->usersWithRole('ADMIN') as $admin) {
+                $this->notifications->notifyInAppAndEmail($admin, self::TYPE_WRITE_OFF, $title, $body, route('loans.assets.show', $asset));
+            }
+        } catch (Throwable $e) {
+            Log::warning("Failed to notify ADMIN about the adjust-out of asset #{$asset->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Active users of the loan's own branch whose roles carry this permission (branch required; the caller still
+     * applies the LoanAccess rule, which is the one that decides).
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     */
+    private function branchUsersHolding(string $permission, Loan $loan): \Illuminate\Database\Eloquent\Collection
+    {
+        return User::query()
+            ->whereHas('roles.permissions', fn ($q) => $q->where('code', $permission))
+            ->where('is_active', true)
+            ->whereNotNull('lab_id')
+            ->where('lab_id', $loan->lab_id)
+            ->with('roles.permissions')
+            ->get();
     }
 
     /**

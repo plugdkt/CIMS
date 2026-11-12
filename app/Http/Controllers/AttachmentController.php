@@ -8,7 +8,9 @@ use App\Domain\Attachments\Exceptions\InfectedFileException;
 use App\Domain\Attachments\Services\AttachmentUploadService;
 use App\Http\Requests\UploadAttachmentRequest;
 use App\Models\Attachment;
+use App\Models\AuditLog;
 use App\Models\Item;
+use App\Models\LoanIncident;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +41,22 @@ final class AttachmentController extends Controller
     /** SEC-AZ-06: authorization checked here, on every request — never a direct/public URL. */
     public function download(Attachment $attachment): StreamedResponse
     {
-        Gate::authorize('view', $attachment->owner);
+        $owner = $attachment->owner;
+        Gate::authorize('view', $owner);
+
+        // ITM-2610-051: a file of a loan incident is audited here exactly like on its own route
+        // (LoanIncidentController::file), so this generic URL is not a way to read one without a trace.
+        if ($owner instanceof LoanIncident) {
+            $user = auth()->user();
+            AuditLog::record(
+                action: 'LOAN_INCIDENT_FILE_DOWNLOAD',
+                userId: $user?->id,
+                username: $user?->username,
+                entityType: LoanIncident::class,
+                entityId: $owner->id,
+                newValue: ['attachment' => $attachment->ulid, 'doc_type' => $attachment->doc_type, 'via' => 'attachments.download'],
+            );
+        }
 
         return Storage::disk('attachments')->download($attachment->stored_name, $attachment->original_name);
     }

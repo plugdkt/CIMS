@@ -274,6 +274,18 @@ tests (happy path + error path), `php artisan test` green, `phpstan analyse --le
   adjust/retire — a scientist of the branch (`loan.asset_approve`) is enough, so the old ">= 2 managers per branch"
   rule is gone (approvals.md K, 2026-11-04; ADMIN can no longer stand in as approver) -> `loans:verify`
   runs hourly from the scheduler.
+- **`tests/Feature/LoansConcurrency/LoanConcurrencyTest` (ITM-2610-051 step 3) does NOT use `RefreshDatabase` and leaves
+  permanent rows in `cmis_testing`**, for the same reason as T-026's `ConcurrencyTest` above: it races real separate
+  processes (`tests/Concurrency/bin/loan_action_once.php`), which need committed fixtures, and `loan_movements` is
+  append-only (no DELETE grant, triggers), so its rows and the loans / assets / users they reference stay. Any test that
+  queries `LoanMovement` / `LoanAsset` / `Loan` / `AuditLog` must scope to its own fixtures and never assume an empty table.
+- **ITM-2610-051 step 4 (`2026_11_11_000002`) added `loan_incidents` (ordinary table, full DML; re-run the grants script
+  after migrating, no edit) and the value `LOAN_DOC` in the ENUM `attachments.doc_type` — DDL on an existing table with
+  real rows: back up before deploying.** A resolved incident is final (model guard + trigger `trg_loan_incidents_final`).
+  The result of an incident is recorded by a holder of `loan.asset_approve` of the loan's branch who is not the recorder,
+  the borrower or the on-behalf creator (never an ADMIN-only account); the seeded `loan.incident_resolve` is not the gate.
+  The borrower never opens an incident's page or files (`LoanIncidentPolicy::view`, also used by the generic attachment
+  download).
 - **T-027 only restricts `cmis_app`'s own grants (SEC-DB-02's literal ask); it does NOT split the app
   into three separate DB users** (`cmis_app`/`cmis_ledger`/`cmis_report`) the way SEC-DB-01's broader
   wording suggests. That would need the app to manage multiple DB connections for what's currently one

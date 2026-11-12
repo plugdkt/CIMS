@@ -45,6 +45,9 @@
                 </select>
             </div>
         @endif
+        <label class="flex items-center gap-2 text-sm py-2">
+            <input type="checkbox" name="overdue" value="1" @checked(request('overdue') === '1')> {{ __('loans.overdue_only') }}
+        </label>
         <button type="submit" class="rounded-lg border border-border text-sm font-semibold px-4 py-2 hover:bg-surface-alt">{{ __('loans.btn_search') }}</button>
     </form>
 

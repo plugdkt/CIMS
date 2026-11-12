@@ -58,6 +58,9 @@ class AppServiceProvider extends ServiceProvider
         Relation::enforceMorphMap([
             'Item' => Item::class,
             'ImsLot' => \App\Models\ImsLot::class,
+            // ITM-2610-051 step 4: photos / outside letters of a loan incident (LoanIncidentPolicy::view decides
+            // who may open them through /attachments/{attachment}/download as well: never the borrower).
+            'LoanIncident' => \App\Models\LoanIncident::class,
         ]);
 
         // Bridges the seeded permission catalog (PermissionSeeder) to Laravel's Gate,

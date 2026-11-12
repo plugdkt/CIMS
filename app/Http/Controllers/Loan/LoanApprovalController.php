@@ -13,6 +13,7 @@ use App\Http\Requests\Loan\LoanListRequest;
 use App\Http\Requests\Loan\LoanManagerDecisionRequest;
 use App\Http\Requests\Loan\LoanSignedDecisionRequest;
 use App\Models\Loan;
+use App\Models\LoanDueChange;
 use App\Models\User;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -60,7 +61,19 @@ final class LoanApprovalController extends Controller
                 ->get();
         }
 
-        return view('loans.queue', ['advisorQueue' => $advisorQueue, 'managerQueue' => $managerQueue]);
+        // Step 3 (BR-L07): renewals of the branch that wait for an approver (the 2nd and later ones), loans still out.
+        $renewalQueue = collect();
+        if ($user->hasPermission('loan.approve') && $user->lab_id !== null) {
+            $renewalQueue = LoanDueChange::query()
+                ->with(['loan.borrower:id,full_name'])
+                ->where('status', 'PENDING')
+                ->whereHas('loan', fn ($q) => $q->where('lab_id', $user->lab_id)->whereIn('status', Loan::OUT))
+                ->orderBy('created_at')
+                ->limit(100)
+                ->get();
+        }
+
+        return view('loans.queue', ['advisorQueue' => $advisorQueue, 'managerQueue' => $managerQueue, 'renewalQueue' => $renewalQueue]);
     }
 
     public function advisorDecide(LoanAdvisorDecisionRequest $request, Loan $loan, LoanApprovalService $service, LoanNotifier $notifier): RedirectResponse

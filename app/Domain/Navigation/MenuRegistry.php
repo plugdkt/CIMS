@@ -278,6 +278,19 @@ final class MenuRegistry
             }
         }
 
+        // ITM-2610-051 step 3: the counter's queue of the user's own branch (same gate as the "hand-out / return" tab).
+        // Counts only, no names; shown only when there is something to do.
+        if ($section === self::LOAN && $user->can('browseDesk', Loan::class)) {
+            $toHandOut = Loan::query()->where('lab_id', $user->lab_id)->where('status', 'APPROVED')->count();
+            if ($toHandOut > 0) {
+                $badges[] = ['tone' => 'p', 'text' => (string) __('nav.badge_loan_handout', ['count' => $toHandOut])];
+            }
+            $overdue = Loan::query()->where('lab_id', $user->lab_id)->overdue()->count();
+            if ($overdue > 0) {
+                $badges[] = ['tone' => 'w', 'text' => (string) __('nav.badge_loan_overdue', ['count' => $overdue])];
+            }
+        }
+
         return $badges;
     }
 
@@ -393,6 +406,10 @@ final class MenuRegistry
         if ($user->can('browseQueue', Loan::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_loan_queue'), route('loans.queue'), ['loans.queue']);
         }
+        // Step 3: the counter of the user's own branch (queue, hand-out page, return page).
+        if ($user->can('browseDesk', Loan::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_desk'), route('loans.desk'), ['loans.desk', 'loans.handout.form', 'loans.return.form']);
+        }
         if ($user->can('browseBranch', Loan::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_loan_branch'), route('loans.branch'), ['loans.branch']);
         }
@@ -401,6 +418,10 @@ final class MenuRegistry
         }
         if ($user->can('browseRegistry', LoanAsset::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_loan_registry'), route('loans.assets.index'), ['loans.assets.*']);
+        }
+        // Step 5: the dashboard and the reports (holders of `loan.report`).
+        if ($user->can('browseReports', Loan::class)) {
+            $tabs[] = $this->tab((string) __('nav.tab_loan_reports'), route('loans.reports.index'), ['loans.reports.*']);
         }
 
         return $tabs;

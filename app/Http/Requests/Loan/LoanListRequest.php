@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Loan;
 
 use App\Models\Loan;
+use App\Models\LoanIncident;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,6 +26,8 @@ final class LoanListRequest extends FormRequest
         return match ($this->route()?->getName()) {
             'loans.queue' => $user->can('browseQueue', Loan::class),
             'loans.branch' => $user->can('browseBranch', Loan::class),
+            'loans.desk' => $user->can('browseDesk', Loan::class),
+            'loans.incidents.index' => $user->can('browseIncidents', LoanIncident::class),
             'loans.create' => $user->can('createLoan', Loan::class),
             default => $user->can('browseOwn', Loan::class),
         };
@@ -41,6 +44,8 @@ final class LoanListRequest extends FormRequest
             'item' => ['nullable', 'string', 'max:100'],
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d'],
+            // Step 3 (FR-LN-31): only loans that are out and past their due date.
+            'overdue' => ['nullable', Rule::in(['1'])],
             'lab_id' => Rule::when(
                 $this->user()?->hasRole('ADMIN') === true,
                 ['nullable', 'integer', Rule::exists('labs', 'id')],

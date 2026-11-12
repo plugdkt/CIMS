@@ -41,7 +41,8 @@ final class LoanAssetController extends Controller
             ->when($user->hasRole('ADMIN') && $request->filled('lab_id'), fn ($q) => $q->where('lab_id', (int) $request->query('lab_id')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->query('status')))
             ->when($request->filled('q'), function ($q) use ($request) {
-                $term = trim((string) $request->query('q'));
+                // `%` and `_` typed in the box are literal characters, not wildcards (same as the counter's search).
+                $term = addcslashes(trim((string) $request->query('q')), '%_\\');
                 $q->where(function ($w) use ($term) {
                     $w->where('asset_tag', 'like', "%{$term}%")
                         ->orWhereHas('item', fn ($i) => $i->where('name_th', 'like', "%{$term}%")
@@ -72,9 +73,10 @@ final class LoanAssetController extends Controller
             ->where('is_active', true)
             ->whereHas('baseUnit', fn ($u) => $u->where('dimension', 'COUNT'))
             ->where(function ($q) use ($term) {
-                $q->where('name_th', 'like', "%{$term}%")
-                    ->orWhere('name_en', 'like', "%{$term}%")
-                    ->orWhere('item_code', 'like', "%{$term}%");
+                $like = '%'.addcslashes($term, '%_\\').'%';
+                $q->where('name_th', 'like', $like)
+                    ->orWhere('name_en', 'like', $like)
+                    ->orWhere('item_code', 'like', $like);
             })
             ->orderBy('name_th')
             ->limit(30)
@@ -206,6 +208,10 @@ final class LoanAssetController extends Controller
 
         // After the movement is saved: tell the named approver (a failure here cannot undo the saved adjustment).
         $notifier->approverNamed($user, $loanAsset, $data['direction'] === 'IN' ? 'adjust_in' : 'adjust_out', (int) $data['approved_by'], (string) $data['note']);
+        // FR-LN-N9 (step 4): a count of something that was ever lent went DOWN -> every ADMIN is told.
+        if ($data['direction'] !== 'IN') {
+            $notifier->adjustedOut($loanAsset);
+        }
 
         return redirect()->route('loans.assets.show', $loanAsset)->with('status', __('loans.adjusted'));
     }

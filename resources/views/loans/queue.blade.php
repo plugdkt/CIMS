@@ -51,4 +51,37 @@
             </div>
         @endif
     @endforeach
+
+    {{-- Step 3 (BR-L07): renewals of the due date that wait for an approver of the branch. --}}
+    @if (auth()->user()->hasPermission('loan.approve') && auth()->user()->lab_id !== null)
+        <h2 class="text-sm font-semibold mb-2 mt-6">{{ __('loans.queue_renew_section') }} <span class="text-ink-faint font-normal">({{ $renewalQueue->count() }})</span></h2>
+        <div class="bg-surface border border-border rounded-xl overflow-hidden">
+            <div class="overflow-x-auto" tabindex="0">
+                <table class="w-full text-sm">
+                    <thead class="bg-surface-alt text-left text-xs uppercase tracking-wide text-ink-faint">
+                        <tr>
+                            <th class="px-4 py-3 font-semibold">{{ __('loans.col_doc_no') }}</th>
+                            <th class="px-4 py-3 font-semibold">{{ __('loans.field_borrower') }}</th>
+                            <th class="px-4 py-3 font-semibold">{{ __('loans.col_due') }}</th>
+                            <th class="px-4 py-3 font-semibold">{{ __('loans.col_new_due') }}</th>
+                            <th class="px-4 py-3 font-semibold">{{ __('loans.col_requested_at') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
+                        @forelse ($renewalQueue as $change)
+                            <tr>
+                                <td class="px-4 py-3 align-top"><a href="{{ route('loans.show', $change->loan) }}" class="font-mono font-semibold text-accent hover:text-accent-strong">{{ $change->loan->doc_no }}</a></td>
+                                <td class="px-4 py-3 align-top">{{ $change->loan->borrower?->full_name }}</td>
+                                <td class="px-4 py-3 align-top">{{ $change->old_due_date->format('d/m/Y') }}</td>
+                                <td class="px-4 py-3 align-top">{{ $change->new_due_date->format('d/m/Y') }}</td>
+                                <td class="px-4 py-3 align-top">{{ $change->created_at->format('d/m/Y H:i') }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5" class="px-4 py-8 text-center text-ink-muted">{{ __('loans.queue_empty') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
 </x-layout>
