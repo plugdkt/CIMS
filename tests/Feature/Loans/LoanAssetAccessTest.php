@@ -107,7 +107,8 @@ test('a manager with no branch, and everyone without loan.asset_manage, cannot e
 
     $this->actingAs($noBranch)->get(route('loans.assets.index'))->assertForbidden();
     $this->actingAs($noBranch)->get(route('loans.assets.create'))->assertForbidden();
-    $this->actingAs($noBranch)->get(route('loans.available'))->assertForbidden();
+    // ITM-2610-070: the "available" page is open to every borrower now; with no branch they go to "no branch yet".
+    $this->actingAs($noBranch)->get(route('loans.available'))->assertRedirect(route('loans.pending-lab'));
     $this->actingAs($noBranch)->get(route('loans.assets.show', $asset))->assertForbidden();
     $this->actingAs($noBranch)->post(route('loans.assets.store'), ['item_id' => makeCountItem()->id, 'tracking_mode' => 'POOL', 'qty' => 1])->assertForbidden();
 
@@ -211,7 +212,7 @@ test('verify from the page is for ADMIN (loan.verify) only, and reports an intac
 
 // --- the menu ------------------------------------------------------------------------------------------------
 
-test('the loan card has exactly the step-1 tabs the user may open: dispenser = available; manager and ADMIN = available + register; others = none', function () {
+test('the loan card has exactly the step-1 tabs the user may open: borrowers and dispenser = available; manager and ADMIN = available + register; no loan permission = none', function () {
     // Step 2 added the borrower / approver tabs to the same card (see LoanStep2AccessTest); this test pins the step-1 pair only.
     $stepOneTabs = [__('nav.tab_loan_available'), __('nav.tab_loan_registry')];
     $registry = fn ($user) => array_values(array_intersect(array_column(app(MenuRegistry::class)->tabsFor($user, MenuRegistry::LOAN), 'label'), $stepOneTabs));
@@ -220,12 +221,14 @@ test('the loan card has exactly the step-1 tabs the user may open: dispenser = a
     foreach (['lab_manager', 'auditor', 'admin'] as $kind) {
         expect($registry(navUser($kind)))->toBe([__('nav.tab_loan_available'), __('nav.tab_loan_registry')], $kind);
     }
-    foreach (['student', 'staff', 'advisor', 'nocard'] as $kind) {
-        expect($registry(navUser($kind)))->toBe([], $kind);
+    // ITM-2610-070 (CEO 2026-11-13): every borrower (`loan.create`) gets "available" to fill the borrowing cart.
+    foreach (['student', 'staff', 'advisor'] as $kind) {
+        expect($registry(navUser($kind)))->toBe([__('nav.tab_loan_available')], $kind);
     }
-    // No branch: a dispenser or manager without one has no tab (ADMIN needs none).
-    expect($registry(navUser('scientist', ['lab_id' => null])))->toBe([]);
-    expect($registry(navUser('auditor', ['lab_id' => null])))->toBe([]);
+    expect($registry(navUser('nocard')))->toBe([]);
+    // No branch: the tab stays (like "request"); the page then sends them to "no branch yet". The register needs a branch.
+    expect($registry(navUser('scientist', ['lab_id' => null])))->toBe([__('nav.tab_loan_available')]);
+    expect($registry(navUser('auditor', ['lab_id' => null])))->toBe([__('nav.tab_loan_available')]);
     expect($registry(navUser('admin', ['lab_id' => null])))->toBe([__('nav.tab_loan_available'), __('nav.tab_loan_registry')]);
 });
 

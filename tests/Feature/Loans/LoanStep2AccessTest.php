@@ -123,10 +123,11 @@ test('the loan card has exactly the tabs the user may open (steps 2-5): borrower
     $tabs = fn ($user) => array_column(app(MenuRegistry::class)->tabsFor($user, MenuRegistry::LOAN), 'label');
     $l = fn (string ...$keys) => array_map(fn (string $k) => (string) __('nav.tab_loan_'.$k), $keys);
 
+    // ITM-2610-070 (CEO 2026-11-13): borrowers get "available" too, to fill the borrowing cart.
     foreach (['student', 'staff'] as $kind) {
-        expect($tabs(navUser($kind)))->toBe($l('mine', 'new'), $kind);
+        expect($tabs(navUser($kind)))->toBe($l('mine', 'new', 'available'), $kind);
     }
-    expect($tabs(navUser('advisor')))->toBe($l('mine', 'new', 'queue'));
+    expect($tabs(navUser('advisor')))->toBe($l('mine', 'new', 'queue', 'available'));
     // Step 3: "hand-out / return" (`desk`) is for holders of loan.view_queue who have a branch: the scientists and the
     // warehouse managers (who work the counter), and an ADMIN who has a branch (who only reads it: the page shows a
     // "view only" note and no buttons, and LoanAccess::isHandlerFor refuses an ADMIN-only account).
@@ -144,10 +145,10 @@ test('the loan card has exactly the tabs the user may open (steps 2-5): borrower
 
     // No branch: borrowing needs one, so the approver / counter / branch tabs go; ADMIN needs none for the lists
     // (but gets no counter tab without a branch: the counter is always one branch's).
-    expect($tabs(navUser('scientist', ['lab_id' => null])))->toBe($l('mine', 'new'));
+    expect($tabs(navUser('scientist', ['lab_id' => null])))->toBe($l('mine', 'new', 'available'));
     // The reports tab stays for a manager with no branch: LoanPolicy::browseReports needs only `loan.report`; the page
     // then shows empty figures (LoanReportScope), which LoanReportTest pins.
-    expect($tabs(navUser('auditor', ['lab_id' => null])))->toBe($l('mine', 'new', 'reports'));
+    expect($tabs(navUser('auditor', ['lab_id' => null])))->toBe($l('mine', 'new', 'available', 'reports'));
     expect($tabs(navUser('admin', ['lab_id' => null])))->toBe($l('mine', 'new', 'branch', 'available', 'registry', 'reports'));
     // Nobody else holds `loan.report`.
     foreach (['student', 'staff', 'advisor', 'scientist'] as $kind) {

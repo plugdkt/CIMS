@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Navigation;
 
+use App\Domain\Loan\LoanCart;
 use App\Domain\Reporting\Services\DashboardService;
 use App\Domain\Shared\ItemType;
 use App\Models\Container;
@@ -278,6 +279,14 @@ final class MenuRegistry
             }
         }
 
+        // ITM-2610-070: the borrowing cart's size, like the shop's basket badge (same label).
+        if ($section === self::LOAN && $user->can('createLoan', Loan::class)) {
+            $cart = LoanCart::count($user);
+            if ($cart > 0) {
+                $badges[] = ['tone' => 'p', 'text' => (string) __('nav.badge_cart', ['count' => $cart])];
+            }
+        }
+
         // ITM-2610-051 step 3: the counter's queue of the user's own branch (same gate as the "hand-out / return" tab).
         // Counts only, no names; shown only when there is something to do.
         if ($section === self::LOAN && $user->can('browseDesk', Loan::class)) {
@@ -414,7 +423,8 @@ final class MenuRegistry
             $tabs[] = $this->tab((string) __('nav.tab_loan_branch'), route('loans.branch'), ['loans.branch']);
         }
         if ($user->can('browseAvailable', LoanAsset::class)) {
-            $tabs[] = $this->tab((string) __('nav.tab_loan_available'), route('loans.available'), ['loans.available']);
+            // ITM-2610-070: the borrowing cart is filled from this page (its button sits there), so it opens under this tab.
+            $tabs[] = $this->tab((string) __('nav.tab_loan_available'), route('loans.available'), ['loans.available', 'loans.cart']);
         }
         if ($user->can('browseRegistry', LoanAsset::class)) {
             $tabs[] = $this->tab((string) __('nav.tab_loan_registry'), route('loans.assets.index'), ['loans.assets.*']);

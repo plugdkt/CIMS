@@ -53,6 +53,13 @@
         </div>
     @endif
 
+    @if ($fromCart)
+        <div class="mb-4 rounded-lg border border-border bg-surface px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2">
+            <span>{{ __('loans.cart.form_note') }}</span>
+            <a href="{{ route('loans.cart') }}" class="text-sm font-semibold text-accent hover:text-accent-strong">{{ __('loans.cart.back_to_cart') }}</a>
+        </div>
+    @endif
+
     <div class="mb-5 rounded-xl border border-border bg-surface-alt px-4 py-3 text-sm">
         <div><span class="text-ink-faint">{{ __('loans.field_borrower') }}:</span> <span class="font-medium">{{ $context->user->full_name }}</span>
             @if ($onBehalf) <span class="text-xs text-ink-faint">({{ __('loans.on_behalf_badge') }})</span> @endif
@@ -65,6 +72,7 @@
 
     <form method="GET" action="{{ $editing ? route('loans.edit', $loan) : route('loans.create') }}" class="flex flex-wrap items-end gap-3 mb-4">
         @if ($borrowerParam) <input type="hidden" name="borrower" value="{{ $borrowerParam }}"> @endif
+        @if ($fromCart) <input type="hidden" name="cart" value="1"> @endif
         <div>
             <label for="q" class="block text-xs text-ink-faint mb-0.5">{{ __('loans.filter_search') }}</label>
             <input id="q" name="q" type="search" value="{{ $term }}" class="w-full sm:w-72 rounded-lg border border-border px-3 py-2 text-sm">
@@ -77,6 +85,8 @@
         @csrf
         @if ($editing) @method('PUT') @endif
         @if ($borrowerParam && ! $editing) <input type="hidden" name="borrower" value="{{ $borrowerParam }}"> @endif
+        {{-- ITM-2610-070: opened from the borrowing cart; once this request for oneself is saved the cart is emptied. --}}
+        @if ($fromCart) <input type="hidden" name="from_cart" value="1"> @endif
 
         {{-- BR-L08 (step 3): a borrower with long-overdue loans gets no new request, unless an approver of the branch
              who is typing the request in for them allows this one and says why (LoanService decides; audited). --}}

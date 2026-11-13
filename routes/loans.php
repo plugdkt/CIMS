@@ -5,6 +5,7 @@ use App\Http\Controllers\Loan\LoanApprovalController;
 use App\Http\Controllers\Loan\LoanAssetController;
 use App\Http\Controllers\Loan\LoanAvailableController;
 use App\Http\Controllers\Loan\LoanBranchController;
+use App\Http\Controllers\Loan\LoanCartController;
 use App\Http\Controllers\Loan\LoanController;
 use App\Http\Controllers\Loan\LoanCounterController;
 use App\Http\Controllers\Loan\LoanIncidentController;
@@ -51,6 +52,12 @@ Route::middleware('auth')->prefix('loans')->name('loans.')->group(function () {
     Route::get('/create', [LoanController::class, 'create'])->name('create');
     Route::post('/', [LoanController::class, 'store'])->name('store');
     Route::get('/pending-lab', [LoanController::class, 'pendingLab'])->name('pending-lab');
+    // ITM-2610-070: the borrowing cart (session only, borrowing for oneself). A line is addressed by the asset's ULID
+    // as a plain string (not bound), so a line whose asset was retired since can still be changed or removed.
+    Route::get('/cart', [LoanCartController::class, 'index'])->name('cart');
+    Route::post('/cart', [LoanCartController::class, 'add'])->name('cart.add');
+    Route::put('/cart/{asset}', [LoanCartController::class, 'update'])->where('asset', '[0-9A-Za-z]{26}')->name('cart.update');
+    Route::delete('/cart/{asset}', [LoanCartController::class, 'remove'])->where('asset', '[0-9A-Za-z]{26}')->name('cart.remove');
     Route::get('/queue', [LoanApprovalController::class, 'queue'])->name('queue');
     Route::get('/branch', [LoanBranchController::class, 'index'])->name('branch');
     // Step 3 (FR-LN-17): the counter's queue of the user's own branch.

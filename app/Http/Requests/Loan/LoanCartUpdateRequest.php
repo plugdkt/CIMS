@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests\Loan;
+
+use App\Models\Loan;
+use Illuminate\Foundation\Http\FormRequest;
+
+/** ITM-2610-070: change the quantity of one line of the borrowing cart (whole number, checked again by LoanService). */
+final class LoanCartUpdateRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return $this->user()?->can('createLoan', Loan::class) === true;
+    }
+
+    /** @return array<string, mixed> */
+    public function rules(): array
+    {
+        return [
+            'qty' => ['required', 'integer', 'min:1', 'max:999999999'],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'qty.required' => __('loans.error.qty_whole'),
+            'qty.integer' => __('loans.error.qty_whole'),
+            'qty.min' => __('loans.error.qty_whole'),
+            'qty.max' => __('loans.error.qty_whole'),
+        ];
+    }
+}

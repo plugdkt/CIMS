@@ -94,6 +94,40 @@ final class LoanService
     }
 
     /**
+     * ITM-2610-070 (borrowing cart): may these lines go into the cart of `$borrower` (borrowing for themself)? The
+     * same checks createDraft() makes on its lines (whole quantity, max lines, asset ACTIVE and of the borrower's own
+     * branch, UNIT = 1) plus the availability check submit() makes (not more than available right now). Writes
+     * nothing and reserves nothing: the cart is only a wish list, every check runs again at store / submit.
+     *
+     * @param  array<string, string|int|null>  $lines  asset ulid => whole quantity
+     * @return array<string, LoanAsset>  keyed by ulid
+     *
+     * @throws LoanDomainException
+     */
+    public function assertCartLines(BorrowerContext $borrower, array $lines): array
+    {
+        if ($borrower->labId === null) {
+            throw new LoanDomainException((string) __('loans.error.borrower_no_lab'));
+        }
+
+        $wanted = $this->parseLines($lines);
+        $assets = $this->loadAssets($wanted, $borrower->labId);
+        foreach ($wanted as $ulid => $qty) {
+            if (bccomp($qty, $assets[$ulid]->available(), 6) > 0) {
+                throw new LoanDomainException((string) __('loans.error.not_enough_available', ['item' => (string) $assets[$ulid]->item?->name_th]));
+            }
+        }
+
+        return $assets;
+    }
+
+    /** The most lines one loan document may hold (`loans.max_lines`); the borrowing cart holds no more than that either. */
+    public function maxLines(): int
+    {
+        return (int) config('loans.max_lines', 20);
+    }
+
+    /**
      * Edits a DRAFT (header and lines). Borrower, branch, status and advisor never change here.
      *
      * @param  array{purpose_type: string, purpose_detail?: string|null, loan_date: string, due_date: string, remark?: string|null}  $data
@@ -384,8 +418,8 @@ final class LoanService
         if ($wanted === []) {
             throw new LoanDomainException((string) __('loans.error.no_lines'));
         }
-        if (count($wanted) > (int) config('loans.max_lines', 20)) {
-            throw new LoanDomainException((string) __('loans.error.too_many_lines', ['max' => (int) config('loans.max_lines', 20)]));
+        if (count($wanted) > $this->maxLines()) {
+            throw new LoanDomainException((string) __('loans.error.too_many_lines', ['max' => $this->maxLines()]));
         }
 
         return $wanted;

@@ -53,6 +53,8 @@ final class LoanStoreRequest extends FormRequest
             // Ignored unless the borrower is blocked AND the person typing is such an approver (LoanService decides).
             'overdue_override_reason' => ['nullable', 'string', 'max:500'],
             'borrower' => ['nullable', 'string', 'size:26', Rule::exists('users', 'ulid')],
+            // ITM-2610-070: the form was opened from the borrowing cart; a saved request for oneself empties the cart.
+            'from_cart' => ['nullable', Rule::in(['1'])],
             'qty' => ['required', 'array', 'max:500', function (string $attribute, mixed $value, \Closure $fail): void {
                 foreach (array_keys((array) $value) as $key) {
                     if (preg_match('/^[0-9A-Za-z]{26}$/', (string) $key) !== 1) {

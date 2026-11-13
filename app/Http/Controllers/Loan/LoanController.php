@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Loan;
 
 use App\Domain\Loan\Exceptions\LoanDomainException;
+use App\Domain\Loan\LoanCart;
 use App\Domain\Loan\Services\BorrowerContext;
 use App\Domain\Loan\Services\BorrowerResolver;
 use App\Domain\Loan\Services\LoanAccess;
@@ -78,7 +79,10 @@ final class LoanController extends Controller
             return $context;
         }
 
-        return view('loans.form', $this->formData($user, $context['context'], null, $request, $context['error'], $service));
+        // ITM-2610-070: "ดำเนินการต่อ" from the borrowing cart (`?cart=1`) fills the lines in, for oneself only.
+        $cartLines = $request->query('cart') === '1' && $context['context']->user->id === $user->id ? LoanCart::lines($user) : [];
+
+        return view('loans.form', $this->formData($user, $context['context'], null, $request, $context['error'], $service, $cartLines));
     }
 
     public function edit(Loan $loan, LoanListRequest $request, BorrowerResolver $resolver, LoanService $service): View|RedirectResponse
@@ -111,6 +115,10 @@ final class LoanController extends Controller
             }
 
             $loan = $service->createDraft($user, $context, $data, $data['qty'], $data['overdue_override_reason'] ?? null);
+            // ITM-2610-070: a request for oneself made from the borrowing cart empties the cart once it is saved.
+            if ($onBehalf === null && $request->input('from_cart') === '1') {
+                LoanCart::forget($user);
+            }
         } catch (LoanDomainException $e) {
             return back()->withInput()->withErrors(['loan' => $e->getMessage()]);
         }
@@ -271,9 +279,10 @@ final class LoanController extends Controller
     }
 
     /**
+     * @param  array<string, int>  $cartLines  ITM-2610-070: lines of the borrowing cart to fill in (new request for oneself only)
      * @return array<string, mixed>
      */
-    private function formData(User $viewer, BorrowerContext $context, ?Loan $loan, LoanListRequest $request, ?string $error, LoanService $service): array
+    private function formData(User $viewer, BorrowerContext $context, ?Loan $loan, LoanListRequest $request, ?string $error, LoanService $service, array $cartLines = []): array
     {
         $term = trim((string) $request->query('q', ''));
 
@@ -316,6 +325,23 @@ final class LoanController extends Controller
             }
         }
 
+        // ITM-2610-070: the cart's lines, filled in. An asset the search left out is still listed so its line is sent;
+        // one that is no longer ACTIVE or not of the borrower's branch is not offered (LoanService refuses it anyway).
+        $fromCart = $loan === null && $cartLines !== [] && $context->labId !== null;
+        if ($fromCart) {
+            $cartAssets = LoanAsset::with(['item.baseUnit', 'location'])
+                ->whereIn('ulid', array_keys($cartLines))
+                ->where('status', 'ACTIVE')
+                ->where('lab_id', $context->labId)
+                ->get();
+            foreach ($cartAssets as $cartAsset) {
+                $existing[$cartAsset->ulid] = (string) $cartLines[$cartAsset->ulid];
+                if (! $assets->contains('id', $cartAsset->id)) {
+                    $assets->push($cartAsset);
+                }
+            }
+        }
+
         $candidates = collect();
         $bq = trim((string) $request->query('bq', ''));
         if ($loan === null && $bq !== '' && $viewer->can('createOnBehalf', Loan::class)) {
@@ -347,6 +373,7 @@ final class LoanController extends Controller
             'canOnBehalf' => $loan === null && $viewer->can('createOnBehalf', Loan::class),
             'onBehalf' => $context->user->id !== $viewer->id || ($loan !== null && $loan->isOnBehalf()),
             'error' => $error,
+            'fromCart' => $fromCart,
             // BR-L08 (step 3): the borrower's long-overdue loans (not empty = blocked) and whether the person at the
             // keyboard may allow this one request (an approver of the borrower's branch, never the borrower).
             'blockingLoans' => $service->blockingOverdueLoans($context->user->id),

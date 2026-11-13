@@ -5,6 +5,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### ITM-2610-070 — borrowing cart (2026-11-13). No migration, no grants change.
+
+- **Added (loans):** a session cart per user (`loans.cart.{userId}`), like the sub-store shop cart. "Add to cart" on the available-to-lend page; `/loans/cart` to change or remove lines; "ดำเนินการต่อ" opens the request form with the cart's lines (`?cart=1`); the cart is emptied once the draft is saved. All LoanService checks (branch, ACTIVE, availability, BR-L08) still run on save and submit. Counter staff borrowing on behalf of someone, and DRAFT editing, keep the ordinary form.
+- **Changed (access, CEO decision):** holders of `loan.create` (student, staff, advisor) may open the available-to-lend page, own branch only (the server ignores `lab_id` for non-ADMIN); no price is shown. Users without a branch are sent to the pending-lab page instead of 403.
+- **Tests:** new `LoanCartTest` (20); `LoanAssetAccessTest`, `LoanStep2AccessTest`, `RouteAccessSmokeTest` updated for the new tab and access.
+
 <!-- BEGIN ITM-2610-051 QA fixes : this block belongs to the QA-fix round of ITM-2610-051 steps 3-5 only -->
 ### ITM-2610-051 steps 3-5 — fixes from the QA review, before commit (2026-11-12). Code by dev-fullstack; NOT committed. No migration, no grants change. The full suite is to be re-run by the secretary after this round.
 

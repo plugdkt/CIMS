@@ -46,6 +46,8 @@ final class LoanListRequest extends FormRequest
             'to' => ['nullable', 'date_format:Y-m-d'],
             // Step 3 (FR-LN-31): only loans that are out and past their due date.
             'overdue' => ['nullable', Rule::in(['1'])],
+            // ITM-2610-070: open the request form with the borrowing cart's lines filled in.
+            'cart' => ['nullable', Rule::in(['1'])],
             'lab_id' => Rule::when(
                 $this->user()?->hasRole('ADMIN') === true,
                 ['nullable', 'integer', Rule::exists('labs', 'id')],

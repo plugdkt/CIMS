@@ -63,9 +63,18 @@ final class LoanAssetPolicy extends Policy
         return $this->editAsset($user, $asset);
     }
 
-    /** The "available to lend" page: counter staff, managers and ADMIN. No prices, own branch only (ADMIN: any). */
+    /**
+     * The "available to lend" page: counter staff, managers and ADMIN, and (ITM-2610-070, CEO 2026-11-13 "เปิดให้ผู้ยืม
+     * เห็น") every borrower (`loan.create`), so they can fill the borrowing cart. No prices; own branch only (ADMIN:
+     * any), enforced by LoanAvailableController's query. A borrower with no branch passes here and is sent to the
+     * "no branch yet" page by the controller, like the cart.
+     */
     public function browseAvailable(User $user): bool
     {
+        if ($this->hasPermission($user, 'loan.create')) {
+            return true;
+        }
+
         return ($this->hasPermission($user, 'loan.view_queue') || $this->hasPermission($user, 'loan.asset_manage'))
             && ($user->hasRole('ADMIN') || $user->lab_id !== null);
     }
